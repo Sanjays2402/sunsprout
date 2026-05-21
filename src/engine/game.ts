@@ -281,6 +281,7 @@ export class Game {
           const outcome = this.cookingMenu.confirm(this.world.player);
           if (outcome.kind === 'cooked') {
             this.setToast(`Cooked ${outcome.name}!`);
+            checkQuests(this.world.player, { kind: 'cook', dishKey: outcome.recipe });
           } else if (outcome.kind === 'missing') {
             const recipe = RECIPES[outcome.recipe];
             const need = recipe.ingredients

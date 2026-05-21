@@ -8,7 +8,8 @@ import { addItem } from './economy';
 export type QuestEvent =
   | { kind: 'plant'; cropKey: string }
   | { kind: 'harvest'; cropKey: string }
-  | { kind: 'talk'; npcId: string };
+  | { kind: 'talk'; npcId: string }
+  | { kind: 'cook'; dishKey: string };
 
 export interface QuestReward {
   gold?: number;
@@ -63,6 +64,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 100, cosmetic: 'sunhat' },
       complete: false,
     },
+    {
+      id: 'first-recipe',
+      name: 'First Recipe',
+      description: 'Cook your first dish at the inn.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 40, items: { wheat: 2 } },
+      complete: false,
+    },
   ];
 }
 
@@ -90,6 +101,8 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
         q.seen.push(event.npcId);
         advanced = true;
       }
+    } else if (event.kind === 'cook' && q.id === 'first-recipe') {
+      advanced = true;
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);

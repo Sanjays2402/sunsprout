@@ -4,16 +4,16 @@
 
 ## STATUS
 
-**STATUS:** v0.2.0 FISHING POND COMPLETE — rod state machine + F-key wiring + timing-bar minigame all live.
+**STATUS:** v0.3.0 COOKING POT COMPLETE — recipe catalog + inn sell loop + cooking menu + First Recipe quest all live.
 
 Active dev branch: `main`
-Latest tag: `v0.2.0`
+Latest tag: `v0.3.0`
 
 ## ROADMAP
 
 - [x] **v0.1.0 — First Sprout** — engine + gameplay + tests + deploy workflow
 - [x] **v0.2.0 — Fishing Pond** — rod + cast + timing minigame at the pond Finn fishes from
-- [ ] **v0.3.0 — Cooking Pot** *(PROPOSED)* — turn harvest into stew at the inn for bigger gold
+- [x] **v0.3.0 — Cooking Pot** — recipes + cook() + inn menu + sell-dishes + quest hook
 - [ ] **v0.4.0 — Mining Caves** — hidden cave entrance + pickaxe + gem economy
 - [ ] **v0.5.0 — Marriage Candidates** — each NPC gets a heart meter + gift preferences
 - [ ] **v0.6.0 — Multiplayer Farms** — WebSocket co-op
