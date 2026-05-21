@@ -183,3 +183,26 @@ export class Rod {
 /** Re-export FISH so consumers only import one module. */
 export { FISH };
 export type { FishKey };
+
+// ---------------------------------------------------------------------
+// World coupling helpers
+// ---------------------------------------------------------------------
+
+/**
+ * Minimal structural type for the world bits this module touches. Kept
+ * here (instead of importing `World`) so `fishing.ts` stays decoupled
+ * from world.ts and remains trivially unit-testable with a stub.
+ */
+export interface WaterProbe {
+  inBounds(tx: number, ty: number): boolean;
+  getTile(tx: number, ty: number): { type: string };
+}
+
+/**
+ * True iff the tile at (tx,ty) is in-bounds and made of water — i.e. a
+ * legal target for a fishing cast. Used by the input layer to decide
+ * whether pressing `F` while facing this tile should arm the rod.
+ */
+export function canCastInto(w: WaterProbe, tx: number, ty: number): boolean {
+  return w.inBounds(tx, ty) && w.getTile(tx, ty).type === 'water';
+}

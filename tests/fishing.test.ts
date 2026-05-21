@@ -1,6 +1,6 @@
 // Fishing rod state-machine tests.
 import { describe, it, expect } from 'vitest';
-import { Rod, FISHING } from '../src/game/fishing';
+import { Rod, FISHING, canCastInto } from '../src/game/fishing';
 
 describe('fishing rod', () => {
   it('starts idle and is not busy', () => {
@@ -85,5 +85,33 @@ describe('fishing rod', () => {
     rod.cancel();
     expect(rod.state).toBe('idle');
     expect(rod.hookedFish).toBeNull();
+  });
+});
+
+describe('canCastInto', () => {
+  // Tiny stub mimicking the world's tile probe contract.
+  const probe = {
+    inBounds: (tx: number, ty: number) =>
+      tx >= 0 && ty >= 0 && tx < 3 && ty < 3,
+    getTile: (tx: number, ty: number) =>
+      tx === 1 && ty === 1 ? { type: 'water' } : { type: 'grass' },
+  };
+
+  it('accepts an in-bounds water tile', () => {
+    expect(canCastInto(probe, 1, 1)).toBe(true);
+  });
+
+  it('rejects non-water tiles', () => {
+    expect(canCastInto(probe, 0, 0)).toBe(false);
+    expect(canCastInto(probe, 2, 2)).toBe(false);
+  });
+
+  it('rejects out-of-bounds tiles even if the stub would return water', () => {
+    const alwaysWater = {
+      inBounds: probe.inBounds,
+      getTile: () => ({ type: 'water' }),
+    };
+    expect(canCastInto(alwaysWater, -1, 1)).toBe(false);
+    expect(canCastInto(alwaysWater, 99, 99)).toBe(false);
   });
 });

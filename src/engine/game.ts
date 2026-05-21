@@ -30,6 +30,7 @@ import { sellAllHarvest } from '../game/economy';
 import { checkQuests, startingQuests } from '../game/quests';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
+import { Rod, FISH, canCastInto } from '../game/fishing';
 
 const FIXED_STEP_MS = 16;
 /** Cap the accumulator so a long tab-switch doesn't trigger a spiral of death. */
@@ -43,6 +44,8 @@ export class Game {
   public renderer: Renderer;
   public time: TimeOfDay;
   public dialogue: DialogueBox;
+  /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
+  public rod: Rod = new Rod();
 
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
@@ -170,6 +173,24 @@ export class Game {
     this.dialogue.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
+    // Fishing rod state machine ticks every frame so bite/escape fire even
+    // if the player isn't pressing anything. Auto-toast escape events so
+    // they don't feel silent.
+    const rodBefore = this.rod.state;
+    if (this.rod.tick(dtMs)) {
+      if (rodBefore === 'biting' && this.rod.state === 'idle') {
+        this.setToast('The fish got away…');
+      } else if (this.rod.state === 'biting') {
+        this.setToast('A bite! Press F to reel!');
+      } else if (rodBefore === 'reeling' && this.rod.state === 'idle' && this.rod.lastCatch) {
+        const fishKey = this.rod.lastCatch;
+        const fish = FISH[fishKey];
+        const p2 = this.world.player;
+        p2.inventory[`fish-${fishKey}`] = (p2.inventory[`fish-${fishKey}`] ?? 0) + 1;
+        this.setToast(`Caught a ${fish.name}!`);
+      }
+    }
+
     // Resolve player movement only when no dialogue is up.
     const dir = this.dialogue.isVisible() ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
@@ -198,6 +219,24 @@ export class Game {
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
+      // F: fishing — reel during a bite, otherwise try to cast into water.
+      if (this.input.justPressed.has('f')) {
+        if (this.rod.state === 'biting') {
+          this.rod.reel();
+        } else if (this.rod.state === 'idle') {
+          if (canCastInto(this.world, front.tx, front.ty)) {
+            if (this.rod.cast()) {
+              this.setToast('Cast! Wait for a bite…');
+            }
+          } else {
+            this.setToast('Stand facing water to cast.');
+          }
+        } else {
+          // Mid-cast / waiting / reeling — let F cancel cleanly.
+          this.rod.cancel();
+          this.setToast('Reeled in early.');
+        }
+      }
       if (this.input.justPressed.has('t')) {
         if (till(this.world, front.tx, front.ty)) {
           this.setToast('Tilled the soil.');
