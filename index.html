@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🌱 Sunsprout</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        background: radial-gradient(circle at center, #2a1f3d 0%, #0e0a1c 100%);
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        color: #f5e9d4;
+        overflow: hidden;
+      }
+      body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      canvas#game {
+        background: #1a1426;
+        border: 2px solid #4a3b6e;
+        border-radius: 8px;
+        box-shadow: 0 12px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.05) inset;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+        max-width: 100%;
+        max-height: 100%;
+      }
+      #boot {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        opacity: 0.5;
+        letter-spacing: 0.08em;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="game" width="960" height="540"></canvas>
+    <div id="boot">sunsprout — wasd to walk · e to interact · 1-4 to plant · t to till</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
