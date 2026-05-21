@@ -10,6 +10,7 @@ import {
   rawSellValue,
   RECIPES,
   RECIPE_KEYS,
+  sellAllDishes,
 } from '../src/game/cooking';
 
 function freshPlayer() {
@@ -98,5 +99,29 @@ describe('cooking', () => {
       'tomato_harvest',
       'wheat_harvest',
     ]);
+  });
+
+  it('sellAllDishes zeros every dish and pays the catalog total', () => {
+    const p = freshPlayer();
+    p.gold = 10;
+    p.inventory[dishInventoryKey('hearty-stew')] = 2; // 2 * 50
+    p.inventory[dishInventoryKey('pumpkin-soup')] = 1; // 1 * 110
+    p.inventory[dishInventoryKey('fish-chowder')] = 3; // 3 * 25
+    // A non-dish entry that must survive untouched.
+    p.inventory.wheat_harvest = 4;
+    const earned = sellAllDishes(p);
+    expect(earned).toBe(2 * 50 + 1 * 110 + 3 * 25);
+    expect(p.gold).toBe(10 + earned);
+    for (const key of RECIPE_KEYS) {
+      expect(p.inventory[dishInventoryKey(key)] ?? 0).toBe(0);
+    }
+    expect(p.inventory.wheat_harvest).toBe(4);
+  });
+
+  it('sellAllDishes returns 0 and does not touch gold when nothing to sell', () => {
+    const p = freshPlayer();
+    p.gold = 42;
+    expect(sellAllDishes(p)).toBe(0);
+    expect(p.gold).toBe(42);
   });
 });

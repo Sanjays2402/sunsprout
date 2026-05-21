@@ -187,3 +187,25 @@ export function dishesValue(player: Player): number {
   }
   return total;
 }
+
+/**
+ * Sells every dish in the player's inventory, mirroring `sellAllHarvest`
+ * but for the inn rather than the well. Adds the total to `player.gold`,
+ * zeros every `dish-<key>` entry, and returns the total gold earned so
+ * the caller can surface it in a toast.
+ *
+ * Returns 0 when the player has no dishes — the caller is responsible
+ * for showing a "nothing to sell" message in that case.
+ */
+export function sellAllDishes(player: Player): number {
+  let earned = 0;
+  for (const recipeKey of RECIPE_KEYS) {
+    const key = dishInventoryKey(recipeKey);
+    const have = player.inventory[key] ?? 0;
+    if (have <= 0) continue;
+    earned += have * RECIPES[recipeKey].sellPrice;
+    player.inventory[key] = 0;
+  }
+  player.gold += earned;
+  return earned;
+}

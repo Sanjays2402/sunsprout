@@ -27,6 +27,7 @@ import {
 } from '../game/npcs';
 import { CROP_KEYS } from '../game/crops';
 import { sellAllHarvest } from '../game/economy';
+import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
@@ -311,6 +312,8 @@ export class Game {
           }
         } else {
           // Standing in front of the well? Sell all harvest as quick economy.
+          // Standing in front of the inn? Sell all dishes for bigger gold.
+          let handled = false;
           for (const b of this.world.buildings) {
             if (b.kind === 'well' && front.tx === b.x && front.ty === b.y) {
               const earned = sellAllHarvest(p);
@@ -319,9 +322,27 @@ export class Game {
               } else {
                 this.setToast('Nothing to sell yet.');
               }
+              handled = true;
+              break;
+            }
+            if (
+              b.kind === 'inn' &&
+              front.tx >= b.x &&
+              front.tx < b.x + b.w &&
+              front.ty >= b.y &&
+              front.ty < b.y + b.h
+            ) {
+              const earned = sellAllDishes(p);
+              if (earned > 0) {
+                this.setToast(`Rose buys your dishes: +${earned}g`);
+              } else {
+                this.setToast('Cook a dish first — Rose pays well.');
+              }
+              handled = true;
               break;
             }
           }
+          void handled;
         }
       }
     }
