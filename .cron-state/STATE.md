@@ -4,15 +4,15 @@
 
 ## STATUS
 
-**STATUS:** v0.1.0 INITIAL BUILD COMPLETE — ready for deploy.
+**STATUS:** v0.2.0 FISHING POND COMPLETE — rod state machine + F-key wiring + timing-bar minigame all live.
 
 Active dev branch: `main`
-Latest tag: *(none yet — tag after first successful gh-pages deploy)*
+Latest tag: `v0.2.0`
 
 ## ROADMAP
 
-- [~] **v0.1.0 — First Sprout** *(IN PROGRESS — this slice: engine + gameplay + tests + deploy workflow)*
-- [ ] **v0.2.0 — Fishing Pond** *(PROPOSED)* — rod + cast + minigame at the pond Finn fishes from
+- [x] **v0.1.0 — First Sprout** — engine + gameplay + tests + deploy workflow
+- [x] **v0.2.0 — Fishing Pond** — rod + cast + timing minigame at the pond Finn fishes from
 - [ ] **v0.3.0 — Cooking Pot** *(PROPOSED)* — turn harvest into stew at the inn for bigger gold
 - [ ] **v0.4.0 — Mining Caves** — hidden cave entrance + pickaxe + gem economy
 - [ ] **v0.5.0 — Marriage Candidates** — each NPC gets a heart meter + gift preferences
