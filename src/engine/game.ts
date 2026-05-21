@@ -31,6 +31,15 @@ import { checkQuests, startingQuests } from '../game/quests';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
 import { Rod, FISH, canCastInto } from '../game/fishing';
+import {
+  cursorPosition,
+  drawFishingBar,
+  gradeBonus,
+  gradeLabel,
+  gradeReel,
+  MINIGAME,
+  type ReelGrade,
+} from '../ui/fishing-minigame';
 
 const FIXED_STEP_MS = 16;
 /** Cap the accumulator so a long tab-switch doesn't trigger a spiral of death. */
@@ -46,6 +55,10 @@ export class Game {
   public dialogue: DialogueBox;
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
+  /** Cursor position (0..1) frozen the moment the player tapped F during REELING. */
+  private reelLockedCursor: number | null = null;
+  /** Grade awarded for the locked-in press, surfaced when the catch resolves. */
+  private reelGrade: ReelGrade | null = null;
 
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
@@ -187,7 +200,18 @@ export class Game {
         const fish = FISH[fishKey];
         const p2 = this.world.player;
         p2.inventory[`fish-${fishKey}`] = (p2.inventory[`fish-${fishKey}`] ?? 0) + 1;
-        this.setToast(`Caught a ${fish.name}!`);
+        // If the player nailed the timing press, award bonus gold and a
+        // crisper label; otherwise just show a plain catch toast.
+        const grade = this.reelGrade ?? 'miss';
+        const bonus = gradeBonus(grade);
+        if (bonus > 0) {
+          p2.gold += bonus;
+          this.setToast(`${gradeLabel(grade)} ${fish.name} +${bonus}g`);
+        } else {
+          this.setToast(`Caught a ${fish.name}!`);
+        }
+        this.reelLockedCursor = null;
+        this.reelGrade = null;
       }
     }
 
@@ -219,21 +243,33 @@ export class Game {
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
-      // F: fishing — reel during a bite, otherwise try to cast into water.
+      // F: fishing — reel during a bite, lock-in timing during reel,
+      // otherwise try to cast into water.
       if (this.input.justPressed.has('f')) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
+        } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {
+          // Player tapped F during the timing minigame — lock the cursor
+          // position and grade it. We don't change rod state; the cozy
+          // reel animation finishes on its own.
+          const cursor = cursorPosition(this.rod.elapsedMs);
+          this.reelLockedCursor = cursor;
+          this.reelGrade = gradeReel(cursor);
         } else if (this.rod.state === 'idle') {
           if (canCastInto(this.world, front.tx, front.ty)) {
             if (this.rod.cast()) {
+              this.reelLockedCursor = null;
+              this.reelGrade = null;
               this.setToast('Cast! Wait for a bite…');
             }
           } else {
             this.setToast('Stand facing water to cast.');
           }
         } else {
-          // Mid-cast / waiting / reeling — let F cancel cleanly.
+          // Mid-cast / waiting — let F cancel cleanly.
           this.rod.cancel();
+          this.reelLockedCursor = null;
+          this.reelGrade = null;
           this.setToast('Reeled in early.');
         }
       }
@@ -302,6 +338,24 @@ export class Game {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
+
+    // Fishing timing bar — shows during REELING above the hotbar.
+    if (this.rod.state === 'reeling') {
+      const barW = 240;
+      const bx = Math.floor((this.canvas.width - barW) / 2);
+      const by = this.canvas.height - 110;
+      const cursor = cursorPosition(this.rod.elapsedMs);
+      drawFishingBar(
+        this.ctx,
+        bx,
+        by,
+        barW,
+        cursor,
+        MINIGAME.defaultZone,
+        this.reelLockedCursor,
+        this.reelGrade,
+      );
+    }
     // Toast
     if (this.toastFade > 0 && this.toast) {
       const alpha = Math.min(1, this.toastFade / 600);
