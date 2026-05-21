@@ -259,11 +259,11 @@ export class World {
     this.npcs.push({
       id: 'finn',
       name: 'Finn the Fisher',
-      x: 5,
-      y: 19,
+      x: 7,
+      y: 21,
       color: '#3B7AAE',
       hat: '#E0B070',
-      facing: 'left',
+      facing: 'right',
     });
     this.npcs.push({
       id: 'rose',

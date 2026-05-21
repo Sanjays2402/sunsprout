@@ -64,9 +64,9 @@ export const NPC_DEFS: Record<string, NPCDef> = {
   finn: {
     role: 'Fisher',
     schedule: [
-      { from: 6, to: 11, x: 5, y: 19 },
-      { from: 11, to: 14, x: 7, y: 20 },
-      { from: 14, to: 18, x: 5, y: 19 },
+      { from: 6, to: 11, x: 7, y: 21 },
+      { from: 11, to: 14, x: 8, y: 21 },
+      { from: 14, to: 18, x: 7, y: 21 },
       { from: 18, to: 22, x: 18, y: 8 },
     ],
     dialogue: [

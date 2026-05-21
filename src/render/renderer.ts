@@ -113,19 +113,6 @@ export class Renderer {
 
     // (7) Day/night tint overlay (low alpha).
     this.drawNightTint(timeOfDay, w, h);
-
-    // HUD-ish: tiny coords readout for debugging. Pixel font, top-left.
-    if (world.player) {
-      drawPixelText(
-        ctx,
-        `x:${world.player.x.toFixed(1)} y:${world.player.y.toFixed(1)} t:${timeOfDay
-          .toFixed(2)
-          .padStart(4, '0')}`,
-        4,
-        4,
-        '#FFF8E0',
-      );
-    }
   }
 
   // -------------------------------------------------------------------
