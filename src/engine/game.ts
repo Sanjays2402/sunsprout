@@ -31,6 +31,8 @@ import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
+import { CookingMenu } from '../ui/cooking-menu';
+import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import {
   cursorPosition,
@@ -54,6 +56,8 @@ export class Game {
   public renderer: Renderer;
   public time: TimeOfDay;
   public dialogue: DialogueBox;
+  /** Cooking menu — opened with `C` when standing near the inn. */
+  public cookingMenu: CookingMenu = new CookingMenu();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Cursor position (0..1) frozen the moment the player tapped F during REELING. */
@@ -168,6 +172,26 @@ export class Game {
     this.toastFade = 2500;
   }
 
+  /**
+   * True when the player is standing on a tile orthogonally touching the
+   * inn's footprint — i.e. close enough that opening the cooking menu
+   * feels diegetic. We check the player's nearest integer tile against
+   * every tile bordering the inn (Chebyshev radius 1 including corners).
+   */
+  private isNearInn(): boolean {
+    const p = this.world.player;
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+    const inn = this.world.buildings.find((b) => b.kind === 'inn');
+    if (!inn) return false;
+    return (
+      px >= inn.x - 1 &&
+      px <= inn.x + inn.w &&
+      py >= inn.y - 1 &&
+      py <= inn.y + inn.h
+    );
+  }
+
   private update(dtMs: number): void {
     // Advance the cozy 24-hour clock; flip crop growth on the new day.
     const tick = this.time.tick(dtMs);
@@ -185,6 +209,7 @@ export class Game {
 
     // Dialogue lockout countdown.
     this.dialogue.update(dtMs);
+    this.cookingMenu.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -216,8 +241,9 @@ export class Game {
       }
     }
 
-    // Resolve player movement only when no dialogue is up.
-    const dir = this.dialogue.isVisible() ? { dx: 0, dy: 0 } : this.input.getDirection();
+    // Resolve player movement only when no dialogue / menu is up.
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible();
+    const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
     // Hotbar select 1-5.
@@ -241,9 +267,40 @@ export class Game {
           break;
         }
       }
+    } else if (this.cookingMenu.isVisible()) {
+      // Cooking menu input — only when fully open (lockout cleared).
+      if (this.cookingMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has('c')) {
+          this.cookingMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.cookingMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.cookingMenu.selectNext();
+        } else if (i.has('enter') || i.has(' ')) {
+          const outcome = this.cookingMenu.confirm(this.world.player);
+          if (outcome.kind === 'cooked') {
+            this.setToast(`Cooked ${outcome.name}!`);
+          } else if (outcome.kind === 'missing') {
+            const recipe = RECIPES[outcome.recipe];
+            const need = recipe.ingredients
+              .map((ing) => `${ing.count}× ${ing.key.replace('_harvest', '').replace('fish-', '')}`)
+              .join(', ');
+            this.setToast(`Need ${need}.`);
+          }
+        }
+      }
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
+      // C: open the cooking menu when standing on/adjacent to the inn.
+      if (this.input.justPressed.has('c')) {
+        if (this.isNearInn()) {
+          this.cookingMenu.open();
+        } else {
+          this.setToast('Stand near the inn to cook.');
+        }
+      }
       // F: fishing — reel during a bite, lock-in timing during reel,
       // otherwise try to cast into water.
       if (this.input.justPressed.has('f')) {
@@ -359,6 +416,7 @@ export class Game {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
+    this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
