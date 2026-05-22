@@ -64,4 +64,23 @@ describe('quests', () => {
     expect(p.gold).toBe(before + 60);
     expect(p.inventory.wheat).toBe(3);
   });
+
+  it('Geologist completes after mining one of every gem kind, dedup-by-kind', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    // Same gem twice should only count once.
+    checkQuests(p, { kind: 'mine', gemKey: 'copper' });
+    checkQuests(p, { kind: 'mine', gemKey: 'copper' });
+    let q = (p.quests as Quest[]).find((qq) => qq.id === 'geologist')!;
+    expect(q.progress).toBe(1);
+    expect(q.complete).toBe(false);
+    for (const k of ['iron', 'silver', 'gold', 'ruby']) {
+      checkQuests(p, { kind: 'mine', gemKey: k });
+    }
+    q = (p.quests as Quest[]).find((qq) => qq.id === 'geologist')!;
+    expect(q.complete).toBe(true);
+    expect(q.progress).toBe(q.goal);
+    // 60 from first-gem + 250 from geologist
+    expect(p.gold).toBe(before + 60 + 250);
+  });
 });

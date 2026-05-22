@@ -4,6 +4,7 @@
 
 import type { Player } from '../world/world';
 import { addItem } from './economy';
+import { GEM_KEYS } from './gems';
 
 export type QuestEvent =
   | { kind: 'plant'; cropKey: string }
@@ -85,6 +86,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 60, items: { wheat: 3 } },
       complete: false,
     },
+    {
+      id: 'geologist',
+      name: 'Geologist',
+      description: 'Mine at least one of every gem kind.',
+      goal: GEM_KEYS.length,
+      progress: 0,
+      seen: [],
+      reward: { gold: 250, items: { pumpkin: 2 } },
+      complete: false,
+    },
   ];
 }
 
@@ -116,6 +127,11 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
       advanced = true;
     } else if (event.kind === 'mine' && q.id === 'first-gem') {
       advanced = true;
+    } else if (event.kind === 'mine' && q.id === 'geologist') {
+      if (!q.seen.includes(event.gemKey)) {
+        q.seen.push(event.gemKey);
+        advanced = true;
+      }
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);
