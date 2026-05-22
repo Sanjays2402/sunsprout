@@ -83,4 +83,21 @@ describe('quests', () => {
     // 60 from first-gem + 250 from geologist
     expect(p.gold).toBe(before + 60 + 250);
   });
+
+  it('Sweetheart quest completes when a gift event reports ≥2 hearts', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    // 1 heart gift does NOT complete it
+    let done = checkQuests(p, { kind: 'gift', npcId: 'maple', hearts: 1 });
+    expect(done).not.toContain('sweetheart');
+    let q = (p.quests as Quest[]).find((qq) => qq.id === 'sweetheart')!;
+    expect(q.complete).toBe(false);
+    // 2 hearts triggers it
+    done = checkQuests(p, { kind: 'gift', npcId: 'maple', hearts: 2 });
+    expect(done).toContain('sweetheart');
+    q = (p.quests as Quest[]).find((qq) => qq.id === 'sweetheart')!;
+    expect(q.complete).toBe(true);
+    expect(p.gold).toBe(before + 80);
+    expect(p.inventory['flower']).toBe(2);
+  });
 });

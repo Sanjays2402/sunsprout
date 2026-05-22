@@ -446,6 +446,7 @@ export class Game {
             const item = out.itemKey.replace('_harvest', '').replace('fish-', '');
             const lvl = r.leveledUp ? ` · ♥${r.hearts}!` : '';
             this.setToast(`${label} ${npc.name}: ${item}${lvl}`);
+            checkQuests(p, { kind: 'gift', npcId: npc.id, hearts: r.hearts });
           } else if (out.kind === 'already-today') {
             this.setToast(`${npc.name} already got a gift today.`);
           } else if (out.kind === 'no-items') {

@@ -11,7 +11,8 @@ export type QuestEvent =
   | { kind: 'harvest'; cropKey: string }
   | { kind: 'talk'; npcId: string }
   | { kind: 'cook'; dishKey: string }
-  | { kind: 'mine'; gemKey: string };
+  | { kind: 'mine'; gemKey: string }
+  | { kind: 'gift'; npcId: string; hearts: number };
 
 export interface QuestReward {
   gold?: number;
@@ -96,6 +97,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 250, items: { pumpkin: 2 } },
       complete: false,
     },
+    {
+      id: 'sweetheart',
+      name: 'Sweetheart',
+      description: 'Reach 2 hearts with any villager.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 80, items: { flower: 2 } },
+      complete: false,
+    },
   ];
 }
 
@@ -132,6 +143,8 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
         q.seen.push(event.gemKey);
         advanced = true;
       }
+    } else if (event.kind === 'gift' && q.id === 'sweetheart') {
+      if (event.hearts >= 2) advanced = true;
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);
