@@ -41,6 +41,7 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       "I've been keeping a list of every newcomer's favourite flower. Yours?",
       'A village is just neighbours who agreed to learn each other\'s names.',
       'Mind the loose stone by the south path. I keep meaning to fix it.',
+      'There\'s an old cave mouth in the northeast — copper in the walls, if you bring a pickaxe.',
       'Spring rain on a clay roof is the best lullaby in the world.',
       'You\'ve been farming hard. I hope the work has been kind to you too.',
     ],

@@ -60,3 +60,21 @@ export function pickGem(rng: () => number): GemKey {
 export function gemInventoryKey(key: GemKey): string {
   return `gem-${key}`;
 }
+
+/**
+ * Coarse rarity bucket derived from spawn weight. Used by tooltips and
+ * the upcoming codex / collection UI so we don't have to hand-curate a
+ * second column in the catalog. Thresholds chosen so the current table
+ * sorts cleanly into common (copper), uncommon (iron), rare (silver),
+ * epic (gold), legendary (ruby).
+ */
+export type GemRarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary';
+
+export function gemRarity(key: GemKey): GemRarity {
+  const w = GEMS[key].weight;
+  if (w >= 40) return 'common';
+  if (w >= 20) return 'uncommon';
+  if (w >= 10) return 'rare';
+  if (w >= 5)  return 'epic';
+  return 'legendary';
+}
