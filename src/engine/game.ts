@@ -29,6 +29,7 @@ import { CROP_KEYS } from '../game/crops';
 import { sellAllHarvest, sellAllGems } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
+import { creditTalk, startingHearts } from '../game/hearts';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
@@ -120,6 +121,7 @@ export class Game {
       };
       p.gold = 50;
       p.quests = startingQuests();
+      p.hearts = startingHearts();
       (p as { selectedSlot?: number }).selectedSlot = 0;
       this.camera.snapTo(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2);
     }
@@ -424,6 +426,10 @@ export class Game {
         if (npc) {
           this.dialogue.open(npc.name, getRole(npc), getDialogue(npc, this.time.day));
           checkQuests(p, { kind: 'talk', npcId: npc.id });
+          if (p.hearts && creditTalk(p.hearts, npc.id, this.time.day)) {
+            // Tiny ambient feedback — only on the day's first chat.
+            // (No toast — keeps the dialogue moment quiet.)
+          }
         } else if (cropAt(this.world, front.tx, front.ty)) {
           // Try to harvest.
           const c = cropAt(this.world, front.tx, front.ty);

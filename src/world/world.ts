@@ -30,6 +30,8 @@ export interface Player {
   inventory: Record<string, number>;
   gold: number;
   quests: any[];
+  /** Per-NPC relationship rows (v0.5.0 marriage candidates). */
+  hearts?: import('../game/hearts').HeartsState;
 }
 
 export interface NPC {
