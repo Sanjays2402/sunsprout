@@ -1,0 +1,97 @@
+// Gifting — slice 3 of v0.5.0 marriage candidates.
+//
+// Bridges the Player's inventory and the HeartsState. The player presses
+// `G` while facing a candidate NPC and we automatically pick the best
+// available gift from their inventory:
+//
+//   1. Prefer a `loved` item (biggest heart gain).
+//   2. Otherwise a `liked` item.
+//   3. Otherwise a `neutral` item.
+//   4. Never auto-gift a `disliked` item — that would feel mean.
+//
+// This keeps the controls cozy (one button, no submenu) while still
+// rewarding players who hoard the right items. A future slice will add
+// a proper "choose gift" submenu when the player wants fine control.
+
+import type { Player } from '../world/world';
+import {
+  CANDIDATES,
+  giveGift,
+  type GiftResult,
+  type GiftTaste,
+} from './hearts';
+
+/** Outcome of an auto-gift attempt — drives the toast string in game.ts. */
+export type GiftOutcome =
+  | { kind: 'gifted'; itemKey: string; result: GiftResult }
+  | { kind: 'no-items' }
+  | { kind: 'already-today' }
+  | { kind: 'not-candidate' };
+
+/** Taste ordering — higher value = better auto-pick. */
+const TASTE_RANK: Record<GiftTaste, number> = {
+  loved: 3,
+  liked: 2,
+  neutral: 1,
+  disliked: 0,
+};
+
+/**
+ * Finds the best giftable inventory key for the given candidate. Returns
+ * null if the player has nothing acceptable (we never auto-gift items
+ * the candidate dislikes). Pure — does not mutate.
+ */
+export function pickBestGift(
+  inventory: Record<string, number>,
+  npcId: string,
+): string | null {
+  const def = CANDIDATES[npcId];
+  if (!def) return null;
+  let bestKey: string | null = null;
+  let bestRank = 0;
+  for (const [key, count] of Object.entries(inventory)) {
+    if (count <= 0) continue;
+    // Skip non-giftable utility items.
+    if (key === 'watering-can') continue;
+    let taste: GiftTaste;
+    if (def.loved.includes(key)) taste = 'loved';
+    else if (def.liked.includes(key)) taste = 'liked';
+    else if (def.disliked.includes(key)) continue; // never auto-gift disliked
+    else taste = 'neutral';
+    const rank = TASTE_RANK[taste];
+    if (rank > bestRank) {
+      bestRank = rank;
+      bestKey = key;
+      if (rank === TASTE_RANK.loved) break; // can't do better
+    }
+  }
+  return bestKey;
+}
+
+/**
+ * Attempt an auto-gift to a candidate. Decrements the chosen item from
+ * the player's inventory on success. The caller is responsible for the
+ * toast / dialogue feedback.
+ */
+export function attemptAutoGift(
+  player: Player,
+  npcId: string,
+  day: number,
+): GiftOutcome {
+  if (!CANDIDATES[npcId]) return { kind: 'not-candidate' };
+  if (!player.hearts) return { kind: 'not-candidate' };
+  // Per-day gate first so an empty inventory after-hours still tells the
+  // player the right thing.
+  if (player.hearts[npcId] && player.hearts[npcId].lastGiftDay === day) {
+    return { kind: 'already-today' };
+  }
+  const key = pickBestGift(player.inventory, npcId);
+  if (!key) return { kind: 'no-items' };
+  const result = giveGift(player.hearts, npcId, key, day);
+  if (!result.accepted) {
+    // Shouldn't happen because we gated above, but stay safe.
+    return { kind: 'already-today' };
+  }
+  player.inventory[key] = Math.max(0, (player.inventory[key] ?? 0) - 1);
+  return { kind: 'gifted', itemKey: key, result };
+}

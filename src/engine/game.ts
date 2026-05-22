@@ -29,7 +29,8 @@ import { CROP_KEYS } from '../game/crops';
 import { sellAllHarvest, sellAllGems } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
-import { creditTalk, startingHearts } from '../game/hearts';
+import { CANDIDATES, creditTalk, startingHearts } from '../game/hearts';
+import { attemptAutoGift } from '../game/gifting';
 import { drawHUD } from '../ui/hud';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
@@ -421,6 +422,34 @@ export class Game {
         }
       }
       // E: prefer NPC interaction, else harvest, else sell-all-at-well
+      if (this.input.justPressed.has('g')) {
+        const npc = npcInFrontOf(this.world, front.tx, front.ty);
+        if (npc && CANDIDATES[npc.id]) {
+          const out = attemptAutoGift(p, npc.id, this.time.day);
+          if (out.kind === 'gifted') {
+            const r = out.result;
+            const label =
+              r.taste === 'loved'
+                ? '💖 LOVED'
+                : r.taste === 'liked'
+                  ? '💗 liked'
+                  : r.taste === 'disliked'
+                    ? '💔 disliked'
+                    : '🎁';
+            const item = out.itemKey.replace('_harvest', '').replace('fish-', '');
+            const lvl = r.leveledUp ? ` · ♥${r.hearts}!` : '';
+            this.setToast(`${label} ${npc.name}: ${item}${lvl}`);
+          } else if (out.kind === 'already-today') {
+            this.setToast(`${npc.name} already got a gift today.`);
+          } else if (out.kind === 'no-items') {
+            this.setToast('Nothing in your bag to gift.');
+          }
+        } else if (npc) {
+          this.setToast(`${npc.name} isn't a candidate.`);
+        } else {
+          this.setToast('Face someone to give a gift.');
+        }
+      }
       if (this.input.justPressed.has('e')) {
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
