@@ -26,7 +26,17 @@ export interface NPCDef {
   schedule: ScheduleSlot[];
   dialogue: string[];
   role: string;
+  /**
+   * Extra dialogue unlocked at heart tiers. Keys are minimum heart counts
+   * required (2, 4, 6). When the player has ≥ tier hearts, the line pool
+   * is *extended* with those lines so the romance ramps up gradually
+   * instead of replacing the friendly small-talk entirely.
+   */
+  affection?: Record<number, string[]>;
 }
+
+/** Heart tiers that can unlock extra dialogue, descending. */
+export const AFFECTION_TIERS = [6, 4, 2] as const;
 
 export const NPC_DEFS: Record<string, NPCDef> = {
   mayor: {
@@ -45,6 +55,11 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       'Spring rain on a clay roof is the best lullaby in the world.',
       'You\'ve been farming hard. I hope the work has been kind to you too.',
     ],
+    affection: {
+      2: ['I find myself looking for you at the well some mornings. Strange habit.'],
+      4: ['The village feels brighter on the days you stop by my office.'],
+      6: ['I drafted a town poem last night. Most of the verses are about you.'],
+    },
   },
   maple: {
     role: 'Shopkeep',
@@ -61,6 +76,11 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       'Bring me five wheat and I\'ll tell you a little secret about the well.',
       'Plant something every week. The harvest knows when you\'ve been faithful.',
     ],
+    affection: {
+      2: ['I set aside the prettiest seed packets when I know you\'re coming by.'],
+      4: ['Sometimes I close the shop early just to walk down to your farm.'],
+      6: ['I sleep with one of your sunflowers pressed in a book. Don\'t tell anyone.'],
+    },
   },
   finn: {
     role: 'Fisher',
@@ -78,6 +98,11 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       'If you\'re ever lost, follow the water. It always knows the way home.',
       'Trade you a rare fish for a pumpkin. Don\'t ask me why — just an old craving.',
     ],
+    affection: {
+      2: ['Caught a heart-shaped pebble at the pond. Kept it in my pocket all day.'],
+      4: ['I rehearse what I\'ll say to you while I wait for a bite. Never sticks the landing.'],
+      6: ['Marry me by the pond, would you? I\'ll bring the frogs as witnesses.'],
+    },
   },
   rose: {
     role: 'Innkeeper',
@@ -93,6 +118,11 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       'Sleep early, dream gentle, wake with dirt under your nails. That\'s the village way.',
       'A stranger is just a friend who hasn\'t taken off their boots yet.',
     ],
+    affection: {
+      2: ['I saved the last bowl of pumpkin soup with your name on it.'],
+      4: ['The fire burns a little warmer on the nights you stay for supper.'],
+      6: ['Move into the upstairs room. The one with the window facing your farm.'],
+    },
   },
 };
 
@@ -106,14 +136,29 @@ function hash(s: string, day: number): number {
   return Math.abs(h);
 }
 
+/** Returns the dialogue pool for an NPC, including affection lines unlocked at `hearts`. */
+export function dialoguePool(npcId: string, hearts: number): string[] {
+  const def = NPC_DEFS[npcId];
+  if (!def) return [];
+  const pool = [...def.dialogue];
+  if (def.affection) {
+    for (const tier of AFFECTION_TIERS) {
+      if (hearts >= tier && def.affection[tier]) {
+        pool.push(...def.affection[tier]);
+      }
+    }
+  }
+  return pool;
+}
+
 /** Picks a single dialogue line for the given NPC + current day. */
-export function getDialogue(npc: NPC, day: number): string {
-  const def = NPC_DEFS[npc.id];
-  if (!def || def.dialogue.length === 0) {
+export function getDialogue(npc: NPC, day: number, hearts: number = 0): string {
+  const pool = dialoguePool(npc.id, hearts);
+  if (pool.length === 0) {
     return `${npc.name} smiles at you warmly.`;
   }
-  const i = hash(npc.id, day) % def.dialogue.length;
-  return def.dialogue[i];
+  const i = hash(npc.id, day) % pool.length;
+  return pool[i];
 }
 
 /** Looks up role text for the dialogue box header. */

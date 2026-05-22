@@ -29,7 +29,7 @@ import { CROP_KEYS } from '../game/crops';
 import { sellAllHarvest, sellAllGems } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
-import { CANDIDATES, creditTalk, startingHearts } from '../game/hearts';
+import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
 import { attemptAutoGift } from '../game/gifting';
 import { drawHUD } from '../ui/hud';
 import { drawHeartsPanel } from '../ui/hearts-panel';
@@ -461,7 +461,8 @@ export class Game {
       if (this.input.justPressed.has('e')) {
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
-          this.dialogue.open(npc.name, getRole(npc), getDialogue(npc, this.time.day));
+          const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
+          this.dialogue.open(npc.name, getRole(npc), getDialogue(npc, this.time.day, h));
           checkQuests(p, { kind: 'talk', npcId: npc.id });
           if (p.hearts && creditTalk(p.hearts, npc.id, this.time.day)) {
             // Tiny ambient feedback — only on the day's first chat.
