@@ -45,6 +45,15 @@ import {
   MINIGAME,
   type ReelGrade,
 } from '../ui/fishing-minigame';
+import {
+  cursorPosition as swingCursorPosition,
+  drawSwingMeter,
+  gradeBonus as strikeBonus,
+  gradeLabel as strikeLabel,
+  gradeStrike,
+  SWING,
+  type StrikeGrade,
+} from '../ui/mining-minigame';
 
 const FIXED_STEP_MS = 16;
 /** Cap the accumulator so a long tab-switch doesn't trigger a spiral of death. */
@@ -68,6 +77,9 @@ export class Game {
   private reelLockedCursor: number | null = null;
   /** Grade awarded for the locked-in press, surfaced when the catch resolves. */
   private reelGrade: ReelGrade | null = null;
+  /** Mining swing-meter — locked cursor + grade once the player taps M. */
+  private strikeLockedCursor: number | null = null;
+  private strikeGrade: StrikeGrade | null = null;
 
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
@@ -350,15 +362,27 @@ export class Game {
       // M: mining — strike during STRIKING, otherwise try to swing at stone.
       if (this.input.justPressed.has('m')) {
         if (this.pickaxe.state === 'striking') {
+          const cursor = swingCursorPosition(this.pickaxe.elapsedMs);
+          const grade = gradeStrike(cursor);
+          this.strikeLockedCursor = cursor;
+          this.strikeGrade = grade;
           const gem = this.pickaxe.strike();
           if (gem) {
             const def = GEMS[gem];
             p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
-            this.setToast(`Clean hit! +1 ${def.name}`);
+            const bonus = strikeBonus(grade);
+            if (bonus > 0) {
+              p.gold += bonus;
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g`);
+            } else {
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name}`);
+            }
           }
         } else if (this.pickaxe.state === 'idle') {
           if (canStrikeInto(this.world, front.tx, front.ty)) {
             if (this.pickaxe.swing()) {
+              this.strikeLockedCursor = null;
+              this.strikeGrade = null;
               this.setToast('Swinging the pickaxe…');
             }
           } else {
@@ -366,6 +390,8 @@ export class Game {
           }
         } else {
           this.pickaxe.cancel();
+          this.strikeLockedCursor = null;
+          this.strikeGrade = null;
           this.setToast('Cancelled the swing.');
         }
       }
@@ -476,6 +502,23 @@ export class Game {
         MINIGAME.defaultZone,
         this.reelLockedCursor,
         this.reelGrade,
+      );
+    }
+    // Mining swing-meter — shows during STRIKING above the hotbar.
+    if (this.pickaxe.state === 'striking') {
+      const barW = 240;
+      const bx = Math.floor((this.canvas.width - barW) / 2);
+      const by = this.canvas.height - 110;
+      const cursor = swingCursorPosition(this.pickaxe.elapsedMs);
+      drawSwingMeter(
+        this.ctx,
+        bx,
+        by,
+        barW,
+        cursor,
+        SWING.defaultZone,
+        this.strikeLockedCursor,
+        this.strikeGrade,
       );
     }
     // Toast
