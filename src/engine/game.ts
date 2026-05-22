@@ -32,6 +32,7 @@ import { checkQuests, startingQuests } from '../game/quests';
 import { CANDIDATES, creditTalk, startingHearts } from '../game/hearts';
 import { attemptAutoGift } from '../game/gifting';
 import { drawHUD } from '../ui/hud';
+import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
 import { RECIPES } from '../game/cooking';
@@ -89,6 +90,7 @@ export class Game {
   /** Last harvest notification — short fade in the corner. */
   private toast = '';
   private toastFade = 0;
+  private heartsPanelVisible = false;
 
   private canvas: HTMLCanvasElement;
   private running = false;
@@ -285,6 +287,11 @@ export class Game {
     }
     if (this.input.justPressed.has('5')) {
       (p as { selectedSlot?: number }).selectedSlot = CROP_KEYS.length;
+    }
+
+    // Toggle hearts panel.
+    if (this.input.justPressed.has('h')) {
+      this.heartsPanelVisible = !this.heartsPanelVisible;
     }
 
     // Dialogue dismiss
@@ -520,6 +527,7 @@ export class Game {
   private render(): void {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
