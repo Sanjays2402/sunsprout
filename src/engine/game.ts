@@ -26,7 +26,7 @@ import {
   updateNPCs,
 } from '../game/npcs';
 import { CROP_KEYS } from '../game/crops';
-import { sellAllHarvest } from '../game/economy';
+import { sellAllHarvest, sellAllGems } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { drawHUD } from '../ui/hud';
@@ -412,8 +412,13 @@ export class Game {
           for (const b of this.world.buildings) {
             if (b.kind === 'well' && front.tx === b.x && front.ty === b.y) {
               const earned = sellAllHarvest(p);
-              if (earned > 0) {
-                this.setToast(`Sold your harvest at the well: +${earned}g`);
+              const gemGold = sellAllGems(p);
+              const total = earned + gemGold;
+              if (total > 0) {
+                const parts: string[] = [];
+                if (earned > 0) parts.push(`harvest +${earned}g`);
+                if (gemGold > 0) parts.push(`gems +${gemGold}g`);
+                this.setToast(`Sold at the well: ${parts.join(', ')}`);
               } else {
                 this.setToast('Nothing to sell yet.');
               }

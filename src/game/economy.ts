@@ -10,6 +10,7 @@
 
 import type { Player } from '../world/world';
 import { CROPS } from './crops';
+import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -111,6 +112,25 @@ export function sellAllHarvest(player: Player): number {
     const have = player.inventory[key] ?? 0;
     earned += have * price;
     player.inventory[key] = 0;
+  }
+  player.gold += earned;
+  return earned;
+}
+
+/**
+ * Sells every mined gem in the player's inventory at its catalog price.
+ * The well doubles as the village's raw-materials buyer for the v0.4.0
+ * mining loop — gems trade at GEMS[key].sellPrice each. Returns total
+ * gold earned (0 if the pouch is empty).
+ */
+export function sellAllGems(player: Player): number {
+  let earned = 0;
+  for (const k of GEM_KEYS) {
+    const invKey = gemInventoryKey(k);
+    const have = player.inventory[invKey] ?? 0;
+    if (have <= 0) continue;
+    earned += have * GEMS[k].sellPrice;
+    player.inventory[invKey] = 0;
   }
   player.gold += earned;
   return earned;
