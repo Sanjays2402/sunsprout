@@ -53,4 +53,15 @@ describe('quests', () => {
     expect(completed).toEqual([]);
     expect(p.gold).toBe(goldAfterFirst);
   });
+
+  it('a mine event completes First Gem and applies the reward', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    const completed = checkQuests(p, { kind: 'mine', gemKey: 'quartz' });
+    expect(completed).toContain('first-gem');
+    const q = (p.quests as Quest[]).find((qq) => qq.id === 'first-gem')!;
+    expect(q.complete).toBe(true);
+    expect(p.gold).toBe(before + 60);
+    expect(p.inventory.wheat).toBe(3);
+  });
 });

@@ -370,6 +370,7 @@ export class Game {
           if (gem) {
             const def = GEMS[gem];
             p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
+            checkQuests(p, { kind: 'mine', gemKey: gem });
             const bonus = strikeBonus(grade);
             if (bonus > 0) {
               p.gold += bonus;

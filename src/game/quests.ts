@@ -9,7 +9,8 @@ export type QuestEvent =
   | { kind: 'plant'; cropKey: string }
   | { kind: 'harvest'; cropKey: string }
   | { kind: 'talk'; npcId: string }
-  | { kind: 'cook'; dishKey: string };
+  | { kind: 'cook'; dishKey: string }
+  | { kind: 'mine'; gemKey: string };
 
 export interface QuestReward {
   gold?: number;
@@ -74,6 +75,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 40, items: { wheat: 2 } },
       complete: false,
     },
+    {
+      id: 'first-gem',
+      name: 'First Gem',
+      description: 'Mine your first gem from the cave.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 60, items: { wheat: 3 } },
+      complete: false,
+    },
   ];
 }
 
@@ -102,6 +113,8 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
         advanced = true;
       }
     } else if (event.kind === 'cook' && q.id === 'first-recipe') {
+      advanced = true;
+    } else if (event.kind === 'mine' && q.id === 'first-gem') {
       advanced = true;
     }
     if (advanced) {
