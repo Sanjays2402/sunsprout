@@ -100,4 +100,27 @@ describe('quests', () => {
     expect(p.gold).toBe(before + 80);
     expect(p.inventory['flower']).toBe(2);
   });
+
+  it('Confidant and Devoted complete at the 4- and 6-heart thresholds', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    // 3 hearts: sweetheart fires, confidant/devoted do not.
+    let done = checkQuests(p, { kind: 'gift', npcId: 'rose', hearts: 3 });
+    expect(done).toContain('sweetheart');
+    expect(done).not.toContain('confidant');
+    expect(done).not.toContain('devoted');
+    // 4 hearts: confidant fires.
+    done = checkQuests(p, { kind: 'gift', npcId: 'rose', hearts: 4 });
+    expect(done).toContain('confidant');
+    expect(done).not.toContain('devoted');
+    // 6 hearts: devoted fires.
+    done = checkQuests(p, { kind: 'gift', npcId: 'rose', hearts: 6 });
+    expect(done).toContain('devoted');
+    const confidant = (p.quests as Quest[]).find((qq) => qq.id === 'confidant')!;
+    const devoted = (p.quests as Quest[]).find((qq) => qq.id === 'devoted')!;
+    expect(confidant.complete).toBe(true);
+    expect(devoted.complete).toBe(true);
+    // Rewards: 80 + 160 + 320 gold.
+    expect(p.gold).toBe(before + 80 + 160 + 320);
+  });
 });

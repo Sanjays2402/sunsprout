@@ -107,6 +107,26 @@ export function startingQuests(): Quest[] {
       reward: { gold: 80, items: { flower: 2 } },
       complete: false,
     },
+    {
+      id: 'confidant',
+      name: 'Confidant',
+      description: 'Reach 4 hearts with any villager.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 160, items: { flower: 3 } },
+      complete: false,
+    },
+    {
+      id: 'devoted',
+      name: 'Devoted',
+      description: 'Reach 6 hearts with any villager.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 320, items: { pumpkin: 2, flower: 5 } },
+      complete: false,
+    },
   ];
 }
 
@@ -145,6 +165,10 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
       }
     } else if (event.kind === 'gift' && q.id === 'sweetheart') {
       if (event.hearts >= 2) advanced = true;
+    } else if (event.kind === 'gift' && q.id === 'confidant') {
+      if (event.hearts >= 4) advanced = true;
+    } else if (event.kind === 'gift' && q.id === 'devoted') {
+      if (event.hearts >= 6) advanced = true;
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);
