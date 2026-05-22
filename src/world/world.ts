@@ -95,6 +95,7 @@ export class World {
     this.carvePlazaAndPaths();
     this.placeBuildings();
     this.placeTilledPatch();
+    this.placeCaveOutcrop();
     this.spawnNPCs();
     this.spawnPlayer();
   }
@@ -234,6 +235,29 @@ export class World {
         if (this.inBounds(x, y)) this.setTile(x, y, 'tilled');
       }
     }
+  }
+
+  /**
+   * Stone cave outcrop in the NE corner — the v0.4.0 mining area entrance.
+   * A small cluster of stone tiles forms a visible landmark. The single
+   * non-stone gap tile at the south face is the cave mouth (cavemouth-tile),
+   * which the input layer will read in a later tick to arm the pickaxe.
+   */
+  private placeCaveOutcrop(): void {
+    const ox = 33;
+    const oy = 2;
+    const ow = 5;
+    const oh = 5;
+    for (let y = oy; y < oy + oh; y++) {
+      for (let x = ox; x < ox + ow; x++) {
+        if (this.inBounds(x, y)) this.setTile(x, y, 'stone');
+      }
+    }
+    // Carve a 1-tile path of grass leading up to the south face so the
+    // player can walk right up to the outcrop without getting boxed in.
+    const mouthX = ox + Math.floor(ow / 2);
+    const mouthY = oy + oh; // first walkable tile south of the outcrop
+    if (this.inBounds(mouthX, mouthY)) this.setTile(mouthX, mouthY, 'path');
   }
 
   private spawnNPCs(): void {

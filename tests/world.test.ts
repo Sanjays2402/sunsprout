@@ -38,4 +38,13 @@ describe('World', () => {
     // Plaza is around (12..27, 4..11).
     expect(w.isWalkable(19, 6)).toBe(true);
   });
+
+  it('places a stone cave outcrop in the NE corner', () => {
+    const w = new World();
+    // Outcrop is at (33..37, 2..6) — interior tiles must be stone & blocking.
+    expect(w.getTile(35, 4).type).toBe('stone');
+    expect(w.isWalkable(35, 4)).toBe(false);
+    // South-face mouth tile is walkable so the player can approach.
+    expect(w.isWalkable(35, 7)).toBe(true);
+  });
 });
