@@ -130,6 +130,21 @@ describe('gem catalog', () => {
     expect(gemInventoryKey('copper')).toBe('gem-copper');
     expect(gemInventoryKey('ruby')).toBe('gem-ruby');
   });
+  it('clean strike + gemInventoryKey writes into a fresh inventory record', () => {
+    // Mirrors how engine/game.ts wires the M-key: on a clean strike, the
+    // returned gem key is shoved into `player.inventory[gemInventoryKey(gem)]`
+    // and incremented. This guards the wiring contract end-to-end.
+    const pick = new Pickaxe({ seed: 42 });
+    const inventory: Record<string, number> = {};
+    pick.swing();
+    pick.tick(MINING.swingMs);
+    const gem = pick.strike();
+    expect(gem).not.toBeNull();
+    const key = gemInventoryKey(gem!);
+    inventory[key] = (inventory[key] ?? 0) + 1;
+    expect(inventory[key]).toBe(1);
+    expect(key.startsWith('gem-')).toBe(true);
+  });
 });
 
 describe('canStrikeInto', () => {

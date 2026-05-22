@@ -34,6 +34,8 @@ import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
+import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
+import { gemInventoryKey } from '../game/gems';
 import {
   cursorPosition,
   drawFishingBar,
@@ -60,6 +62,8 @@ export class Game {
   public cookingMenu: CookingMenu = new CookingMenu();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
+  /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
+  public pickaxe: Pickaxe = new Pickaxe();
   /** Cursor position (0..1) frozen the moment the player tapped F during REELING. */
   private reelLockedCursor: number | null = null;
   /** Grade awarded for the locked-in press, surfaced when the catch resolves. */
@@ -241,6 +245,17 @@ export class Game {
       }
     }
 
+    // Pickaxe state machine ticks every frame so missed strike windows
+    // resolve even without input. Auto-toast state transitions.
+    const pickBefore = this.pickaxe.state;
+    if (this.pickaxe.tick(dtMs)) {
+      if (this.pickaxe.state === 'striking') {
+        this.setToast('STRIKE! Press M to land it!');
+      } else if (pickBefore === 'striking' && this.pickaxe.state === 'idle') {
+        this.setToast('The swing glanced off…');
+      }
+    }
+
     // Resolve player movement only when no dialogue / menu is up.
     const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
@@ -330,6 +345,28 @@ export class Game {
           this.reelLockedCursor = null;
           this.reelGrade = null;
           this.setToast('Reeled in early.');
+        }
+      }
+      // M: mining — strike during STRIKING, otherwise try to swing at stone.
+      if (this.input.justPressed.has('m')) {
+        if (this.pickaxe.state === 'striking') {
+          const gem = this.pickaxe.strike();
+          if (gem) {
+            const def = GEMS[gem];
+            p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
+            this.setToast(`Clean hit! +1 ${def.name}`);
+          }
+        } else if (this.pickaxe.state === 'idle') {
+          if (canStrikeInto(this.world, front.tx, front.ty)) {
+            if (this.pickaxe.swing()) {
+              this.setToast('Swinging the pickaxe…');
+            }
+          } else {
+            this.setToast('Face stone to mine.');
+          }
+        } else {
+          this.pickaxe.cancel();
+          this.setToast('Cancelled the swing.');
         }
       }
       if (this.input.justPressed.has('t')) {
