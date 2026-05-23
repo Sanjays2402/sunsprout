@@ -22,6 +22,7 @@ import {
   broadcastSnapshot,
   type Transport,
 } from './multiplayer-transport';
+import { SnapshotThrottle, type SnapshotThrottleOpts } from './snapshot-throttle';
 import type { Facing } from '../world/world';
 
 export interface LocalIdentity {
@@ -45,6 +46,10 @@ export interface MultiplayerSessionOpts {
   /** Drop peers we haven't heard from in this long. Default 5s. */
   peerTimeoutMs?: number;
   registry?: PeerRegistry;
+  /** Optional throttle that gates broadcasts on actual state change. When
+   *  provided, broadcastIntervalMs becomes a floor and the throttle decides
+   *  if anything is worth sending. */
+  throttle?: SnapshotThrottle | SnapshotThrottleOpts;
 }
 
 export class MultiplayerSession {
@@ -53,6 +58,7 @@ export class MultiplayerSession {
   readonly registry: PeerRegistry;
   readonly broadcastIntervalMs: number;
   readonly peerTimeoutMs: number;
+  readonly throttle: SnapshotThrottle | null;
 
   private lastBroadcastAt = -Infinity;
   private unbind: () => void;
@@ -64,6 +70,12 @@ export class MultiplayerSession {
     this.registry = opts.registry ?? new PeerRegistry();
     this.broadcastIntervalMs = opts.broadcastIntervalMs ?? 100;
     this.peerTimeoutMs = opts.peerTimeoutMs ?? 5000;
+    this.throttle =
+      opts.throttle instanceof SnapshotThrottle
+        ? opts.throttle
+        : opts.throttle
+          ? new SnapshotThrottle(opts.throttle)
+          : null;
     this.unbind = bindTransportToRegistry(this.transport, this.registry, () => this._now);
   }
 
@@ -92,19 +104,32 @@ export class MultiplayerSession {
     this._now = now;
     if (this._closed) return [];
     if (now - this.lastBroadcastAt >= this.broadcastIntervalMs) {
-      broadcastSnapshot(
-        this.transport,
-        buildSnapshot({
-          id: this.identity.id,
-          name: this.identity.name,
-          x: local.x,
-          y: local.y,
-          facing: local.facing,
-          color: this.identity.color,
-          hat: this.identity.hat,
-        }),
-      );
-      this.lastBroadcastAt = now;
+      const snap = buildSnapshot({
+        id: this.identity.id,
+        name: this.identity.name,
+        x: local.x,
+        y: local.y,
+        facing: local.facing,
+        color: this.identity.color,
+        hat: this.identity.hat,
+      });
+      const allow =
+        this.throttle === null ||
+        this.throttle.shouldSend(
+          {
+            x: snap.x,
+            y: snap.y,
+            facing: snap.facing,
+            name: snap.name,
+            color: snap.color,
+            hat: snap.hat,
+          },
+          now,
+        );
+      if (allow) {
+        broadcastSnapshot(this.transport, snap);
+        this.lastBroadcastAt = now;
+      }
     }
     return this.registry.evictStale(now, this.peerTimeoutMs);
   }
