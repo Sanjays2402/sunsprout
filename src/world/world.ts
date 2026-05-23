@@ -34,6 +34,8 @@ export interface Player {
   hearts?: import('../game/hearts').HeartsState;
   /** Marriage engagement record (v0.5.0). One fiancé at a time. */
   engagement?: import('../game/engagement').Engagement;
+  /** Marriage record (v0.5.0). Terminal — set after wedding held. */
+  marriage?: import('../game/marriage').Marriage;
 }
 
 export interface NPC {
