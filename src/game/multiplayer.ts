@@ -153,6 +153,83 @@ function isValidSnapshot(s: PeerSnapshot): boolean {
   return true;
 }
 
+/**
+ * Per-peer interpolation buffer.
+ *
+ * Network snapshots arrive at ~10-20 Hz but we render at 60 fps. Drawing peers
+ * at the most-recent snapshot position causes visible jitter. We instead keep
+ * the two latest snapshots and lerp between them based on render time.
+ *
+ * Pattern: render `interpDelayMs` behind the freshest sample so we always have
+ * a "future" snapshot to lerp toward. Standard rollback-style buffering.
+ */
+export interface InterpSample {
+  t: number; // ms timestamp when this snapshot was received
+  x: number;
+  y: number;
+}
+
+export class PeerInterpolator {
+  private samples: InterpSample[] = [];
+  /** Render-delay in ms behind latest sample. */
+  readonly delayMs: number;
+  /** Drop samples older than this many ms before the render window. */
+  readonly maxAgeMs: number;
+
+  constructor(delayMs = 100, maxAgeMs = 2000) {
+    this.delayMs = delayMs;
+    this.maxAgeMs = maxAgeMs;
+  }
+
+  push(sample: InterpSample): void {
+    // Reject out-of-order samples — keeps the buffer monotonic.
+    const last = this.samples[this.samples.length - 1];
+    if (last && sample.t <= last.t) return;
+    this.samples.push(sample);
+    // Trim ancient samples.
+    const cutoff = sample.t - this.maxAgeMs;
+    while (this.samples.length > 2 && this.samples[0].t < cutoff) {
+      this.samples.shift();
+    }
+  }
+
+  size(): number {
+    return this.samples.length;
+  }
+
+  /**
+   * Sample the position at render time `now`. Returns the lerped {x,y} or null
+   * if we don't have any samples yet.
+   */
+  sampleAt(now: number): { x: number; y: number } | null {
+    if (this.samples.length === 0) return null;
+    if (this.samples.length === 1) {
+      return { x: this.samples[0].x, y: this.samples[0].y };
+    }
+    const renderT = now - this.delayMs;
+    // Before the buffer — clamp to oldest.
+    if (renderT <= this.samples[0].t) {
+      return { x: this.samples[0].x, y: this.samples[0].y };
+    }
+    // After the buffer — clamp to newest (we've outrun the network).
+    const newest = this.samples[this.samples.length - 1];
+    if (renderT >= newest.t) {
+      return { x: newest.x, y: newest.y };
+    }
+    // Find the bracketing pair.
+    for (let i = 0; i < this.samples.length - 1; i++) {
+      const a = this.samples[i];
+      const b = this.samples[i + 1];
+      if (renderT >= a.t && renderT <= b.t) {
+        const span = b.t - a.t;
+        const u = span > 0 ? (renderT - a.t) / span : 0;
+        return { x: a.x + (b.x - a.x) * u, y: a.y + (b.y - a.y) * u };
+      }
+    }
+    return { x: newest.x, y: newest.y };
+  }
+}
+
 /** Build a snapshot from a local player + identity. Helper for the future transport tick. */
 export function buildSnapshot(opts: {
   id: string;

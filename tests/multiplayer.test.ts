@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PeerRegistry,
+  PeerInterpolator,
   serializeSnapshot,
   deserializeSnapshot,
   buildSnapshot,
@@ -76,5 +77,48 @@ describe('multiplayer peer registry', () => {
     const isNew = reg.apply(bad, 1000);
     expect(isNew).toBe(false);
     expect(reg.size()).toBe(0);
+  });
+});
+
+describe('PeerInterpolator', () => {
+  it('returns null with no samples and the lone sample once one arrives', () => {
+    const lerp = new PeerInterpolator(100);
+    expect(lerp.sampleAt(0)).toBeNull();
+    lerp.push({ t: 1000, x: 4, y: 5 });
+    expect(lerp.sampleAt(1100)).toEqual({ x: 4, y: 5 });
+  });
+
+  it('lerps between two samples at the render-delayed time', () => {
+    const lerp = new PeerInterpolator(100);
+    lerp.push({ t: 1000, x: 0, y: 0 });
+    lerp.push({ t: 2000, x: 10, y: 0 });
+    // now=1600 -> renderT=1500 -> halfway -> x=5
+    const p = lerp.sampleAt(1600);
+    expect(p?.x).toBeCloseTo(5, 5);
+    expect(p?.y).toBeCloseTo(0, 5);
+  });
+
+  it('clamps to newest when render time outruns the buffer', () => {
+    const lerp = new PeerInterpolator(100);
+    lerp.push({ t: 1000, x: 0, y: 0 });
+    lerp.push({ t: 2000, x: 10, y: 2 });
+    expect(lerp.sampleAt(5000)).toEqual({ x: 10, y: 2 });
+  });
+
+  it('drops out-of-order samples', () => {
+    const lerp = new PeerInterpolator(100);
+    lerp.push({ t: 2000, x: 10, y: 0 });
+    lerp.push({ t: 1000, x: 99, y: 99 }); // stale — ignored
+    expect(lerp.size()).toBe(1);
+    expect(lerp.sampleAt(3000)).toEqual({ x: 10, y: 0 });
+  });
+
+  it('trims samples older than maxAgeMs', () => {
+    const lerp = new PeerInterpolator(100, 500);
+    lerp.push({ t: 1000, x: 0, y: 0 });
+    lerp.push({ t: 1200, x: 1, y: 1 });
+    lerp.push({ t: 1400, x: 2, y: 2 });
+    lerp.push({ t: 5000, x: 9, y: 9 }); // far future — cutoff = 4500
+    expect(lerp.size()).toBe(2);
   });
 });
