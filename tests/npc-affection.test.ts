@@ -28,11 +28,13 @@ describe('affection-tier dialogue', () => {
       const t2 = dialoguePool(id, 2).length;
       const t4 = dialoguePool(id, 4).length;
       const t6 = dialoguePool(id, 6).length;
+      const t8 = dialoguePool(id, 8).length;
       expect(t2).toBeGreaterThan(base);
       expect(t4).toBeGreaterThan(t2);
       expect(t6).toBeGreaterThan(t4);
-      // No double-counting: tier 6 adds exactly the loved+liked+neutral tiers.
-      expect(t6).toBe(base + 3);
+      expect(t8).toBeGreaterThan(t6);
+      // No double-counting: tier 8 adds exactly the four affection tiers.
+      expect(t8).toBe(base + 4);
     }
   });
 

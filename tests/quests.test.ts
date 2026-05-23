@@ -123,4 +123,21 @@ describe('quests', () => {
     // Rewards: 80 + 160 + 320 gold.
     expect(p.gold).toBe(before + 80 + 160 + 320);
   });
+
+  it('Soulmate completes at the 8-heart threshold and grants a bouquet', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    const beforeBouquet = p.inventory['bouquet'] ?? 0;
+    // 7 hearts: soulmate does NOT fire yet (but lower tiers do).
+    let done = checkQuests(p, { kind: 'gift', npcId: 'finn', hearts: 7 });
+    expect(done).not.toContain('soulmate');
+    // 8 hearts: soulmate fires.
+    done = checkQuests(p, { kind: 'gift', npcId: 'finn', hearts: 8 });
+    expect(done).toContain('soulmate');
+    const soulmate = (p.quests as Quest[]).find((qq) => qq.id === 'soulmate')!;
+    expect(soulmate.complete).toBe(true);
+    // Gold: 80 + 160 + 320 + 640 (all four heart quests across both gifts).
+    expect(p.gold).toBe(before + 80 + 160 + 320 + 640);
+    expect((p.inventory['bouquet'] ?? 0) - beforeBouquet).toBe(1);
+  });
 });

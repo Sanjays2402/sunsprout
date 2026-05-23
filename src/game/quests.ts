@@ -127,6 +127,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 320, items: { pumpkin: 2, flower: 5 } },
       complete: false,
     },
+    {
+      id: 'soulmate',
+      name: 'Soulmate',
+      description: 'Reach 8 hearts with any villager.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 640, items: { bouquet: 1, pumpkin: 3 } },
+      complete: false,
+    },
   ];
 }
 
@@ -169,6 +179,8 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
       if (event.hearts >= 4) advanced = true;
     } else if (event.kind === 'gift' && q.id === 'devoted') {
       if (event.hearts >= 6) advanced = true;
+    } else if (event.kind === 'gift' && q.id === 'soulmate') {
+      if (event.hearts >= 8) advanced = true;
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);

@@ -36,7 +36,7 @@ export interface NPCDef {
 }
 
 /** Heart tiers that can unlock extra dialogue, descending. */
-export const AFFECTION_TIERS = [6, 4, 2] as const;
+export const AFFECTION_TIERS = [8, 6, 4, 2] as const;
 
 export const NPC_DEFS: Record<string, NPCDef> = {
   mayor: {
@@ -59,6 +59,7 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       2: ['I find myself looking for you at the well some mornings. Strange habit.'],
       4: ['The village feels brighter on the days you stop by my office.'],
       6: ['I drafted a town poem last night. Most of the verses are about you.'],
+      8: ['I would resign as mayor tomorrow if it meant waking beside you. Say the word.'],
     },
   },
   maple: {
@@ -80,6 +81,7 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       2: ['I set aside the prettiest seed packets when I know you\'re coming by.'],
       4: ['Sometimes I close the shop early just to walk down to your farm.'],
       6: ['I sleep with one of your sunflowers pressed in a book. Don\'t tell anyone.'],
+      8: ['Take the shop key. Take all of it. I just want to walk into a future that has you in it.'],
     },
   },
   finn: {
@@ -102,6 +104,7 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       2: ['Caught a heart-shaped pebble at the pond. Kept it in my pocket all day.'],
       4: ['I rehearse what I\'ll say to you while I wait for a bite. Never sticks the landing.'],
       6: ['Marry me by the pond, would you? I\'ll bring the frogs as witnesses.'],
+      8: ['Made you a ring out of fishing line and a river-pebble. It\'s yours whenever you want it.'],
     },
   },
   rose: {
@@ -122,6 +125,7 @@ export const NPC_DEFS: Record<string, NPCDef> = {
       2: ['I saved the last bowl of pumpkin soup with your name on it.'],
       4: ['The fire burns a little warmer on the nights you stay for supper.'],
       6: ['Move into the upstairs room. The one with the window facing your farm.'],
+      8: ['Let\'s share the inn, the hearth, the years. I\'ve set a place for you at every meal.'],
     },
   },
 };
