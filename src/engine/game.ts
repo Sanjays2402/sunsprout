@@ -32,6 +32,7 @@ import { checkQuests, startingQuests } from '../game/quests';
 import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
 import { attemptAutoGift } from '../game/gifting';
 import { propose } from '../game/engagement';
+import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
@@ -460,8 +461,30 @@ export class Game {
         }
       }
       if (this.input.justPressed.has('p')) {
-        const npc = npcInFrontOf(this.world, front.tx, front.ty);
-        if (npc) {
+        // If already engaged, P holds the wedding (no NPC needed — symbolic at the well).
+        if (p.engagement) {
+          const w = holdWedding(p, this.time.day);
+          switch (w.kind) {
+            case 'married': {
+              const name = CANDIDATES[w.npcId]?.name ?? w.npcId;
+              this.setToast(`💒 You married ${name}! Forever ${name} & you.`);
+              break;
+            }
+            case 'too-soon':
+              this.setToast(`Wedding in ${w.daysLeft} day${w.daysLeft === 1 ? '' : 's'}.`);
+              break;
+            case 'already-married': {
+              const name = CANDIDATES[w.toNpcId]?.name ?? w.toNpcId;
+              this.setToast(`You're already married to ${name}.`);
+              break;
+            }
+            case 'not-engaged':
+              // unreachable — engagement was truthy above
+              break;
+          }
+        } else {
+          const npc = npcInFrontOf(this.world, front.tx, front.ty);
+          if (npc) {
           const out = propose(p, npc.id, this.time.day);
           switch (out.kind) {
             case 'accepted':
@@ -483,6 +506,7 @@ export class Game {
           }
         } else {
           this.setToast('Face someone to propose.');
+        }
         }
       }
       if (this.input.justPressed.has('e')) {

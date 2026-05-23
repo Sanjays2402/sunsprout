@@ -71,4 +71,17 @@ describe('marriage', () => {
     const r = holdWedding(p, WEDDING_WAIT_DAYS + 5);
     expect(r).toEqual({ kind: 'already-married', toNpcId: 'maple' });
   });
+
+  it('clears engagement and bouquet inventory when wedding succeeds', () => {
+    const p = makePlayer();
+    engageTo(p, 'rose', 10);
+    // engageTo consumed the bouquet during propose() — verify the post-wedding
+    // state is fully cleared regardless of pre-existing inventory residue.
+    p.inventory[BOUQUET_KEY] = 0;
+    const r = holdWedding(p, 10 + WEDDING_WAIT_DAYS);
+    expect(r.kind).toBe('married');
+    expect(p.engagement).toBeUndefined();
+    expect(p.marriage?.npcId).toBe('rose');
+    expect(p.marriage?.day).toBe(10 + WEDDING_WAIT_DAYS);
+  });
 });
