@@ -12,7 +12,8 @@ export type QuestEvent =
   | { kind: 'talk'; npcId: string }
   | { kind: 'cook'; dishKey: string }
   | { kind: 'mine'; gemKey: string }
-  | { kind: 'gift'; npcId: string; hearts: number };
+  | { kind: 'gift'; npcId: string; hearts: number }
+  | { kind: 'marry'; npcId: string };
 
 export interface QuestReward {
   gold?: number;
@@ -137,6 +138,16 @@ export function startingQuests(): Quest[] {
       reward: { gold: 640, items: { bouquet: 1, pumpkin: 3 } },
       complete: false,
     },
+    {
+      id: 'newlywed',
+      name: 'Newlywed',
+      description: 'Hold a wedding at the village well.',
+      goal: 1,
+      progress: 0,
+      seen: [],
+      reward: { gold: 1000, items: { bouquet: 2, pumpkin: 5 } },
+      complete: false,
+    },
   ];
 }
 
@@ -181,6 +192,8 @@ export function checkQuests(player: Player, event: QuestEvent): string[] {
       if (event.hearts >= 6) advanced = true;
     } else if (event.kind === 'gift' && q.id === 'soulmate') {
       if (event.hearts >= 8) advanced = true;
+    } else if (event.kind === 'marry' && q.id === 'newlywed') {
+      advanced = true;
     }
     if (advanced) {
       q.progress = Math.min(q.goal, q.progress + 1);

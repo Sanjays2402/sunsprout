@@ -468,6 +468,7 @@ export class Game {
             case 'married': {
               const name = CANDIDATES[w.npcId]?.name ?? w.npcId;
               this.setToast(`💒 You married ${name}! Forever ${name} & you.`);
+              checkQuests(p, { kind: 'marry', npcId: w.npcId });
               break;
             }
             case 'too-soon':

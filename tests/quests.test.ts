@@ -140,4 +140,23 @@ describe('quests', () => {
     expect(p.gold).toBe(before + 80 + 160 + 320 + 640);
     expect((p.inventory['bouquet'] ?? 0) - beforeBouquet).toBe(1);
   });
+
+  it('Newlywed quest completes on a marry event and pays a fat reward', () => {
+    const p = freshPlayer();
+    const before = p.gold;
+    const beforeBouquet = p.inventory['bouquet'] ?? 0;
+    // Non-marry events should not advance newlywed.
+    let done = checkQuests(p, { kind: 'gift', npcId: 'rose', hearts: 8 });
+    expect(done).not.toContain('newlywed');
+    let q = (p.quests as Quest[]).find((qq) => qq.id === 'newlywed')!;
+    expect(q.complete).toBe(false);
+    // marry event fires the quest.
+    done = checkQuests(p, { kind: 'marry', npcId: 'rose' });
+    expect(done).toContain('newlywed');
+    q = (p.quests as Quest[]).find((qq) => qq.id === 'newlywed')!;
+    expect(q.complete).toBe(true);
+    expect(p.gold - before).toBeGreaterThanOrEqual(1000);
+    expect((p.inventory['bouquet'] ?? 0) - beforeBouquet).toBeGreaterThanOrEqual(2);
+    expect(p.inventory['pumpkin']).toBeGreaterThanOrEqual(5);
+  });
 });
