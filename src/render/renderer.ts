@@ -15,6 +15,8 @@
 import { Camera } from '../engine/camera';
 import { TILE_SIZE } from '../engine/grid';
 import type { Building, Crop, NPC, Tile, World } from '../world/world';
+import type { PeerRenderable } from '../game/peer-view';
+import { drawPeerSprite, peerScreenPos } from './peer-sprite';
 import {
   drawPixelCircle,
   drawPixelRect,
@@ -56,6 +58,25 @@ export class Renderer {
    * 0.75 = midnight. The renderer maps this to a sky gradient and a
    * tint overlay.
    */
+  /**
+   * Draw remote co-op peers on top of the world but below the night tint.
+   * Call this between `draw()` and any HUD overlays. Peers outside the
+   * camera viewport are skipped with a cheap bounds test so a packed lobby
+   * doesn't tank the framerate.
+   */
+  drawPeers(peers: readonly PeerRenderable[], camera: Camera): void {
+    if (peers.length === 0) return;
+    const ctx = this.ctx;
+    const w = camera.viewW;
+    const h = camera.viewH;
+    for (const peer of peers) {
+      const { sx, sy } = peerScreenPos(peer, camera.x, camera.y);
+      // 32px slack on each side covers the sprite + nameplate.
+      if (sx < -32 || sx > w + 32 || sy < -32 || sy > h + 32) continue;
+      drawPeerSprite(ctx, peer, sx, sy);
+    }
+  }
+
   draw(world: World, camera: Camera, timeOfDay: number): void {
     const ctx = this.ctx;
     const w = camera.viewW;
