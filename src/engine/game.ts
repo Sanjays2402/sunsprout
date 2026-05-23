@@ -35,6 +35,7 @@ import { propose } from '../game/engagement';
 import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
+import { PeerToasts } from '../ui/peer-toasts';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
@@ -95,6 +96,8 @@ export class Game {
   public multiplayer: MultiplayerDriver | null = null;
   /** Last peer-list resolved this frame — handed to renderer.drawPeers(). */
   private peerRenderables: PeerRenderable[] = [];
+  /** Join/leave toast queue (only used when multiplayer is active). */
+  private peerToasts = new PeerToasts();
 
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
@@ -604,6 +607,11 @@ export class Game {
       this.world.player,
       typeof performance !== 'undefined' ? performance.now() : Date.now(),
     );
+    if (this.multiplayer) {
+      const tNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const events = this.multiplayer.drainEvents();
+      if (events.length > 0) this.peerToasts.push(events, tNow);
+    }
   }
 
   private render(): void {
@@ -617,6 +625,11 @@ export class Game {
         peerCount: this.multiplayer.session.registry.size(),
         canvasW: this.canvas.width,
       });
+      this.peerToasts.draw(
+        this.ctx,
+        this.canvas.width,
+        typeof performance !== 'undefined' ? performance.now() : Date.now(),
+      );
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
