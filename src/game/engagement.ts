@@ -57,3 +57,14 @@ export function propose(player: Player, npcId: string, day: number): ProposalOut
 export function fianceOf(player: Player): string | null {
   return player.engagement ? player.engagement.npcId : null;
 }
+
+/** True if the player has accepted a proposal with any candidate. */
+export function isEngaged(player: Player): boolean {
+  return !!player.engagement;
+}
+
+/** Days since the proposal was accepted (0 on the same day). Null when not engaged. */
+export function daysEngaged(player: Player, today: number): number | null {
+  if (!player.engagement) return null;
+  return Math.max(0, today - player.engagement.day);
+}

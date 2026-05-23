@@ -31,6 +31,7 @@ import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
 import { attemptAutoGift } from '../game/gifting';
+import { propose } from '../game/engagement';
 import { drawHUD } from '../ui/hud';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
@@ -456,6 +457,32 @@ export class Game {
           this.setToast(`${npc.name} isn't a candidate.`);
         } else {
           this.setToast('Face someone to give a gift.');
+        }
+      }
+      if (this.input.justPressed.has('p')) {
+        const npc = npcInFrontOf(this.world, front.tx, front.ty);
+        if (npc) {
+          const out = propose(p, npc.id, this.time.day);
+          switch (out.kind) {
+            case 'accepted':
+              this.setToast(`💍 ${npc.name} said YES! You are engaged.`);
+              checkQuests(p, { kind: 'gift', npcId: npc.id, hearts: 10 });
+              break;
+            case 'not-candidate':
+              this.setToast(`${npc.name} isn't a candidate.`);
+              break;
+            case 'no-bouquet':
+              this.setToast('You need a bouquet to propose.');
+              break;
+            case 'too-few-hearts':
+              this.setToast(`${npc.name} needs ♥${out.need} (have ${out.have}).`);
+              break;
+            case 'already-engaged':
+              this.setToast(`You're already engaged to ${out.toNpcId}.`);
+              break;
+          }
+        } else {
+          this.setToast('Face someone to propose.');
         }
       }
       if (this.input.justPressed.has('e')) {

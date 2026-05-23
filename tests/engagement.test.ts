@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { propose, fianceOf, PROPOSAL_HEART_REQ } from '../src/game/engagement';
+import { propose, fianceOf, isEngaged, daysEngaged, PROPOSAL_HEART_REQ } from '../src/game/engagement';
 import { startingHearts, HEART_POINTS, MAX_HEARTS, BOUQUET_KEY } from '../src/game/hearts';
 import type { Player } from '../src/world/world';
 
@@ -61,5 +61,18 @@ describe('engagement', () => {
     const r = propose(p, 'rose', 2);
     expect(r).toEqual({ kind: 'already-engaged', toNpcId: 'finn' });
     expect(p.inventory[BOUQUET_KEY]).toBe(4); // only one consumed
+  });
+
+  it('isEngaged + daysEngaged report engagement length', () => {
+    const p = makePlayer();
+    expect(isEngaged(p)).toBe(false);
+    expect(daysEngaged(p, 10)).toBeNull();
+    p.hearts!.maple.points = MAX_HEARTS * HEART_POINTS;
+    p.inventory[BOUQUET_KEY] = 1;
+    propose(p, 'maple', 5);
+    expect(isEngaged(p)).toBe(true);
+    expect(fianceOf(p)).toBe('maple');
+    expect(daysEngaged(p, 5)).toBe(0);
+    expect(daysEngaged(p, 12)).toBe(7);
   });
 });
