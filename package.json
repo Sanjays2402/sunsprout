@@ -1,7 +1,7 @@
 {
   "name": "sunsprout",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "A cozy pixel village + farm simulator that runs in your browser.",
   "scripts": {

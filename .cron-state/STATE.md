@@ -4,10 +4,10 @@
 
 ## STATUS
 
-**STATUS:** v0.4.0 MINING CAVES COMPLETE — pickaxe + swing-meter + gem catalog + cave outcrop + sell-at-well + First Gem & Geologist quests all live.
+**STATUS:** v0.5.0 MARRIAGE CANDIDATES COMPLETE — hearts meter + gift tastes + bouquet item + propose + 3-day engagement + wedding at the well + Sweetheart/Confidant/Devoted/Soulmate/Newlywed quest ladder all live.
 
 Active dev branch: `main`
-Latest tag: `v0.4.0`
+Latest tag: `v0.5.0`
 
 ## ROADMAP
 
@@ -15,7 +15,7 @@ Latest tag: `v0.4.0`
 - [x] **v0.2.0 — Fishing Pond** — rod + cast + timing minigame at the pond Finn fishes from
 - [x] **v0.3.0 — Cooking Pot** — recipes + cook() + inn menu + sell-dishes + quest hook
 - [x] **v0.4.0 — Mining Caves** — hidden cave entrance + pickaxe + gem economy
-- [ ] **v0.5.0 — Marriage Candidates** — each NPC gets a heart meter + gift preferences
+- [x] **v0.5.0 — Marriage Candidates** — each NPC gets a heart meter + gift preferences
 - [ ] **v0.6.0 — Multiplayer Farms** — WebSocket co-op
 - [ ] **v1.0.0 — Full Year + Festivals**
 
