@@ -34,6 +34,7 @@ import { attemptAutoGift } from '../game/gifting';
 import { propose } from '../game/engagement';
 import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
+import { drawPeerBadge } from '../ui/peer-badge';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
@@ -611,6 +612,12 @@ export class Game {
       this.renderer.drawPeers(this.peerRenderables, this.camera);
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    if (this.multiplayer) {
+      drawPeerBadge(this.ctx, {
+        peerCount: this.multiplayer.session.registry.size(),
+        canvasW: this.canvas.width,
+      });
+    }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
