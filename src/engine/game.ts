@@ -50,6 +50,10 @@ import {
   MINIGAME,
   type ReelGrade,
 } from '../ui/fishing-minigame';
+import { initMultiplayer } from '../game/multiplayer-init';
+import { tickMultiplayerFrame } from '../game/multiplayer-frame';
+import type { MultiplayerDriver } from '../game/multiplayer-driver';
+import type { PeerRenderable } from '../game/peer-view';
 import {
   cursorPosition as swingCursorPosition,
   drawSwingMeter,
@@ -85,6 +89,11 @@ export class Game {
   /** Mining swing-meter — locked cursor + grade once the player taps M. */
   private strikeLockedCursor: number | null = null;
   private strikeGrade: StrikeGrade | null = null;
+
+  /** Optional multiplayer driver (null in single-player). */
+  public multiplayer: MultiplayerDriver | null = null;
+  /** Last peer-list resolved this frame — handed to renderer.drawPeers(). */
+  private peerRenderables: PeerRenderable[] = [];
 
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
@@ -129,6 +138,16 @@ export class Game {
       p.hearts = startingHearts();
       (p as { selectedSlot?: number }).selectedSlot = 0;
       this.camera.snapTo(p.x * TILE_SIZE + TILE_SIZE / 2, p.y * TILE_SIZE + TILE_SIZE / 2);
+    }
+
+    // Multiplayer (opt-in via `?multiplayer=1`). Safe-fails to null when
+    // BroadcastChannel is unavailable so single-player still boots.
+    try {
+      this.multiplayer = initMultiplayer({
+        location: typeof window !== 'undefined' ? window.location : undefined,
+      });
+    } catch {
+      this.multiplayer = null;
     }
   }
 
@@ -576,10 +595,21 @@ export class Game {
     }
 
     this.input.clearJustPressed();
+
+    // Multiplayer: broadcast our snapshot + resolve smoothed peer positions
+    // for the upcoming render(). No-op when the driver is null.
+    this.peerRenderables = tickMultiplayerFrame(
+      this.multiplayer,
+      this.world.player,
+      typeof performance !== 'undefined' ? performance.now() : Date.now(),
+    );
   }
 
   private render(): void {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
+    if (this.peerRenderables.length > 0) {
+      this.renderer.drawPeers(this.peerRenderables, this.camera);
+    }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
