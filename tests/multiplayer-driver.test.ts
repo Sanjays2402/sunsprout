@@ -49,6 +49,27 @@ describe('MultiplayerDriver', () => {
     expect(a.peers(300)).toEqual([]);
   });
 
+  it('drains join and leave events around a peer lifecycle', () => {
+    const { a, b } = makePair();
+    a.tick({ x: 0, y: 0, facing: 'down' }, 0);
+    // First tick after b broadcasts → join event surfaces.
+    b.tick({ x: 1, y: 1, facing: 'down' }, 0);
+    a.tick({ x: 0, y: 0, facing: 'down' }, 50);
+    const joins = a.drainEvents();
+    expect(joins).toHaveLength(1);
+    expect(joins[0].kind).toBe('join');
+    expect(joins[0].id).toBe('b');
+    expect(joins[0].name).toBe('B');
+    // Drain is one-shot.
+    expect(a.drainEvents()).toEqual([]);
+    // Now b goes silent → eviction should produce a leave event.
+    a.tick({ x: 0, y: 0, facing: 'down' }, 10_000);
+    const leaves = a.drainEvents();
+    expect(leaves).toHaveLength(1);
+    expect(leaves[0].kind).toBe('leave');
+    expect(leaves[0].id).toBe('b');
+  });
+
   it('evicts stale peers and reports their ids', () => {
     const { a, b } = makePair();
     a.tick({ x: 0, y: 0, facing: 'down' }, 0);

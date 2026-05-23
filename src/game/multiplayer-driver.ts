@@ -11,21 +11,31 @@
 
 import type { MultiplayerSession, LocalState } from './multiplayer-session';
 import type { PeerView, PeerRenderable } from './peer-view';
+import { PeerPresenceLog, type PeerEvent } from './peer-events';
 
 export interface MultiplayerDriverOpts {
   session: MultiplayerSession;
   view: PeerView;
+  /** Optional presence log — injected in tests; one is created if omitted. */
+  presence?: PeerPresenceLog;
 }
 
 export class MultiplayerDriver {
   readonly session: MultiplayerSession;
   readonly view: PeerView;
+  readonly presence: PeerPresenceLog;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
+  /** Events produced by the most recent tick(). Drained by drainEvents(). */
+  private _lastEvents: PeerEvent[] = [];
 
   constructor(opts: MultiplayerDriverOpts) {
     this.session = opts.session;
     this.view = opts.view;
+    this.presence = opts.presence ?? new PeerPresenceLog();
+    // Seed with whatever peers already exist so we don't fire spurious joins
+    // for sessions we attach to mid-flight.
+    this.presence.seed(this.session.registry);
   }
 
   /** True once the underlying session has been closed. */
@@ -47,7 +57,17 @@ export class MultiplayerDriver {
   tick(local: LocalState, now: number): string[] {
     if (this.session.closed) return [];
     this._ticks++;
-    return this.session.update(local, now);
+    const evicted = this.session.update(local, now);
+    this._lastEvents = this.presence.diff(this.session.registry, now);
+    return evicted;
+  }
+
+  /** Pull and clear the queue of join/leave events recorded since the last
+   *  call. Empty on the happy path. Callers pump these into PeerToasts. */
+  drainEvents(): PeerEvent[] {
+    const out = this._lastEvents;
+    this._lastEvents = [];
+    return out;
   }
 
   /** Resolve smoothed render positions for every visible peer. */
