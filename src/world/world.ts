@@ -32,6 +32,8 @@ export interface Player {
   quests: any[];
   /** Per-NPC relationship rows (v0.5.0 marriage candidates). */
   hearts?: import('../game/hearts').HeartsState;
+  /** Marriage engagement record (v0.5.0). One fiancé at a time. */
+  engagement?: import('../game/engagement').Engagement;
 }
 
 export interface NPC {
