@@ -11,6 +11,7 @@
 import type { Player } from '../world/world';
 import { CROPS } from './crops';
 import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
+import { BOUQUET_KEY, BOUQUET_PRICE } from './hearts';
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -38,6 +39,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
       sellPrice: crop.sellPrice,
     });
   }
+  // Courtship bouquet — buyable token of affection (v0.5.0).
+  items.push({
+    key: BOUQUET_KEY,
+    label: 'Bouquet',
+    buyPrice: BOUQUET_PRICE,
+    sellPrice: null,
+  });
   return items;
 })();
 

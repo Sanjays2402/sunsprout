@@ -86,10 +86,20 @@ export function startingHearts(): HeartsState {
   return s;
 }
 
+/**
+ * Courtship bouquet — a universal "loved" gift sold at the shop. Every
+ * candidate adores it. Players who can't farm the right favourite item
+ * yet can buy their way past an early heart wall with one of these.
+ */
+export const BOUQUET_KEY = 'bouquet';
+export const BOUQUET_PRICE = 200;
+
 /** Classify how the candidate feels about a given inventory key. */
 export function tasteOf(npcId: string, itemKey: string): GiftTaste {
   const def = CANDIDATES[npcId];
   if (!def) return 'neutral';
+  // The bouquet is universally loved — it's the village courtship token.
+  if (itemKey === BOUQUET_KEY) return 'loved';
   if (def.loved.includes(itemKey)) return 'loved';
   if (def.liked.includes(itemKey)) return 'liked';
   if (def.disliked.includes(itemKey)) return 'disliked';
