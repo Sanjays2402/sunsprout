@@ -36,6 +36,7 @@ import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
 import { drawEmoteLegend } from '../ui/emote-legend';
+import { drawPeerBubbles } from '../render/peer-bubbles';
 import { PeerToasts } from '../ui/peer-toasts';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
@@ -635,6 +636,14 @@ export class Game {
         canvasW: this.canvas.width,
         canvasH: this.canvas.height,
       });
+      if (this.peerRenderables.length > 0) {
+        drawPeerBubbles(this.ctx, {
+          peers: this.peerRenderables,
+          source: this.multiplayer,
+          camera: this.camera,
+          now: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+        });
+      }
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
