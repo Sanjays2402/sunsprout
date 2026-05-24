@@ -17,6 +17,7 @@ import { TILE_SIZE } from '../engine/grid';
 import type { Building, Crop, NPC, Tile, World } from '../world/world';
 import type { PeerRenderable } from '../game/peer-view';
 import { drawPeerSprite, peerScreenPos } from './peer-sprite';
+import { drawPeerMuteMark, type MuteSource } from './peer-mute-mark';
 import {
   drawPixelCircle,
   drawPixelRect,
@@ -64,7 +65,11 @@ export class Renderer {
    * camera viewport are skipped with a cheap bounds test so a packed lobby
    * doesn't tank the framerate.
    */
-  drawPeers(peers: readonly PeerRenderable[], camera: Camera): void {
+  drawPeers(
+    peers: readonly PeerRenderable[],
+    camera: Camera,
+    mutes?: MuteSource,
+  ): void {
     if (peers.length === 0) return;
     const ctx = this.ctx;
     const w = camera.viewW;
@@ -74,6 +79,7 @@ export class Renderer {
       // 32px slack on each side covers the sprite + nameplate.
       if (sx < -32 || sx > w + 32 || sy < -32 || sy > h + 32) continue;
       drawPeerSprite(ctx, peer, sx, sy);
+      if (mutes) drawPeerMuteMark(ctx, peer, mutes, sx, sy);
     }
   }
 

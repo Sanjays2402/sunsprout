@@ -620,7 +620,7 @@ export class Game {
   private render(): void {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
     if (this.peerRenderables.length > 0) {
-      this.renderer.drawPeers(this.peerRenderables, this.camera);
+      this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     if (this.multiplayer) {
