@@ -20,6 +20,8 @@ import { PeerEmotes, type ActiveEmote, type EmoteKind } from './peer-emotes';
 import { bindTransportToEmotes, broadcastEmote } from './emote-transport';
 import { PeerChats, type ActiveChat } from './peer-chats';
 import { bindTransportToChats, broadcastChat } from './chat-transport';
+import { ChatLog, type ChatLogEntry } from './chat-log';
+import { deserializeChat, looksLikeChatWire } from './chat-wire';
 
 export interface MultiplayerDriverOpts {
   session: MultiplayerSession;
@@ -30,6 +32,8 @@ export interface MultiplayerDriverOpts {
   emotes?: PeerEmotes;
   /** Optional chats store — injected in tests; one is created if omitted. */
   chats?: PeerChats;
+  /** Optional chat log — injected in tests; one is created if omitted. */
+  chatLog?: ChatLog;
 }
 
 export class MultiplayerDriver {
@@ -38,12 +42,14 @@ export class MultiplayerDriver {
   readonly presence: PeerPresenceLog;
   readonly emotes: PeerEmotes;
   readonly chats: PeerChats;
+  readonly chatLog: ChatLog;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
   /** Events produced by the most recent tick(). Drained by drainEvents(). */
   private _lastEvents: PeerEvent[] = [];
   private _unbindEmotes: () => void;
   private _unbindChats: () => void;
+  private _unbindChatLog: () => void;
 
   constructor(opts: MultiplayerDriverOpts) {
     this.session = opts.session;
@@ -51,6 +57,7 @@ export class MultiplayerDriver {
     this.presence = opts.presence ?? new PeerPresenceLog();
     this.emotes = opts.emotes ?? new PeerEmotes();
     this.chats = opts.chats ?? new PeerChats();
+    this.chatLog = opts.chatLog ?? new ChatLog();
     // Seed with whatever peers already exist so we don't fire spurious joins
     // for sessions we attach to mid-flight.
     this.presence.seed(this.session.registry);
@@ -58,6 +65,14 @@ export class MultiplayerDriver {
     // wire-shape sniff so snapshot traffic pays nothing extra.
     this._unbindEmotes = bindTransportToEmotes(this.session.transport, this.emotes);
     this._unbindChats = bindTransportToChats(this.session.transport, this.chats);
+    // Also tee inbound chat messages into the rolling history log so the
+    // bottom-left HUD panel renders peer lines alongside the local player's.
+    this._unbindChatLog = this.session.transport.onMessage((raw) => {
+      if (!looksLikeChatWire(raw)) return;
+      const msg = deserializeChat(raw);
+      if (!msg) return;
+      this.chatLog.push(msg.id, msg.m, Date.now());
+    });
   }
 
   /** True once the underlying session has been closed. */
@@ -136,15 +151,23 @@ export class MultiplayerDriver {
     const sent = broadcastChat(this.session.transport, this.session.identity.id, body);
     if (!sent) return false;
     this.chats.push(this.session.identity.id, body, now);
+    this.chatLog.push('local', body, Date.now());
     return true;
+  }
+
+  /** Most recent chat history entries, oldest → newest. */
+  recentChatHistory(n: number = 5): ChatLogEntry[] {
+    return this.chatLog.tail(n);
   }
 
   close(): void {
     this._unbindEmotes();
     this._unbindChats();
+    this._unbindChatLog();
     this.session.close();
     this.view.clear();
     this.emotes.clear();
     this.chats.clear();
+    this.chatLog.clear();
   }
 }
