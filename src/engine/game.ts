@@ -35,6 +35,7 @@ import { propose } from '../game/engagement';
 import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
+import { drawMuteBadge } from '../ui/mute-badge';
 import { drawEmoteLegend } from '../ui/emote-legend';
 import { drawPeerBubbles } from '../render/peer-bubbles';
 import { PeerToasts } from '../ui/peer-toasts';
@@ -625,6 +626,10 @@ export class Game {
     if (this.multiplayer) {
       drawPeerBadge(this.ctx, {
         peerCount: this.multiplayer.session.registry.size(),
+        canvasW: this.canvas.width,
+      });
+      drawMuteBadge(this.ctx, {
+        mutedCount: this.multiplayer.mutes.size(),
         canvasW: this.canvas.width,
       });
       this.peerToasts.draw(
