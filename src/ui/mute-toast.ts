@@ -51,7 +51,23 @@ export class MuteToasts {
     const name = result.id.trim();
     if (!name) return;
     const text = result.muted ? `muted ${name}` : `unmuted ${name}`;
-    this.active.push({ text, muted: result.muted, diesAt: now + TOAST_TTL_MS });
+    this.enqueue(text, result.muted, now);
+  }
+
+  /**
+   * Enqueue an "unmuted N peers" bulk toast from a handleUnmuteAllKeybind
+   * result. No-op when cleared <= 0 so the U key produces silence on an
+   * already-empty mute set.
+   */
+  pushUnmuteAll(cleared: number, now: number): void {
+    if (!Number.isFinite(cleared) || cleared <= 0) return;
+    const n = Math.floor(cleared);
+    const text = n === 1 ? 'unmuted 1 peer' : `unmuted ${n} peers`;
+    this.enqueue(text, false, now);
+  }
+
+  private enqueue(text: string, muted: boolean, now: number): void {
+    this.active.push({ text, muted, diesAt: now + TOAST_TTL_MS });
     this.prune(now);
     if (this.active.length > MAX_VISIBLE) {
       this.active.splice(0, this.active.length - MAX_VISIBLE);
