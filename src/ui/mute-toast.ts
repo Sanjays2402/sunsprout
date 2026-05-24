@@ -66,6 +66,19 @@ export class MuteToasts {
     this.enqueue(text, false, now);
   }
 
+  /**
+   * Enqueue a "restored N mutes" bulk toast from a handleRestoreMutesKeybind
+   * result. No-op when restored <= 0 so Shift+U on an empty history stack
+   * stays silent. Uses the muted accent stripe since restored peers are
+   * once again muted.
+   */
+  pushRestore(restored: number, now: number): void {
+    if (!Number.isFinite(restored) || restored <= 0) return;
+    const n = Math.floor(restored);
+    const text = n === 1 ? 'restored 1 mute' : `restored ${n} mutes`;
+    this.enqueue(text, true, now);
+  }
+
   private enqueue(text: string, muted: boolean, now: number): void {
     this.active.push({ text, muted, diesAt: now + TOAST_TTL_MS });
     this.prune(now);
