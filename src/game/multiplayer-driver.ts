@@ -1,14 +1,16 @@
-// Multiplayer driver — v0.6.0 tenth slice (extended w/ emotes in nineteenth).
+// Multiplayer driver — v0.6.0 (twenty-fifth slice: chat wiring).
 //
-// Thin glue object: owns a MultiplayerSession + PeerView + PeerEmotes and
-// exposes the small per-frame surface that engine/game.ts needs:
+// Thin glue object: owns a MultiplayerSession + PeerView + PeerEmotes +
+// PeerChats and exposes the small per-frame surface that engine/game.ts needs:
 //   - tick(local, now) → broadcasts the local snapshot and evicts stale peers
 //   - peers(now)       → returns smoothed PeerRenderables to draw
 //   - emoteFor(id, now)→ active emote bubble for a peer (or undefined)
 //   - sendEmote(kind)  → broadcast an emote from the local player
+//   - chatFor(id, now) → active chat bubble for a peer (or undefined)
+//   - sendChat(body)   → broadcast a chat line from the local player
 //
 // Pulled into its own module so the Game class doesn't have to know about
-// session/view/emote wiring details and so we can unit-test the per-frame
+// session/view/emote/chat wiring details and so we can unit-test the per-frame
 // loop without instantiating the renderer or a real BroadcastChannel.
 
 import type { MultiplayerSession, LocalState } from './multiplayer-session';
@@ -16,6 +18,8 @@ import type { PeerView, PeerRenderable } from './peer-view';
 import { PeerPresenceLog, type PeerEvent } from './peer-events';
 import { PeerEmotes, type ActiveEmote, type EmoteKind } from './peer-emotes';
 import { bindTransportToEmotes, broadcastEmote } from './emote-transport';
+import { PeerChats, type ActiveChat } from './peer-chats';
+import { bindTransportToChats, broadcastChat } from './chat-transport';
 
 export interface MultiplayerDriverOpts {
   session: MultiplayerSession;
@@ -24,6 +28,8 @@ export interface MultiplayerDriverOpts {
   presence?: PeerPresenceLog;
   /** Optional emotes store — injected in tests; one is created if omitted. */
   emotes?: PeerEmotes;
+  /** Optional chats store — injected in tests; one is created if omitted. */
+  chats?: PeerChats;
 }
 
 export class MultiplayerDriver {
@@ -31,24 +37,27 @@ export class MultiplayerDriver {
   readonly view: PeerView;
   readonly presence: PeerPresenceLog;
   readonly emotes: PeerEmotes;
+  readonly chats: PeerChats;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
   /** Events produced by the most recent tick(). Drained by drainEvents(). */
   private _lastEvents: PeerEvent[] = [];
   private _unbindEmotes: () => void;
+  private _unbindChats: () => void;
 
   constructor(opts: MultiplayerDriverOpts) {
     this.session = opts.session;
     this.view = opts.view;
     this.presence = opts.presence ?? new PeerPresenceLog();
     this.emotes = opts.emotes ?? new PeerEmotes();
+    this.chats = opts.chats ?? new PeerChats();
     // Seed with whatever peers already exist so we don't fire spurious joins
     // for sessions we attach to mid-flight.
     this.presence.seed(this.session.registry);
-    // Subscribe to inbound emote events on the session's transport. The
-    // snapshot path uses a different demux upstream, so this listener only
-    // reacts to emote-tagged payloads.
+    // Subscribe to inbound emote + chat events. Each binder uses a cheap
+    // wire-shape sniff so snapshot traffic pays nothing extra.
     this._unbindEmotes = bindTransportToEmotes(this.session.transport, this.emotes);
+    this._unbindChats = bindTransportToChats(this.session.transport, this.chats);
   }
 
   /** True once the underlying session has been closed. */
@@ -72,10 +81,13 @@ export class MultiplayerDriver {
     this._ticks++;
     const evicted = this.session.update(local, now);
     this._lastEvents = this.presence.diff(this.session.registry, now);
-    // Forget emote bubbles for peers that just left so a re-join doesn't
-    // briefly inherit an old emote.
+    // Forget emote + chat bubbles for peers that just left so a re-join
+    // doesn't briefly inherit a stale bubble.
     for (const ev of this._lastEvents) {
-      if (ev.kind === 'leave') this.emotes.forget(ev.id);
+      if (ev.kind === 'leave') {
+        this.emotes.forget(ev.id);
+        this.chats.forget(ev.id);
+      }
     }
     return evicted;
   }
@@ -98,6 +110,11 @@ export class MultiplayerDriver {
     return this.emotes.activeFor(peerId, now);
   }
 
+  /** Active chat bubble for a peer (local or remote), or undefined. */
+  chatFor(peerId: string, now: number): ActiveChat | undefined {
+    return this.chats.activeFor(peerId, now);
+  }
+
   /**
    * Broadcast an emote from the local player and immediately echo it into
    * our own emote store so the local player sees their own bubble (the
@@ -109,10 +126,25 @@ export class MultiplayerDriver {
     this.emotes.push(this.session.identity.id, kind, now);
   }
 
+  /**
+   * Broadcast a chat line from the local player and echo it locally. Returns
+   * true if the sanitized body was non-empty and a message was sent. No-op
+   * after close().
+   */
+  sendChat(body: string, now: number): boolean {
+    if (this.session.closed) return false;
+    const sent = broadcastChat(this.session.transport, this.session.identity.id, body);
+    if (!sent) return false;
+    this.chats.push(this.session.identity.id, body, now);
+    return true;
+  }
+
   close(): void {
     this._unbindEmotes();
+    this._unbindChats();
     this.session.close();
     this.view.clear();
     this.emotes.clear();
+    this.chats.clear();
   }
 }
