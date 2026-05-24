@@ -17,7 +17,8 @@ import type { MultiplayerSession, LocalState } from './multiplayer-session';
 import type { PeerView, PeerRenderable } from './peer-view';
 import { PeerPresenceLog, type PeerEvent } from './peer-events';
 import { PeerEmotes, type ActiveEmote, type EmoteKind } from './peer-emotes';
-import { bindTransportToEmotes, broadcastEmote } from './emote-transport';
+import { broadcastEmote } from './emote-transport';
+import { deserializeEmote, looksLikeEmoteWire } from './emote-wire';
 import { PeerChats, type ActiveChat } from './peer-chats';
 import { broadcastChat } from './chat-transport';
 import { ChatLog, type ChatLogEntry } from './chat-log';
@@ -68,7 +69,14 @@ export class MultiplayerDriver {
     this.presence.seed(this.session.registry);
     // Subscribe to inbound emote + chat events. Each binder uses a cheap
     // wire-shape sniff so snapshot traffic pays nothing extra.
-    this._unbindEmotes = bindTransportToEmotes(this.session.transport, this.emotes);
+    // Inline emote bind so muted peers also have their emote bubbles dropped.
+    this._unbindEmotes = this.session.transport.onMessage((raw) => {
+      if (!looksLikeEmoteWire(raw)) return;
+      const msg = deserializeEmote(raw);
+      if (!msg) return;
+      if (this.mutes.isMuted(msg.id)) return;
+      this.emotes.push(msg.id, msg.k, Date.now());
+    });
     // Chat goes through a thin wrapper so muted peers drop both their
     // bubble and their history-line in one place.
     this._unbindChats = this.session.transport.onMessage((raw) => {
