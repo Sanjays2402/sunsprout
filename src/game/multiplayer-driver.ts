@@ -19,8 +19,9 @@ import { PeerPresenceLog, type PeerEvent } from './peer-events';
 import { PeerEmotes, type ActiveEmote, type EmoteKind } from './peer-emotes';
 import { bindTransportToEmotes, broadcastEmote } from './emote-transport';
 import { PeerChats, type ActiveChat } from './peer-chats';
-import { bindTransportToChats, broadcastChat } from './chat-transport';
+import { broadcastChat } from './chat-transport';
 import { ChatLog, type ChatLogEntry } from './chat-log';
+import { ChatMuteSet } from './chat-mute';
 import { deserializeChat, looksLikeChatWire } from './chat-wire';
 
 export interface MultiplayerDriverOpts {
@@ -34,6 +35,8 @@ export interface MultiplayerDriverOpts {
   chats?: PeerChats;
   /** Optional chat log — injected in tests; one is created if omitted. */
   chatLog?: ChatLog;
+  /** Optional mute set — injected in tests; one is created if omitted. */
+  mutes?: ChatMuteSet;
 }
 
 export class MultiplayerDriver {
@@ -43,6 +46,7 @@ export class MultiplayerDriver {
   readonly emotes: PeerEmotes;
   readonly chats: PeerChats;
   readonly chatLog: ChatLog;
+  readonly mutes: ChatMuteSet;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
   /** Events produced by the most recent tick(). Drained by drainEvents(). */
@@ -58,19 +62,29 @@ export class MultiplayerDriver {
     this.emotes = opts.emotes ?? new PeerEmotes();
     this.chats = opts.chats ?? new PeerChats();
     this.chatLog = opts.chatLog ?? new ChatLog();
+    this.mutes = opts.mutes ?? new ChatMuteSet();
     // Seed with whatever peers already exist so we don't fire spurious joins
     // for sessions we attach to mid-flight.
     this.presence.seed(this.session.registry);
     // Subscribe to inbound emote + chat events. Each binder uses a cheap
     // wire-shape sniff so snapshot traffic pays nothing extra.
     this._unbindEmotes = bindTransportToEmotes(this.session.transport, this.emotes);
-    this._unbindChats = bindTransportToChats(this.session.transport, this.chats);
+    // Chat goes through a thin wrapper so muted peers drop both their
+    // bubble and their history-line in one place.
+    this._unbindChats = this.session.transport.onMessage((raw) => {
+      if (!looksLikeChatWire(raw)) return;
+      const msg = deserializeChat(raw);
+      if (!msg) return;
+      if (this.mutes.isMuted(msg.id)) return;
+      this.chats.push(msg.id, msg.m, Date.now());
+    });
     // Also tee inbound chat messages into the rolling history log so the
     // bottom-left HUD panel renders peer lines alongside the local player's.
     this._unbindChatLog = this.session.transport.onMessage((raw) => {
       if (!looksLikeChatWire(raw)) return;
       const msg = deserializeChat(raw);
       if (!msg) return;
+      if (this.mutes.isMuted(msg.id)) return;
       this.chatLog.push(msg.id, msg.m, Date.now());
     });
   }
