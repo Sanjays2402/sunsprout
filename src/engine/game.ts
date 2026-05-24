@@ -35,6 +35,7 @@ import { propose } from '../game/engagement';
 import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
+import { drawEmoteLegend } from '../ui/emote-legend';
 import { PeerToasts } from '../ui/peer-toasts';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
@@ -630,6 +631,10 @@ export class Game {
         this.canvas.width,
         typeof performance !== 'undefined' ? performance.now() : Date.now(),
       );
+      drawEmoteLegend(this.ctx, {
+        canvasW: this.canvas.width,
+        canvasH: this.canvas.height,
+      });
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
