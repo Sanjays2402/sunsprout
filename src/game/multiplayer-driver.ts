@@ -23,6 +23,7 @@ import { PeerChats, type ActiveChat } from './peer-chats';
 import { broadcastChat } from './chat-transport';
 import { ChatLog, type ChatLogEntry } from './chat-log';
 import { ChatMuteSet } from './chat-mute';
+import { LastChatter } from './last-chatter';
 import { deserializeChat, looksLikeChatWire } from './chat-wire';
 
 export interface MultiplayerDriverOpts {
@@ -38,6 +39,8 @@ export interface MultiplayerDriverOpts {
   chatLog?: ChatLog;
   /** Optional mute set — injected in tests; one is created if omitted. */
   mutes?: ChatMuteSet;
+  /** Optional last-chatter tracker — injected in tests; one is created if omitted. */
+  lastChatter?: LastChatter;
 }
 
 export class MultiplayerDriver {
@@ -48,6 +51,7 @@ export class MultiplayerDriver {
   readonly chats: PeerChats;
   readonly chatLog: ChatLog;
   readonly mutes: ChatMuteSet;
+  readonly lastChatter: LastChatter;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
   /** Events produced by the most recent tick(). Drained by drainEvents(). */
@@ -64,6 +68,7 @@ export class MultiplayerDriver {
     this.chats = opts.chats ?? new PeerChats();
     this.chatLog = opts.chatLog ?? new ChatLog();
     this.mutes = opts.mutes ?? new ChatMuteSet();
+    this.lastChatter = opts.lastChatter ?? new LastChatter();
     // Seed with whatever peers already exist so we don't fire spurious joins
     // for sessions we attach to mid-flight.
     this.presence.seed(this.session.registry);
@@ -84,7 +89,9 @@ export class MultiplayerDriver {
       const msg = deserializeChat(raw);
       if (!msg) return;
       if (this.mutes.isMuted(msg.id)) return;
-      this.chats.push(msg.id, msg.m, Date.now());
+      const now = Date.now();
+      this.chats.push(msg.id, msg.m, now);
+      this.lastChatter.note(msg.id, now);
     });
     // Also tee inbound chat messages into the rolling history log so the
     // bottom-left HUD panel renders peer lines alongside the local player's.
@@ -180,6 +187,18 @@ export class MultiplayerDriver {
   /** Most recent chat history entries, oldest → newest. */
   recentChatHistory(n: number = 5): ChatLogEntry[] {
     return this.chatLog.tail(n);
+  }
+
+  /**
+   * Id of the most recent unmuted peer to chat, or null if no one has spoken
+   * within the LastChatter TTL (or the last speaker is now muted). Powers the
+   * planned "mute last speaker" keybind.
+   */
+  lastChatterId(now: number): string | null {
+    const entry = this.lastChatter.get(now);
+    if (!entry) return null;
+    if (this.mutes.isMuted(entry.id)) return null;
+    return entry.id;
   }
 
   close(): void {
