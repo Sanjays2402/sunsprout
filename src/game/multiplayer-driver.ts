@@ -24,6 +24,7 @@ import { broadcastChat } from './chat-transport';
 import { ChatLog, type ChatLogEntry } from './chat-log';
 import { ChatMuteSet } from './chat-mute';
 import { LastChatter } from './last-chatter';
+import { MuteHistory } from './mute-history';
 import { deserializeChat, looksLikeChatWire } from './chat-wire';
 
 export interface MultiplayerDriverOpts {
@@ -41,6 +42,8 @@ export interface MultiplayerDriverOpts {
   mutes?: ChatMuteSet;
   /** Optional last-chatter tracker — injected in tests; one is created if omitted. */
   lastChatter?: LastChatter;
+  /** Optional mute history — injected in tests; one is created if omitted. */
+  muteHistory?: MuteHistory;
 }
 
 export class MultiplayerDriver {
@@ -52,6 +55,7 @@ export class MultiplayerDriver {
   readonly chatLog: ChatLog;
   readonly mutes: ChatMuteSet;
   readonly lastChatter: LastChatter;
+  readonly muteHistory: MuteHistory;
   /** Cumulative count of broadcasts since construction — handy for tests. */
   private _ticks = 0;
   /** Events produced by the most recent tick(). Drained by drainEvents(). */
@@ -69,6 +73,7 @@ export class MultiplayerDriver {
     this.chatLog = opts.chatLog ?? new ChatLog();
     this.mutes = opts.mutes ?? new ChatMuteSet();
     this.lastChatter = opts.lastChatter ?? new LastChatter();
+    this.muteHistory = opts.muteHistory ?? new MuteHistory();
     // Seed with whatever peers already exist so we don't fire spurious joins
     // for sessions we attach to mid-flight.
     this.presence.seed(this.session.registry);
