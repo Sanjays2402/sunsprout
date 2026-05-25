@@ -84,4 +84,28 @@ export class MuteHistory {
   clear(): void {
     this.stack.length = 0;
   }
+
+  /**
+   * Drop a specific peer id from every stored snapshot — used when a peer
+   * disconnects so a future restore-mutes won't try to re-mute someone who
+   * is no longer in the session. Snapshots that become empty after pruning
+   * are removed from the stack entirely. Returns the number of snapshots
+   * that were modified (including those removed).
+   */
+  prune(id: string): number {
+    if (typeof id !== 'string') return 0;
+    const t = id.trim();
+    if (!t || t === LOCAL_ID) return 0;
+    let touched = 0;
+    const next: string[][] = [];
+    for (const snap of this.stack) {
+      const idx = snap.indexOf(t);
+      if (idx === -1) { next.push(snap); continue; }
+      touched++;
+      const filtered = snap.filter((s) => s !== t);
+      if (filtered.length > 0) next.push(filtered);
+    }
+    this.stack = next;
+    return touched;
+  }
 }

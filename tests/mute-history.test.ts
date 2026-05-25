@@ -53,4 +53,21 @@ describe('MuteHistory', () => {
     expect(h.push(['alice', 'bob'])).toBe(true);
     expect(h.size()).toBe(3);
   });
+
+  it('prune drops a peer id from all snapshots and removes any that empty out', () => {
+    const h = new MuteHistory();
+    h.push(['alice', 'bob']);
+    h.push(['bob']);
+    h.push(['carol', 'bob']);
+    expect(h.prune('bob')).toBe(3);
+    expect(h.size()).toBe(2);
+    expect(h.pop()).toEqual(['carol']);
+    expect(h.pop()).toEqual(['alice']);
+    // ignores blanks / local / unknown ids
+    h.push(['dave']);
+    expect(h.prune('')).toBe(0);
+    expect(h.prune('local')).toBe(0);
+    expect(h.prune('ghost')).toBe(0);
+    expect(h.size()).toBe(1);
+  });
 });
