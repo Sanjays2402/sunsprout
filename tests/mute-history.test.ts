@@ -38,4 +38,19 @@ describe('MuteHistory', () => {
     expect(h.pop()).toEqual(['b']);
     expect(h.pop()).toBeNull();
   });
+
+  it('skips duplicate consecutive snapshots so spam-pushes do not fill the ring', () => {
+    const h = new MuteHistory();
+    expect(h.push(['alice', 'bob'])).toBe(true);
+    // identical contents (even in a different input order) should be rejected
+    expect(h.push(['bob', 'alice'])).toBe(false);
+    expect(h.push(['  alice ', 'bob'])).toBe(false);
+    expect(h.size()).toBe(1);
+    // a genuinely different snapshot still pushes
+    expect(h.push(['alice'])).toBe(true);
+    expect(h.size()).toBe(2);
+    // and the prior contents can be pushed again now that the top differs
+    expect(h.push(['alice', 'bob'])).toBe(true);
+    expect(h.size()).toBe(3);
+  });
 });

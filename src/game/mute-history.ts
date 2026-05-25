@@ -49,6 +49,17 @@ export class MuteHistory {
   push(ids: readonly string[]): boolean {
     const cleaned = sanitize(ids);
     if (cleaned.length === 0) return false;
+    // Skip if this snapshot is identical to the current top — prevents the
+    // bounded ring from filling with duplicates when the user spam-presses
+    // `u` (unmute-all) without re-muting anyone in between.
+    const top = this.stack[this.stack.length - 1];
+    if (top && top.length === cleaned.length) {
+      let same = true;
+      for (let i = 0; i < top.length; i++) {
+        if (top[i] !== cleaned[i]) { same = false; break; }
+      }
+      if (same) return false;
+    }
     this.stack.push(cleaned);
     while (this.stack.length > this.depth) this.stack.shift();
     return true;
