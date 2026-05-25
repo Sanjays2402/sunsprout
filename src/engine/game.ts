@@ -643,12 +643,13 @@ export class Game {
           localY: this.world.player.y,
           now: typeof performance !== 'undefined' ? performance.now() : Date.now(),
         });
-        drawPeerRosterPanel(this.ctx, { entries: roster, canvasW: this.canvas.width });
         const summary = summarizeRoster(roster);
+        const tone = rosterTone(summary);
+        drawPeerRosterPanel(this.ctx, { entries: roster, canvasW: this.canvas.width, tone });
         drawRosterSubtitle(this.ctx, {
           text: formatRosterSummary(summary),
           canvasW: this.canvas.width,
-          tone: rosterTone(summary),
+          tone,
         });
       }
       this.peerToasts.draw(

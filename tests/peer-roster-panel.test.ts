@@ -54,7 +54,37 @@ describe('peer-roster-panel', () => {
     expect(calls).toContain('fillRect');
     expect(calls).toContain('fillText');
   });
+
+  it('drawPeerRosterPanel tints bg + border via tone palette', () => {
+    const entries: RosterEntry[] = [
+      { id: 'a', name: 'Ada', color: '#fff', distance: 2, live: true },
+    ];
+    const soloFills: string[] = [];
+    const busyFills: string[] = [];
+    drawPeerRosterPanel(makeFillSpy(soloFills), { entries, canvasW: 800, tone: 'solo' });
+    drawPeerRosterPanel(makeFillSpy(busyFills), { entries, canvasW: 800, tone: 'busy' });
+    // Panel bg is the first fillStyle assignment after save().
+    expect(soloFills[0]).not.toBe(busyFills[0]);
+  });
 });
+
+function makeFillSpy(fills: string[]): CanvasRenderingContext2D {
+  const stub: Record<string, unknown> = {
+    save: () => {},
+    restore: () => {},
+    fillRect: () => {},
+    strokeRect: () => {},
+    fillText: () => {},
+  };
+  return new Proxy(stub, {
+    get: (t, p) => (p in t ? (t as Record<string | symbol, unknown>)[p] : undefined),
+    set: (t, p, v) => {
+      if (p === 'fillStyle') fills.push(String(v));
+      (t as Record<string | symbol, unknown>)[p] = v;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+}
 
 function makeFakeCtx(calls: string[]): CanvasRenderingContext2D {
   const stub: Record<string, unknown> = {

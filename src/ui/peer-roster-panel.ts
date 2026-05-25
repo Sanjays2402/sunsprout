@@ -10,9 +10,9 @@
 import type { RosterEntry } from '../game/peer-roster';
 import { formatRosterDistance } from '../game/peer-roster';
 import { peerBadgeRect } from './peer-badge';
+import { rosterTonePalette } from './peer-roster-tone-palette';
+import type { RosterTone } from '../game/peer-roster-tone';
 
-const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
-const PANEL_BORDER = '#4a3b6e';
 const TEXT_COLOR = '#F5E9D4';
 const DIM_TEXT = '#8a7fa3';
 const ROW_H = 14;
@@ -23,6 +23,8 @@ const SWATCH = 6;
 export interface PeerRosterPanelOpts {
   entries: readonly RosterEntry[];
   canvasW: number;
+  /** Optional roster tone — tints the panel bg/border to match the subtitle. */
+  tone?: RosterTone;
 }
 
 export function peerRosterPanelRect(
@@ -48,11 +50,12 @@ export function drawPeerRosterPanel(
 ): void {
   if (opts.entries.length === 0) return;
   const r = peerRosterPanelRect(opts.canvasW, opts.entries.length);
+  const palette = rosterTonePalette(opts.tone ?? 'solo');
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = PANEL_BG;
+  ctx.fillStyle = palette.bg;
   ctx.fillRect(r.x, r.y, r.w, r.h);
-  ctx.strokeStyle = PANEL_BORDER;
+  ctx.strokeStyle = palette.border;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
 
   ctx.font = '10px ui-monospace, "SF Mono", Menlo, monospace';
