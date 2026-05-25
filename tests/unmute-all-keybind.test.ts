@@ -25,7 +25,10 @@ function makeDriver(initialSize: number) {
 describe('handleUnmuteAllKeybind', () => {
   it('no-ops when u not pressed', () => {
     const drv = makeDriver(3);
-    expect(handleUnmuteAllKeybind(makeInput([]), drv)).toEqual({ cleared: 0 });
+    expect(handleUnmuteAllKeybind(makeInput([]), drv)).toEqual({
+      cleared: 0,
+      snapshotted: false,
+    });
     expect(drv.calls.clear).toBe(0);
   });
 
@@ -33,6 +36,7 @@ describe('handleUnmuteAllKeybind', () => {
     const drv = makeDriver(3);
     expect(handleUnmuteAllKeybind(makeInput(['u']), drv, true)).toEqual({
       cleared: 0,
+      snapshotted: false,
     });
     expect(drv.calls.clear).toBe(0);
   });
@@ -41,6 +45,7 @@ describe('handleUnmuteAllKeybind', () => {
     const drv = makeDriver(0);
     expect(handleUnmuteAllKeybind(makeInput(['u']), drv)).toEqual({
       cleared: 0,
+      snapshotted: false,
     });
     expect(drv.calls.clear).toBe(0);
   });
@@ -48,7 +53,7 @@ describe('handleUnmuteAllKeybind', () => {
   it('clears all mutes and reports prior count', () => {
     const drv = makeDriver(3);
     const r = handleUnmuteAllKeybind(makeInput(['u']), drv);
-    expect(r).toEqual({ cleared: 3 });
+    expect(r).toEqual({ cleared: 3, snapshotted: false });
     expect(drv.calls.clear).toBe(1);
     expect(drv.sizeRef()).toBe(0);
   });
@@ -57,7 +62,37 @@ describe('handleUnmuteAllKeybind', () => {
     const drv = makeDriver(2);
     handleUnmuteAllKeybind(makeInput(['u']), drv);
     const r2 = handleUnmuteAllKeybind(makeInput(['u']), drv);
-    expect(r2).toEqual({ cleared: 0 });
+    expect(r2).toEqual({ cleared: 0, snapshotted: false });
+    expect(drv.calls.clear).toBe(1);
+  });
+
+  it('snapshots mute list into driver.muteHistory before clearing', () => {
+    const drv = makeDriver(2);
+    const pushed: string[][] = [];
+    (drv.mutes as unknown as { list: () => string[] }).list = () => [
+      'alice',
+      'bob',
+    ];
+    (drv as unknown as { muteHistory: { push: (ids: readonly string[]) => boolean } }).muteHistory = {
+      push: (ids) => {
+        pushed.push([...ids]);
+        return true;
+      },
+    };
+    const r = handleUnmuteAllKeybind(makeInput(['u']), drv);
+    expect(r).toEqual({ cleared: 2, snapshotted: true });
+    expect(pushed).toEqual([['alice', 'bob']]);
+    expect(drv.calls.clear).toBe(1);
+  });
+
+  it('clears even when muteHistory.push rejects the snapshot', () => {
+    const drv = makeDriver(1);
+    (drv.mutes as unknown as { list: () => string[] }).list = () => ['x'];
+    (drv as unknown as { muteHistory: { push: () => boolean } }).muteHistory = {
+      push: () => false,
+    };
+    const r = handleUnmuteAllKeybind(makeInput(['u']), drv);
+    expect(r).toEqual({ cleared: 1, snapshotted: false });
     expect(drv.calls.clear).toBe(1);
   });
 });

@@ -60,13 +60,13 @@ describe('MultiplayerDriver muteHistory', () => {
     d.mutes.mute('alice');
     d.mutes.mute('bob');
 
-    // simulate the host pushing a snapshot before clearing
-    d.muteHistory.push(['alice', 'bob']);
-
+    // unmute-all now auto-snapshots the prior set into muteHistory.
     const input = new FakeInput();
     input.press('u');
     const cleared = handleUnmuteAllKeybind(input, d);
     expect(cleared.cleared).toBe(2);
+    expect(cleared.snapshotted).toBe(true);
+    expect(d.muteHistory.size()).toBe(1);
     expect(d.mutes.size()).toBe(0);
 
     input.release();
