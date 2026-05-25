@@ -107,6 +107,21 @@ export class MuteHistory {
     return false;
   }
 
+  /**
+   * Sorted, deduped list of every peer id appearing in any stored snapshot.
+   * Lets future UI surface "peers you've previously mass-muted" without
+   * forcing callers to walk the stack themselves. Returns [] when empty.
+   */
+  allIds(): string[] {
+    const seen = new Set<string>();
+    for (const snap of this.stack) {
+      for (const id of snap) seen.add(id);
+    }
+    const out = Array.from(seen);
+    out.sort();
+    return out;
+  }
+
   prune(id: string): number {
     if (typeof id !== 'string') return 0;
     const t = id.trim();

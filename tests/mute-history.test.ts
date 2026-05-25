@@ -89,4 +89,18 @@ describe('MuteHistory', () => {
     expect(h.has('alice')).toBe(false);
     expect(h.has('bob')).toBe(true);
   });
+
+  it('allIds returns the sorted union of every stored snapshot', () => {
+    const h = new MuteHistory();
+    expect(h.allIds()).toEqual([]);
+    h.push(['bob', 'alice']);
+    h.push(['carol']);
+    h.push(['alice', 'dave']);
+    expect(h.allIds()).toEqual(['alice', 'bob', 'carol', 'dave']);
+    h.prune('alice');
+    expect(h.allIds()).toEqual(['bob', 'carol', 'dave']);
+    const a = h.allIds();
+    a.push('mutated');
+    expect(h.allIds()).toEqual(['bob', 'carol', 'dave']);
+  });
 });
