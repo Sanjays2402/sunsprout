@@ -92,6 +92,21 @@ export class MuteHistory {
    * are removed from the stack entirely. Returns the number of snapshots
    * that were modified (including those removed).
    */
+  /**
+   * True if any stored snapshot contains the given peer id. Lets future UI
+   * (e.g. a peer-row hover hint) tell the user "you've mass-muted this peer
+   * before" without re-muting them. Filters local/empty just like push.
+   */
+  has(id: string): boolean {
+    if (typeof id !== 'string') return false;
+    const t = id.trim();
+    if (!t || t === LOCAL_ID) return false;
+    for (const snap of this.stack) {
+      if (snap.indexOf(t) !== -1) return true;
+    }
+    return false;
+  }
+
   prune(id: string): number {
     if (typeof id !== 'string') return 0;
     const t = id.trim();

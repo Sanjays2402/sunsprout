@@ -70,4 +70,23 @@ describe('MuteHistory', () => {
     expect(h.prune('ghost')).toBe(0);
     expect(h.size()).toBe(1);
   });
+
+  it('has() reports whether a peer id appears in any stored snapshot', () => {
+    const h = new MuteHistory();
+    expect(h.has('alice')).toBe(false);
+    h.push(['alice', 'bob']);
+    h.push(['carol']);
+    expect(h.has('alice')).toBe(true);
+    expect(h.has('  bob ')).toBe(true);
+    expect(h.has('carol')).toBe(true);
+    expect(h.has('dave')).toBe(false);
+    // blanks / local / non-strings never match
+    expect(h.has('')).toBe(false);
+    expect(h.has('local')).toBe(false);
+    expect(h.has(undefined as unknown as string)).toBe(false);
+    // prune removes from has() too
+    h.prune('alice');
+    expect(h.has('alice')).toBe(false);
+    expect(h.has('bob')).toBe(true);
+  });
 });
