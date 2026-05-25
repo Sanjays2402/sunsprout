@@ -8,18 +8,21 @@
 // Pure draw helper. Source is formatRosterSummary(summarizeRoster(entries)).
 // When the formatted string is empty (nobody around, nothing stale) we skip
 // drawing so the HUD stays quiet in solo play.
+//
+// Tone (optional) tints the strip via rosterTonePalette — 'solo' is the
+// existing neutral purple so legacy callers stay pixel-identical.
 
 import { peerBadgeRect } from './peer-badge';
-
-const PANEL_BG = 'rgba(26, 20, 38, 0.78)';
-const PANEL_BORDER = '#4a3b6e';
-const TEXT_COLOR = '#cdb8f0';
+import { rosterTonePalette } from './peer-roster-tone-palette';
+import type { RosterTone } from '../game/peer-roster-tone';
 
 export interface RosterSubtitleOpts {
   /** Pre-formatted summary string from formatRosterSummary(). */
   text: string;
   /** Canvas width in CSS pixels — strip anchors to the right edge. */
   canvasW: number;
+  /** Optional roster tone — defaults to 'solo' (neutral purple). */
+  tone?: RosterTone;
 }
 
 /** Rect for the subtitle strip, stacked just under the peer badge. */
@@ -47,19 +50,20 @@ export function drawRosterSubtitle(
 ): void {
   if (!opts.text) return;
   const r = rosterSubtitleRect(opts.canvasW);
+  const palette = rosterTonePalette(opts.tone ?? 'solo');
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
 
-  ctx.fillStyle = PANEL_BG;
+  ctx.fillStyle = palette.bg;
   ctx.fillRect(r.x, r.y, r.w, r.h);
-  ctx.strokeStyle = PANEL_BORDER;
+  ctx.strokeStyle = palette.border;
   ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1);
 
   ctx.font = '9px ui-monospace, "SF Mono", Menlo, monospace';
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.fillStyle = TEXT_COLOR;
+  ctx.fillStyle = palette.text;
   ctx.fillText(opts.text, r.x + r.w / 2, r.y + r.h / 2 + 1);
   ctx.restore();
 }
