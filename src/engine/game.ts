@@ -36,6 +36,8 @@ import { holdWedding } from '../game/marriage';
 import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
 import { drawMuteBadge } from '../ui/mute-badge';
+import { drawPeerRosterPanel } from '../ui/peer-roster-panel';
+import { buildPeerRoster } from '../game/peer-roster';
 import { drawEmoteLegend } from '../ui/emote-legend';
 import { drawPeerBubbles } from '../render/peer-bubbles';
 import { PeerToasts } from '../ui/peer-toasts';
@@ -632,6 +634,14 @@ export class Game {
         mutedCount: this.multiplayer.mutes.size(),
         canvasW: this.canvas.width,
       });
+      {
+        const roster = buildPeerRoster(this.multiplayer.session.registry.list(), {
+          localX: this.world.player.x,
+          localY: this.world.player.y,
+          now: typeof performance !== 'undefined' ? performance.now() : Date.now(),
+        });
+        drawPeerRosterPanel(this.ctx, { entries: roster, canvasW: this.canvas.width });
+      }
       this.peerToasts.draw(
         this.ctx,
         this.canvas.width,
