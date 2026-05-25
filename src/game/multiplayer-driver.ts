@@ -136,6 +136,10 @@ export class MultiplayerDriver {
       if (ev.kind === 'leave') {
         this.emotes.forget(ev.id);
         this.chats.forget(ev.id);
+        // Drop the departing peer from every stored mute-history snapshot so
+        // a future Shift+U (restore-mutes) can't try to re-mute someone who
+        // is no longer in the session.
+        this.muteHistory.prune(ev.id);
       }
     }
     return evicted;

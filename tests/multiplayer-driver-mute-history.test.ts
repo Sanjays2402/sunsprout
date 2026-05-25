@@ -81,4 +81,24 @@ describe('MultiplayerDriver muteHistory', () => {
     expect(d.mutes.isMuted('bob')).toBe(true);
     expect(d.muteHistory.size()).toBe(0);
   });
+
+  it('prunes departed peer ids from muteHistory snapshots on leave', () => {
+    const d = makeDriver();
+    // Make a peer "exist" then evict it via a stale tick.
+    d.session.registry.apply(
+      { v: 1, id: 'bob', name: 'Bob', x: 0, y: 0, facing: 'down', color: '#fff', hat: '#000' },
+      1000,
+    );
+    // Stash a snapshot mentioning bob (and someone still around).
+    d.muteHistory.push(['bob', 'carol']);
+    expect(d.muteHistory.peek()).toEqual(['bob', 'carol']);
+
+    // First tick at t=1000 records bob as joined in the presence log.
+    d.tick({ x: 0, y: 0, facing: 'down' }, 1000);
+    // Second tick well past peerTimeoutMs (5s) so bob is evicted → leave event.
+    d.tick({ x: 0, y: 0, facing: 'down' }, 1000 + 10_000);
+
+    // bob pruned, carol survives.
+    expect(d.muteHistory.peek()).toEqual(['carol']);
+  });
 });
