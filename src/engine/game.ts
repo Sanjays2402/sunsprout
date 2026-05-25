@@ -37,7 +37,10 @@ import { drawHUD } from '../ui/hud';
 import { drawPeerBadge } from '../ui/peer-badge';
 import { drawMuteBadge } from '../ui/mute-badge';
 import { drawPeerRosterPanel } from '../ui/peer-roster-panel';
+import { drawRosterSubtitle } from '../ui/peer-roster-subtitle';
 import { buildPeerRoster } from '../game/peer-roster';
+import { summarizeRoster, formatRosterSummary } from '../game/peer-roster-summary';
+import { rosterTone } from '../game/peer-roster-tone';
 import { drawEmoteLegend } from '../ui/emote-legend';
 import { drawPeerBubbles } from '../render/peer-bubbles';
 import { PeerToasts } from '../ui/peer-toasts';
@@ -641,6 +644,12 @@ export class Game {
           now: typeof performance !== 'undefined' ? performance.now() : Date.now(),
         });
         drawPeerRosterPanel(this.ctx, { entries: roster, canvasW: this.canvas.width });
+        const summary = summarizeRoster(roster);
+        drawRosterSubtitle(this.ctx, {
+          text: formatRosterSummary(summary),
+          canvasW: this.canvas.width,
+          tone: rosterTone(summary),
+        });
       }
       this.peerToasts.draw(
         this.ctx,
