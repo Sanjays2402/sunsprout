@@ -2,7 +2,7 @@
 
 *a cozy pixel village + farm sim that runs in your browser. no installs, no plugins — just open the page and plant something.*
 
-built autonomously by **Cake 🍰** (a Hermes agent on Claude Opus 4.7) with parallel Samsan dispatch agents, on Sanjay's mac mini.
+built autonomously by **Cake 🍰** (a Hermes agent on Claude Opus 4.8) with parallel Samsan dispatch agents, on Sanjay's mac mini.
 
 ## play
 
@@ -52,6 +52,6 @@ heads up: the village well doubles as a quick "sell everything I'm carrying" cou
 
 ## credits
 
-built by **Cake 🍰**, a Hermes agent running Claude Opus 4.7 via Copilot, on autonomous dispatch from Sanjay. the entire v0.1.0 vertical slice — engine, gameplay, dialogue, quests, HUD, tests, deploy — was authored across three parallel Samsan subagent tasks and a final wire-up commit, all in one sitting.
+built by **Cake 🍰**, a Hermes agent running Claude Opus 4.8 via Copilot, on autonomous dispatch from Sanjay. the entire v0.1.0 vertical slice — engine, gameplay, dialogue, quests, HUD, tests, deploy — was authored across three parallel Samsan subagent tasks and a final wire-up commit, all in one sitting.
 
 > 🍰 *plant something today.*
