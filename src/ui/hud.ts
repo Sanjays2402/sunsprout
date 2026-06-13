@@ -10,6 +10,7 @@ import type { TimeOfDay } from '../game/time';
 import { SEASONS } from '../game/time';
 import { CROPS, CROP_KEYS, drawCropSprite } from '../game/crops';
 import type { Quest } from '../game/quests';
+import type { Festival } from '../game/festival';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -35,6 +36,7 @@ function drawTopBar(
   player: Player,
   time: TimeOfDay,
   canvasW: number,
+  festival: Festival | null,
 ): void {
   const barH = 32;
   ctx.fillStyle = PANEL_BG;
@@ -45,10 +47,19 @@ function drawTopBar(
   ctx.font = 'bold 14px ui-monospace, "SF Mono", Menlo, monospace';
   ctx.textBaseline = 'middle';
 
-  // Left: day + season
+  // Left: day + season (+ festival badge when active)
   ctx.fillStyle = TEXT_COLOR;
   ctx.textAlign = 'left';
   ctx.fillText(`Day ${time.day} · ${SEASONS[time.season]}`, 12, barH / 2);
+  if (festival) {
+    const dayText = `Day ${time.day} · ${SEASONS[time.season]}`;
+    const dayW = ctx.measureText(dayText).width;
+    ctx.fillStyle = festival.color;
+    ctx.font = 'bold 11px ui-monospace, monospace';
+    ctx.fillText(`  🎉 ${festival.name}`, 12 + dayW, barH / 2);
+    // Restore font for the rest of the bar.
+    ctx.font = 'bold 14px ui-monospace, "SF Mono", Menlo, monospace';
+  }
 
   // Center: clock
   ctx.textAlign = 'center';
@@ -198,10 +209,11 @@ export function drawHUD(
   time: TimeOfDay,
   canvasW: number,
   canvasH: number,
+  festival: Festival | null = null,
 ): void {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  drawTopBar(ctx, player, time, canvasW);
+  drawTopBar(ctx, player, time, canvasW, festival);
   drawHotbar(ctx, player, canvasW, canvasH);
   drawQuestPanel(ctx, player);
   ctx.restore();

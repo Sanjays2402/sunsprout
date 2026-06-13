@@ -74,6 +74,9 @@ import {
   type StrikeGrade,
 } from '../ui/mining-minigame';
 
+import { getFestival, festivalActivityBonus, type Festival } from '../game/festival';
+import { FestivalBanner } from '../ui/festival-banner';
+
 const FIXED_STEP_MS = 16;
 /** Cap the accumulator so a long tab-switch doesn't trigger a spiral of death. */
 const MAX_ACCUM_MS = 250;
@@ -114,6 +117,11 @@ export class Game {
   private toast = '';
   private toastFade = 0;
   private heartsPanelVisible = false;
+
+  /** Active festival for today, or null on non-festival days. */
+  private currentFestival: Festival | null = null;
+  /** Full-screen announcement banner shown at the start of a festival day. */
+  private festivalBanner = new FestivalBanner();
 
   private canvas: HTMLCanvasElement;
   private running = false;
@@ -251,7 +259,14 @@ export class Game {
     const tick = this.time.tick(dtMs);
     if (tick.newDay) {
       advanceDay(this.world);
-      this.setToast(`A new day begins · Day ${this.time.day}`);
+      // Check for a festival on the new day and open the banner if so.
+      this.currentFestival = getFestival(this.time.day, this.time.season);
+      if (this.currentFestival) {
+        this.festivalBanner.open(this.currentFestival);
+        this.setToast(`🎉 ${this.currentFestival.name}!`);
+      } else {
+        this.setToast(`A new day begins · Day ${this.time.day}`);
+      }
     }
     // Map TimeOfDay → renderer's [0,1) sky cycle.
     // 06:00 → 0 (dawn), 14:00 → 0.5 (midday), 22:00 → ~0.7 (dusk).
@@ -264,6 +279,7 @@ export class Game {
     // Dialogue lockout countdown.
     this.dialogue.update(dtMs);
     this.cookingMenu.update(dtMs);
+    this.festivalBanner.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -284,9 +300,16 @@ export class Game {
         // crisper label; otherwise just show a plain catch toast.
         const grade = this.reelGrade ?? 'miss';
         const bonus = gradeBonus(grade);
-        if (bonus > 0) {
-          p2.gold += bonus;
-          this.setToast(`${gradeLabel(grade)} ${fish.name} +${bonus}g`);
+        const festivalFishBonus = festivalActivityBonus(this.currentFestival, 'fish');
+        const totalBonus = bonus + festivalFishBonus;
+        if (totalBonus > 0) {
+          p2.gold += totalBonus;
+          const festLabel = festivalFishBonus > 0 ? ` 🎣+${festivalFishBonus}g` : '';
+          this.setToast(
+            bonus > 0
+              ? `${gradeLabel(grade)} ${fish.name} +${bonus}g${festLabel}`
+              : `Caught a ${fish.name}!${festLabel}`,
+          );
         } else {
           this.setToast(`Caught a ${fish.name}!`);
         }
@@ -455,7 +478,13 @@ export class Game {
           const key = CROP_KEYS[i];
           if (isPlantableTile(this.world, front.tx, front.ty) && (p.inventory[key] ?? 0) > 0) {
             if (plant(this.world, front.tx, front.ty, key, p)) {
-              this.setToast(`Planted ${key}.`);
+              const bonus = festivalActivityBonus(this.currentFestival, 'plant');
+              if (bonus > 0) {
+                p.gold += bonus;
+                this.setToast(`Planted ${key}. 🎉 Festival +${bonus}g!`);
+              } else {
+                this.setToast(`Planted ${key}.`);
+              }
               checkQuests(p, { kind: 'plant', cropKey: key });
             }
           }
@@ -556,7 +585,13 @@ export class Game {
           const c = cropAt(this.world, front.tx, front.ty);
           const cropKey = c ? c.crop : '';
           if (harvest(this.world, front.tx, front.ty, p)) {
-            this.setToast(`Harvested ${cropKey}.`);
+            const bonus = festivalActivityBonus(this.currentFestival, 'harvest');
+            if (bonus > 0) {
+              p.gold += bonus;
+              this.setToast(`Harvested ${cropKey}. 🎉 Fair +${bonus}g!`);
+            } else {
+              this.setToast(`Harvested ${cropKey}.`);
+            }
             if (cropKey) checkQuests(p, { kind: 'harvest', cropKey });
           }
         } else {
@@ -627,7 +662,7 @@ export class Game {
     if (this.peerRenderables.length > 0) {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
-    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, this.currentFestival);
     if (this.multiplayer) {
       drawPeerBadge(this.ctx, {
         peerCount: this.multiplayer.session.registry.size(),
@@ -673,6 +708,8 @@ export class Game {
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    // Festival banner — drawn above dialogue/cooking but below minigame bars.
+    this.festivalBanner.draw(this.ctx, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
