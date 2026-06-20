@@ -25,6 +25,7 @@ import type { HeartsState } from './hearts';
 import type { Engagement } from './engagement';
 import type { Marriage } from './marriage';
 import type { Quest } from './quests';
+import { getSprinklers, type PlacedSprinkler } from './sprinklers';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -67,12 +68,13 @@ export interface SaveSnapshot {
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
-  /** World snapshot — tiles + crops. NPCs and buildings are regenerated. */
+  /** World snapshot — tiles + crops + sprinklers. NPCs and buildings are regenerated. */
   world: {
     width: number;
     height: number;
     tiles: TileSnapshot[][];
     crops: CropSnapshot[];
+    sprinklers: PlacedSprinkler[];
   };
 }
 
@@ -130,6 +132,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       height: game.world.height,
       tiles,
       crops,
+      sprinklers: getSprinklers(game.world).map((s) => ({ ...s })),
     },
   };
 }
@@ -193,6 +196,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     const last = game.world.crops[game.world.crops.length - 1] as unknown as Record<string, number>;
     last.x = c.tx;
     last.y = c.ty;
+  }
+  // Sprinklers — replace the world's list. Default to empty for forward
+  // compat with v1 saves that pre-date sprinklers.
+  const sprList = getSprinklers(game.world);
+  sprList.length = 0;
+  for (const s of snap.world.sprinklers ?? []) {
+    sprList.push({ ...s });
   }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;

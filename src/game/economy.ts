@@ -12,6 +12,7 @@ import type { Player } from '../world/world';
 import { CROPS } from './crops';
 import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
 import { BOUQUET_KEY, BOUQUET_PRICE } from './hearts';
+import { SPRINKLERS, SPRINKLER_KEYS, sprinklerInventoryKey } from './sprinklers';
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -46,6 +47,16 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     buyPrice: BOUQUET_PRICE,
     sellPrice: null,
   });
+  // Sprinklers — placeable irrigation, automates morning watering.
+  for (const k of SPRINKLER_KEYS) {
+    const def = SPRINKLERS[k];
+    items.push({
+      key: sprinklerInventoryKey(k),
+      label: def.name,
+      buyPrice: def.buyPrice,
+      sellPrice: null,
+    });
+  }
   return items;
 })();
 

@@ -52,6 +52,16 @@ import { sleep as sleepAction } from '../game/sleep';
 import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
+import {
+  placeSprinkler,
+  removeSprinkler,
+  sprinklerAt,
+  sprinklerTick,
+  sprinklerInventoryKey,
+  getSprinklers,
+  drawSprinklerSprite,
+  type SprinklerKey,
+} from '../game/sprinklers';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -283,8 +293,14 @@ export class Game {
       // growth tick that's about to fire.
       const w = weatherToday(this.time);
       const rained = applyRain(this.world, w);
+      const sprinkled = sprinklerTick(this.world);
       advanceDay(this.world);
-      const flavorTail = rained > 0 ? ` (rain watered ${rained})` : '';
+      const flavorTail =
+        rained > 0
+          ? ` (rain watered ${rained})`
+          : sprinkled > 0
+            ? ` (sprinklers watered ${sprinkled})`
+            : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
@@ -383,6 +399,37 @@ export class Game {
         this.setToast('Stand by the farmhouse to sleep.');
       } else if (out.kind === 'too-early') {
         this.setToast(`Too early to sleep (after ${out.until}:00).`);
+      }
+    }
+
+    // O: place / remove a sprinkler on the tile in front of the player.
+    // Consumes one sprinkler from the bag on placement; refunds it on
+    // pickup so misplaced sprinklers are not a sunk cost.
+    if (this.input.justPressed.has('o')) {
+      const front = this.tileInFront();
+      const here = sprinklerAt(this.world, front.tx, front.ty);
+      if (here) {
+        removeSprinkler(this.world, front.tx, front.ty);
+        p.inventory[sprinklerInventoryKey(here.kind)] =
+          (p.inventory[sprinklerInventoryKey(here.kind)] ?? 0) + 1;
+        this.setToast('Picked up sprinkler.');
+      } else {
+        // Place the first sprinkler kind the player has in stock.
+        const candidates: SprinklerKey[] = ['basic'];
+        let placed = false;
+        for (const k of candidates) {
+          if ((p.inventory[sprinklerInventoryKey(k)] ?? 0) > 0) {
+            if (placeSprinkler(this.world, front.tx, front.ty, k)) {
+              p.inventory[sprinklerInventoryKey(k)]! -= 1;
+              this.setToast(`Placed ${k} sprinkler.`);
+              placed = true;
+              break;
+            }
+          }
+        }
+        if (!placed) {
+          this.setToast('Need a tilled tile and a sprinkler in your bag.');
+        }
       }
     }
 
@@ -695,6 +742,18 @@ export class Game {
 
   private render(): void {
     this.renderer.draw(this.world, this.camera, this.timeOfDay);
+    // Sprinklers — render after the world so they sit on top of crops/tiles
+    // but below peers / HUD. Each sprinkler is a 14-ish px sprite anchored
+    // to the centre of its tile.
+    {
+      const list = getSprinklers(this.world);
+      for (const s of list) {
+        const wx = s.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = s.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawSprinklerSprite(this.ctx, sx, sy, s.kind);
+      }
+    }
     if (this.peerRenderables.length > 0) {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
