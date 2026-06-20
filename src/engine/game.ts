@@ -47,6 +47,8 @@ import { PeerToasts } from '../ui/peer-toasts';
 import { drawHeartsPanel } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
+import { SleepSummary } from '../ui/sleep-summary';
+import { sleep as sleepAction } from '../game/sleep';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -94,6 +96,8 @@ export class Game {
   public dialogue: DialogueBox;
   /** Cooking menu — opened with `C` when standing near the inn. */
   public cookingMenu: CookingMenu = new CookingMenu();
+  /** Day-summary overlay shown the morning after sleep(). */
+  public sleepSummary: SleepSummary = new SleepSummary();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -288,6 +292,7 @@ export class Game {
     // Dialogue lockout countdown.
     this.dialogue.update(dtMs);
     this.cookingMenu.update(dtMs);
+    this.sleepSummary.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -331,7 +336,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -360,8 +365,33 @@ export class Game {
       }
     }
 
+    // B: bedtime. Fast-forward to dawn and pop the day-summary overlay.
+    if (this.input.justPressed.has('b') && !this.sleepSummary.isVisible()) {
+      const out = sleepAction(this.world, this.time);
+      if (out.kind === 'slept') {
+        this.sleepSummary.open(out.summary);
+        if (this.storage) saveToStorage(this, this.storage);
+      } else if (out.kind === 'not-at-farmhouse') {
+        this.setToast('Stand by the farmhouse to sleep.');
+      } else if (out.kind === 'too-early') {
+        this.setToast(`Too early to sleep (after ${out.until}:00).`);
+      }
+    }
+
     // Dialogue dismiss
-    if (this.dialogue.canDismiss()) {
+    if (this.sleepSummary.isVisible()) {
+      // Sleep summary takes priority — it locks the world. Wait until it's
+      // dismissible (fade-in done), then accept any meaningful key to close.
+      if (this.sleepSummary.canDismiss()) {
+        const dismissKeys = ['e', ' ', 'enter', 'escape', 'b'];
+        for (const k of dismissKeys) {
+          if (this.input.justPressed.has(k)) {
+            this.sleepSummary.close();
+            break;
+          }
+        }
+      }
+    } else if (this.dialogue.canDismiss()) {
       // Any meaningful key dismisses.
       const dismissKeys = ['e', ' ', 'enter', 'escape'];
       for (const k of dismissKeys) {
@@ -706,6 +736,7 @@ export class Game {
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
