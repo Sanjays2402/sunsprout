@@ -83,6 +83,8 @@ export interface SaveSnapshot {
     cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }>;
     /** Earned achievements. */
     achievements?: Array<{ id: string; earnedDay: number }>;
+    /** Money log entries — most-recent first, capped at MAX_ENTRIES. */
+    moneyLog?: Array<{ delta: number; reason: string; day: number }>;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -168,6 +170,9 @@ export function serializeGame(game: Game): SaveSnapshot {
       achievements: (p as Player & { achievements?: Array<{ id: string; earnedDay: number }> }).achievements
         ? (p as Player & { achievements: Array<{ id: string; earnedDay: number }> }).achievements.map((a) => ({ ...a }))
         : undefined,
+      moneyLog: (p as Player & { moneyLog?: Array<{ delta: number; reason: string; day: number }> }).moneyLog
+        ? (p as Player & { moneyLog: Array<{ delta: number; reason: string; day: number }> }).moneyLog.map((e) => ({ ...e }))
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -250,6 +255,10 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.achievements) {
     (p as Player & { achievements?: Array<{ id: string; earnedDay: number }> }).achievements =
       snap.player.achievements.map((a) => ({ ...a }));
+  }
+  if (snap.player.moneyLog) {
+    (p as Player & { moneyLog?: Array<{ delta: number; reason: string; day: number }> }).moneyLog =
+      snap.player.moneyLog.map((e) => ({ ...e }));
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {

@@ -35,7 +35,7 @@ import {
 import { CROP_KEYS } from '../game/crops';
 import { sellAllHarvest, sellAllGems, sellAllForage, sellAllEggs } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
-import { checkQuests, startingQuests } from '../game/quests';
+import { checkQuests as checkQuestsRaw, startingQuests, type QuestEvent } from '../game/quests';
 import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
 import { attemptAutoGift } from '../game/gifting';
 import { propose } from '../game/engagement';
@@ -134,6 +134,8 @@ import { recordHarvest, recordSown } from '../game/crop-journal';
 import { CropJournalPanel } from '../ui/crop-journal-panel';
 import { tickAchievements } from '../game/achievements';
 import { AchievementsPanel } from '../ui/achievements-panel';
+import { logGold } from '../game/money-log';
+import { MoneyLogPanel } from '../ui/money-log-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -190,6 +192,8 @@ export class Game {
   public cropJournal: CropJournalPanel = new CropJournalPanel();
   /** Achievements panel — toggled with `V`. */
   public achievements: AchievementsPanel = new AchievementsPanel();
+  /** Money log panel — toggled with `Q`. */
+  public moneyLogPanel: MoneyLogPanel = new MoneyLogPanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -356,6 +360,24 @@ export class Game {
   }
 
   /**
+   * Wrapper around checkQuests that captures any gold delta from a
+   * completed quest and posts it to the money log so the player can
+   * see "Wheat-Five Reward +50g" in the Q panel. The underlying quest
+   * system mutates Player.gold internally — diffing before/after is
+   * the cleanest way to capture rewards without touching quests.ts.
+   */
+  private checkQuests(event: QuestEvent): string[] {
+    const before = this.world.player.gold;
+    const completed = checkQuestsRaw(this.world.player, event);
+    const diff = this.world.player.gold - before;
+    if (diff !== 0 && completed.length > 0) {
+      const label = completed.length === 1 ? `quest: ${completed[0]}` : `quests: ${completed.length}`;
+      logGold(this.world.player, diff, label, this.time.day);
+    }
+    return completed;
+  }
+
+  /**
    * True when the player is standing on a tile orthogonally touching the
    * inn's footprint — i.e. close enough that opening the cooking menu
    * feels diegetic. We check the player's nearest integer tile against
@@ -419,6 +441,7 @@ export class Game {
       const eggs = coopTick(this.world);
       // Farm dog's morale payout for yesterday's pet (if any).
       const dogPaid = dogTick(this.world, this.world.player, this.time);
+      if (dogPaid > 0) logGold(this.world.player, dogPaid, 'farm dog streak', this.time.day);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
@@ -477,6 +500,7 @@ export class Game {
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
     this.achievements.update(dtMs);
+    this.moneyLogPanel.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -499,6 +523,7 @@ export class Game {
         const bonus = gradeBonus(grade);
         if (bonus > 0) {
           p2.gold += bonus;
+          logGold(p2, bonus, `fishing ${fish.name}`, this.time.day);
           this.setToast(`${gradeLabel(grade)} ${fish.name} +${bonus}g`);
         } else {
           this.setToast(`Caught a ${fish.name}!`);
@@ -565,6 +590,13 @@ export class Game {
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
         this.achievements.scrollUp();
       }
+    }
+
+    // Q: toggle the money log panel.
+    if (this.input.justPressed.has('q')) {
+      this.moneyLogPanel.toggle();
+    } else if (this.moneyLogPanel.isVisible() && this.moneyLogPanel.canAct() && this.input.justPressed.has('escape')) {
+      this.moneyLogPanel.close();
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -793,7 +825,7 @@ export class Game {
           if (outcome.kind === 'cooked') {
             recordCook(this.world.player, outcome.recipe);
             this.setToast(`Cooked ${outcome.name}!`);
-            checkQuests(this.world.player, { kind: 'cook', dishKey: outcome.recipe });
+            this.checkQuests({ kind: 'cook', dishKey: outcome.recipe });
           } else if (outcome.kind === 'missing') {
             const recipe = RECIPES[outcome.recipe];
             const need = recipe.ingredients
@@ -881,10 +913,11 @@ export class Game {
           if (gem) {
             const def = GEMS[gem];
             p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
-            checkQuests(p, { kind: 'mine', gemKey: gem });
+            this.checkQuests({ kind: 'mine', gemKey: gem });
             const bonus = strikeBonus(grade);
             if (bonus > 0) {
               p.gold += bonus;
+              logGold(p, bonus, `mining ${def.name}`, this.time.day);
               this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g`);
             } else {
               this.setToast(`${strikeLabel(grade)} +1 ${def.name}`);
@@ -942,6 +975,7 @@ export class Game {
           const cost = upgradeCost(p, tool);
           const out = upgradeTool(p, tool);
           if (out.kind === 'upgraded') {
+            if (cost) logGold(p, -cost, `${toolLabel(tool, out.to)} upgrade`, this.time.day);
             this.setToast(`Upgraded to ${toolLabel(tool, out.to)} (-${cost ?? 0}g).`);
           } else if (out.kind === 'max-tier') {
             this.setToast(`${toolLabel(tool, out.tier)} is already the best tier.`);
@@ -958,7 +992,7 @@ export class Game {
             if (plant(this.world, front.tx, front.ty, key, p)) {
               recordSown(p, key);
               this.setToast(`Planted ${key}.`);
-              checkQuests(p, { kind: 'plant', cropKey: key });
+              this.checkQuests({ kind: 'plant', cropKey: key });
             }
           }
         }
@@ -981,7 +1015,7 @@ export class Game {
             const item = out.itemKey.replace('_harvest', '').replace('fish-', '');
             const lvl = r.leveledUp ? ` · ♥${r.hearts}!` : '';
             this.setToast(`${label} ${npc.name}: ${item}${lvl}`);
-            checkQuests(p, { kind: 'gift', npcId: npc.id, hearts: r.hearts });
+            this.checkQuests({ kind: 'gift', npcId: npc.id, hearts: r.hearts });
           } else if (out.kind === 'already-today') {
             this.setToast(`${npc.name} already got a gift today.`);
           } else if (out.kind === 'no-items') {
@@ -1001,7 +1035,7 @@ export class Game {
             case 'married': {
               const name = CANDIDATES[w.npcId]?.name ?? w.npcId;
               this.setToast(`💒 You married ${name}! Forever ${name} & you.`);
-              checkQuests(p, { kind: 'marry', npcId: w.npcId });
+              this.checkQuests({ kind: 'marry', npcId: w.npcId });
               break;
             }
             case 'too-soon':
@@ -1023,7 +1057,7 @@ export class Game {
           switch (out.kind) {
             case 'accepted':
               this.setToast(`💍 ${npc.name} said YES! You are engaged.`);
-              checkQuests(p, { kind: 'gift', npcId: npc.id, hearts: 10 });
+              this.checkQuests({ kind: 'gift', npcId: npc.id, hearts: 10 });
               break;
             case 'not-candidate':
               this.setToast(`${npc.name} isn't a candidate.`);
@@ -1048,7 +1082,7 @@ export class Game {
         if (npc) {
           const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
           this.dialogue.open(npc.name, getRole(npc), getDialogue(npc, this.time.day, h));
-          checkQuests(p, { kind: 'talk', npcId: npc.id });
+          this.checkQuests({ kind: 'talk', npcId: npc.id });
           if (p.hearts && creditTalk(p.hearts, npc.id, this.time.day)) {
             // Tiny ambient feedback — only on the day's first chat.
             // (No toast — keeps the dialogue moment quiet.)
@@ -1065,7 +1099,7 @@ export class Game {
             this.setToast(`Harvested ${cropKey}${flair}.`);
             if (cropKey) {
               recordHarvest(p, cropKey, quality, streak);
-              checkQuests(p, { kind: 'harvest', cropKey });
+              this.checkQuests({ kind: 'harvest', cropKey });
             }
           }
         } else if (adjacentCoop(this.world, front.tx, front.ty) || adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))) {
@@ -1098,10 +1132,20 @@ export class Game {
                 if (earned > 0) {
                   const tail = festBonus > 1 ? ' (festival x' + festBonus + ')' : '';
                   parts.push(`harvest +${earned}g${tail}`);
+                  logGold(p, earned, festBonus > 1 ? 'well: harvest (festival)' : 'well: harvest', this.time.day);
                 }
-                if (gemGold > 0) parts.push(`gems +${gemGold}g`);
-                if (forageGold > 0) parts.push(`forage +${forageGold}g`);
-                if (eggGold > 0) parts.push(`eggs +${eggGold}g`);
+                if (gemGold > 0) {
+                  parts.push(`gems +${gemGold}g`);
+                  logGold(p, gemGold, 'well: gems', this.time.day);
+                }
+                if (forageGold > 0) {
+                  parts.push(`forage +${forageGold}g`);
+                  logGold(p, forageGold, 'well: forage', this.time.day);
+                }
+                if (eggGold > 0) {
+                  parts.push(`eggs +${eggGold}g`);
+                  logGold(p, eggGold, 'well: eggs', this.time.day);
+                }
                 this.setToast(`Sold at the well: ${parts.join(', ')}`);
               } else {
                 this.setToast('Nothing to sell yet.');
@@ -1118,6 +1162,7 @@ export class Game {
             ) {
               const earned = sellAllDishes(p);
               if (earned > 0) {
+                logGold(p, earned, 'inn: dishes', this.time.day);
                 this.setToast(`Rose buys your dishes: +${earned}g`);
               } else {
                 this.setToast('Cook a dish first — Rose pays well.');
@@ -1282,6 +1327,7 @@ export class Game {
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
