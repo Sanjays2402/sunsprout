@@ -195,9 +195,12 @@ export function sellItem(
 /**
  * Sells every unit of every harvest bucket the player has (normal,
  * silver, and gold tiers). Each tier multiplies the base sell price
- * per QUALITY_MULTIPLIER. Returns the total gold earned.
+ * per QUALITY_MULTIPLIER. An optional `priceMultiplier` (default 1)
+ * lets festival-day callers stack a global boost on top — Fall's
+ * Harvest Festival passes 1.5 to lift every crop. Returns the total
+ * gold earned.
  */
-export function sellAllHarvest(player: Player): number {
+export function sellAllHarvest(player: Player, priceMultiplier: number = 1): number {
   let earned = 0;
   for (const key of Object.keys(player.inventory)) {
     const parsed = parseHarvestKey(key);
@@ -205,7 +208,7 @@ export function sellAllHarvest(player: Player): number {
     const base = CROPS[parsed.cropKey]?.sellPrice ?? 0;
     const mult = QUALITY_MULTIPLIER[parsed.quality];
     const have = player.inventory[key] ?? 0;
-    earned += Math.floor(have * base * mult);
+    earned += Math.floor(have * base * mult * priceMultiplier);
     player.inventory[key] = 0;
   }
   player.gold += earned;

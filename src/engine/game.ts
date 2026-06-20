@@ -59,6 +59,8 @@ import { sleep as sleepAction } from '../game/sleep';
 import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
+import { drawFestivalBanner } from '../ui/festival-banner';
+import { cropSellMultiplier } from '../game/festivals';
 import {
   placeSprinkler,
   removeSprinkler,
@@ -920,14 +922,18 @@ export class Game {
           let handled = false;
           for (const b of this.world.buildings) {
             if (b.kind === 'well' && front.tx === b.x && front.ty === b.y) {
-              const earned = sellAllHarvest(p);
+              const festBonus = cropSellMultiplier(this.time);
+              const earned = sellAllHarvest(p, festBonus);
               const gemGold = sellAllGems(p);
               const forageGold = sellAllForage(p);
               const eggGold = sellAllEggs(p);
               const total = earned + gemGold + forageGold + eggGold;
               if (total > 0) {
                 const parts: string[] = [];
-                if (earned > 0) parts.push(`harvest +${earned}g`);
+                if (earned > 0) {
+                  const tail = festBonus > 1 ? ' (festival x' + festBonus + ')' : '';
+                  parts.push(`harvest +${earned}g${tail}`);
+                }
                 if (gemGold > 0) parts.push(`gems +${gemGold}g`);
                 if (forageGold > 0) parts.push(`forage +${forageGold}g`);
                 if (eggGold > 0) parts.push(`eggs +${eggGold}g`);
@@ -1043,6 +1049,7 @@ export class Game {
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
+    drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens
     // the village but not the on-screen text. Only render when the active
     // weather actually drops water.
