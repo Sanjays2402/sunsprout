@@ -96,6 +96,16 @@ import {
   petDog,
   updateDog,
 } from '../game/farm-dog';
+import {
+  GREENHOUSE_INVENTORY_KEY,
+  GREENHOUSE_W,
+  GREENHOUSE_H,
+  canPlaceGreenhouse,
+  drawGreenhouseSprite,
+  getGreenhouses,
+  greenhouseTick,
+  placeGreenhouse,
+} from '../game/greenhouse';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -341,6 +351,8 @@ export class Game {
       const eggs = coopTick(this.world);
       // Farm dog's morale payout for yesterday's pet (if any).
       const dogPaid = dogTick(this.world, this.world.player, this.time);
+      // Greenhouse boost: every crop inside grows extra and stays watered.
+      const greenBumped = greenhouseTick(this.world);
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
@@ -353,7 +365,9 @@ export class Game {
               ? ` (coops laid ${eggs} egg${eggs === 1 ? '' : 's'})`
               : dogPaid > 0
                 ? ` (the dog tipped you +${dogPaid}g)`
-                : '';
+                : greenBumped > 0
+                  ? ` (greenhouse pushed ${greenBumped} crops)`
+                  : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
@@ -566,6 +580,22 @@ export class Game {
         }
       } else {
         this.setToast('Walk closer to the dog to pet it.');
+      }
+    }
+
+    // U: place a greenhouse kit on a 3x3 grass footprint in front of the player.
+    if (this.input.justPressed.has('u')) {
+      const front = this.tileInFront();
+      const have = p.inventory[GREENHOUSE_INVENTORY_KEY] ?? 0;
+      if (have <= 0) {
+        this.setToast('Buy a Greenhouse Kit from Maple first.');
+      } else if (canPlaceGreenhouse(this.world, front.tx, front.ty)) {
+        if (placeGreenhouse(this.world, front.tx, front.ty)) {
+          p.inventory[GREENHOUSE_INVENTORY_KEY] = have - 1;
+          this.setToast('Greenhouse erected. Plant inside for fast growth.');
+        }
+      } else {
+        this.setToast(`Need a clear ${GREENHOUSE_W}x${GREENHOUSE_H} grass patch.`);
       }
     }
 
@@ -926,6 +956,16 @@ export class Game {
         const cy = (c.ty + COOP_H / 2) * TILE_SIZE;
         const { sx, sy } = this.camera.worldToScreen(cx, cy);
         drawCoopSprite(this.ctx, sx, sy, c, TILE_SIZE);
+      }
+    }
+    // Greenhouses — translucent glass frame over tilled soil tiles.
+    {
+      const list = getGreenhouses(this.world);
+      for (const g of list) {
+        const cx = (g.tx + GREENHOUSE_W / 2) * TILE_SIZE;
+        const cy = (g.ty + GREENHOUSE_H / 2) * TILE_SIZE;
+        const { sx, sy } = this.camera.worldToScreen(cx, cy);
+        drawGreenhouseSprite(this.ctx, sx, sy, TILE_SIZE);
       }
     }
     // Farm dog — drawn after coops so it appears in front of them.

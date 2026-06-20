@@ -29,6 +29,7 @@ import { getSprinklers, type PlacedSprinkler } from './sprinklers';
 import { getForage, type PlacedForage } from './forage';
 import { getCoops, type PlacedCoop } from './coop';
 import { defaultDogState, getDog, type FarmDogState } from './farm-dog';
+import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -81,6 +82,7 @@ export interface SaveSnapshot {
     forage?: PlacedForage[];
     coops?: PlacedCoop[];
     dog?: FarmDogState;
+    greenhouses?: PlacedGreenhouse[];
   };
 }
 
@@ -142,6 +144,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       forage: getForage(game.world).map((f) => ({ ...f })),
       coops: getCoops(game.world).map((c) => ({ ...c })),
       dog: { ...getDog(game.world) },
+      greenhouses: getGreenhouses(game.world).map((g) => ({ ...g })),
     },
   };
 }
@@ -235,6 +238,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   dogCur.petLastDay = dogIncoming.petLastDay;
   dogCur.petTotal = dogIncoming.petTotal;
   dogCur.petStreak = dogIncoming.petStreak;
+  // Greenhouses — forward-compat default.
+  const greenList = getGreenhouses(game.world);
+  greenList.length = 0;
+  for (const g of snap.world.greenhouses ?? []) {
+    greenList.push({ ...g });
+  }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;
   game.time.hour = snap.time.hour;

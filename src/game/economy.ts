@@ -23,6 +23,7 @@ import {
   sellAllEggs,
 } from './coop';
 import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
+import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
 export { sellAllForage, sellAllEggs };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
@@ -103,6 +104,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: DOG_TICKET_KEY,
     label: 'Farm Dog Ticket',
     buyPrice: DOG_PRICE,
+    sellPrice: null,
+  });
+  // Greenhouse kit — place onto a 3x3 grass footprint via the U keybind.
+  items.push({
+    key: GREENHOUSE_INVENTORY_KEY,
+    label: 'Greenhouse Kit',
+    buyPrice: GREENHOUSE_PRICE,
     sellPrice: null,
   });
   return items;
