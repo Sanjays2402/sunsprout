@@ -86,6 +86,16 @@ import {
   placeCoop,
   drawCoopSprite,
 } from '../game/coop';
+import {
+  DOG_TICKET_KEY,
+  adoptDog,
+  canPet,
+  dogTick,
+  drawDogSprite,
+  getDog,
+  petDog,
+  updateDog,
+} from '../game/farm-dog';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -329,6 +339,8 @@ export class Game {
       advanceDay(this.world);
       // Chickens drop their daily eggs into their coop's cache.
       const eggs = coopTick(this.world);
+      // Farm dog's morale payout for yesterday's pet (if any).
+      const dogPaid = dogTick(this.world, this.world.player, this.time);
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
@@ -339,7 +351,9 @@ export class Game {
             ? ` (sprinklers watered ${sprinkled})`
             : eggs > 0
               ? ` (coops laid ${eggs} egg${eggs === 1 ? '' : 's'})`
-              : '';
+              : dogPaid > 0
+                ? ` (the dog tipped you +${dogPaid}g)`
+                : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
@@ -356,6 +370,9 @@ export class Game {
 
     // NPC schedule + drift.
     updateNPCs(this.world, this.time, dtMs);
+
+    // Farm dog follow movement — soft chase the player when too far.
+    updateDog(this.world, this.world.player, dtMs);
 
     // Dialogue lockout countdown.
     this.dialogue.update(dtMs);
@@ -523,6 +540,32 @@ export class Game {
       } else if (addChicken(coop)) {
         p.inventory['chicken'] = have - 1;
         this.setToast(`Chicken added (${coop.chickens}/${MAX_CHICKENS_PER_COOP}).`);
+      }
+    }
+
+    // J: adopt the dog (consumes a ticket from the bag) on first press,
+    // pet the dog on subsequent presses. Cozy morale loop — the streak
+    // gold posts at the next morning's rollover.
+    if (this.input.justPressed.has('j')) {
+      const dog = getDog(this.world);
+      if (!dog.owned) {
+        const have = p.inventory[DOG_TICKET_KEY] ?? 0;
+        if (have > 0) {
+          if (adoptDog(this.world, p)) {
+            this.setToast('A scruffy farm dog trots up — adopted!');
+          }
+        } else {
+          this.setToast('Buy a Farm Dog Ticket from Maple first.');
+        }
+      } else if (canPet(this.world, p)) {
+        const out = petDog(this.world, p, this.time);
+        if (out.kind === 'petted') {
+          this.setToast(`Pet the dog. Streak ${out.streak} (+${out.bonus}g tomorrow).`);
+        } else if (out.kind === 'already-today') {
+          this.setToast('Already petted today — come back tomorrow.');
+        }
+      } else {
+        this.setToast('Walk closer to the dog to pet it.');
       }
     }
 
@@ -883,6 +926,17 @@ export class Game {
         const cy = (c.ty + COOP_H / 2) * TILE_SIZE;
         const { sx, sy } = this.camera.worldToScreen(cx, cy);
         drawCoopSprite(this.ctx, sx, sy, c, TILE_SIZE);
+      }
+    }
+    // Farm dog — drawn after coops so it appears in front of them.
+    {
+      const dog = getDog(this.world);
+      if (dog.owned) {
+        const wx = dog.x * TILE_SIZE + TILE_SIZE / 2;
+        const wy = dog.y * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        const facingRight = this.world.player.x >= dog.x;
+        drawDogSprite(this.ctx, sx, sy, facingRight);
       }
     }
     if (this.peerRenderables.length > 0) {

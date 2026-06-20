@@ -22,6 +22,7 @@ import {
   CHICKEN_PRICE,
   sellAllEggs,
 } from './coop';
+import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
 export { sellAllForage, sellAllEggs };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
@@ -96,6 +97,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     label: 'Egg',
     buyPrice: null,
     sellPrice: EGG_SELL_PRICE,
+  });
+  // Farm dog ticket — redeem at the farmhouse via the J keybind.
+  items.push({
+    key: DOG_TICKET_KEY,
+    label: 'Farm Dog Ticket',
+    buyPrice: DOG_PRICE,
+    sellPrice: null,
   });
   return items;
 })();
