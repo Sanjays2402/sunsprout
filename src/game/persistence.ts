@@ -31,6 +31,7 @@ import { getCoops, type PlacedCoop } from './coop';
 import { defaultDogState, getDog, type FarmDogState } from './farm-dog';
 import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
 import { getMailbox, type Mailbox } from './mail';
+import { getChests, type PlacedChest } from './chest';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -90,6 +91,7 @@ export interface SaveSnapshot {
     coops?: PlacedCoop[];
     dog?: FarmDogState;
     greenhouses?: PlacedGreenhouse[];
+    chests?: PlacedChest[];
   };
 }
 
@@ -164,6 +166,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       coops: getCoops(game.world).map((c) => ({ ...c })),
       dog: { ...getDog(game.world) },
       greenhouses: getGreenhouses(game.world).map((g) => ({ ...g })),
+      chests: getChests(game.world).map((c) => ({ ...c, items: { ...c.items } })),
     },
   };
 }
@@ -274,6 +277,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   greenList.length = 0;
   for (const g of snap.world.greenhouses ?? []) {
     greenList.push({ ...g });
+  }
+  // Chests — forward-compat default. Items map is cloned per-chest.
+  const chestList = getChests(game.world);
+  chestList.length = 0;
+  for (const c of snap.world.chests ?? []) {
+    chestList.push({ ...c, items: { ...c.items } });
   }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;

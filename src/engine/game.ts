@@ -117,6 +117,16 @@ import {
 } from '../game/greenhouse';
 import { deliverDailyMail, readNextLetter, unreadCount } from '../game/mail';
 import { CANDIDATES as MAIL_CANDIDATES } from '../game/hearts';
+import {
+  CHEST_INVENTORY_KEY,
+  adjacentChest,
+  canPlaceChest,
+  drawChestSprite,
+  ensureStarterChest,
+  getChests,
+  placeChest,
+} from '../game/chest';
+import { ChestMenu } from '../ui/chest-menu';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -166,6 +176,8 @@ export class Game {
   public cookingMenu: CookingMenu = new CookingMenu();
   /** Day-summary overlay shown the morning after sleep(). */
   public sleepSummary: SleepSummary = new SleepSummary();
+  /** Chest menu — opened with `]` when standing next to a placed chest. */
+  public chestMenu: ChestMenu = new ChestMenu();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -263,6 +275,9 @@ export class Game {
     if (getForage(this.world).length === 0 && !isDusk(this.time.hour)) {
       regenerateForage(this.world, this.time.season, this.time.day);
     }
+    // Make sure the starter cellar chest always exists at the farmhouse,
+    // even on fresh worlds or saves that pre-date the chest system.
+    ensureStarterChest(this.world);
   }
 
   start(): void {
@@ -437,6 +452,7 @@ export class Game {
     this.dialogue.update(dtMs);
     this.cookingMenu.update(dtMs);
     this.sleepSummary.update(dtMs);
+    this.chestMenu.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -480,7 +496,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -660,6 +676,35 @@ export class Game {
       }
     }
 
+    // ]: open the adjacent chest (deposit / withdraw).
+    if (this.input.justPressed.has(']') && !this.chestMenu.isVisible()) {
+      const front = this.tileInFront();
+      const chest =
+        adjacentChest(this.world, front.tx, front.ty) ??
+        adjacentChest(this.world, Math.round(p.x), Math.round(p.y));
+      if (chest) {
+        this.chestMenu.open(chest);
+      } else {
+        this.setToast('No chest nearby.');
+      }
+    }
+
+    // X: place a new chest from a chest-kit (one tile in front of the player).
+    if (this.input.justPressed.has('x')) {
+      const front = this.tileInFront();
+      const have = p.inventory[CHEST_INVENTORY_KEY] ?? 0;
+      if (have <= 0) {
+        this.setToast('Buy a Chest Kit from Maple first.');
+      } else if (canPlaceChest(this.world, front.tx, front.ty)) {
+        if (placeChest(this.world, front.tx, front.ty)) {
+          p.inventory[CHEST_INVENTORY_KEY] = have - 1;
+          this.setToast('Placed a chest.');
+        }
+      } else {
+        this.setToast('Need a clear grass tile in front of you.');
+      }
+    }
+
     // Dialogue dismiss
     if (this.sleepSummary.isVisible()) {
       // Sleep summary takes priority — it locks the world. Wait until it's
@@ -703,6 +748,32 @@ export class Game {
               .map((ing) => `${ing.count}× ${ing.key.replace('_harvest', '').replace('fish-', '')}`)
               .join(', ');
             this.setToast(`Need ${need}.`);
+          }
+        }
+      }
+    } else if (this.chestMenu.isVisible()) {
+      // Chest menu input — only when fully open (lockout cleared).
+      if (this.chestMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has(']')) {
+          this.chestMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.chestMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.chestMenu.selectNext();
+        } else if (i.has('enter') || i.has(' ')) {
+          const out = this.chestMenu.withdrawOne(this.world.player);
+          if (out.kind === 'withdrew') {
+            this.setToast(`Withdrew 1 ${out.key.replace('_harvest', '')}.`);
+          } else if (out.kind === 'empty') {
+            this.setToast('Chest is empty.');
+          }
+        } else if (i.has('tab')) {
+          const out = this.chestMenu.depositAllHarvest(this.world.player);
+          if (out.kind === 'deposited') {
+            this.setToast(`Deposited ${out.count} harvest item${out.count === 1 ? '' : 's'}.`);
+          } else {
+            this.setToast('Nothing to deposit.');
           }
         }
       }
@@ -1069,6 +1140,16 @@ export class Game {
         drawGreenhouseSprite(this.ctx, sx, sy, TILE_SIZE);
       }
     }
+    // Chests — small wooden + brass-band sprites placed on grass.
+    {
+      const list = getChests(this.world);
+      for (const c of list) {
+        const wx = c.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = c.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawChestSprite(this.ctx, sx, sy);
+      }
+    }
     // Farm dog — drawn after coops so it appears in front of them.
     {
       const dog = getDog(this.world);
@@ -1144,6 +1225,7 @@ export class Game {
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
+    this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {

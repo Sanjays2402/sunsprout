@@ -24,6 +24,7 @@ import {
 } from './coop';
 import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
 import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
+import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
 import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
 export { sellAllForage, sellAllEggs };
 
@@ -126,6 +127,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: GREENHOUSE_INVENTORY_KEY,
     label: 'Greenhouse Kit',
     buyPrice: GREENHOUSE_PRICE,
+    sellPrice: null,
+  });
+  // Chest kit — place an extra cellar chest with the X keybind.
+  items.push({
+    key: CHEST_INVENTORY_KEY,
+    label: 'Chest Kit',
+    buyPrice: CHEST_PRICE,
     sellPrice: null,
   });
   return items;
