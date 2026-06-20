@@ -47,6 +47,8 @@ const PLAYER_OUTLINE = '#23264A';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
+  /** Last-frame night tint scale, set by Game via draw(...). */
+  private activeTintScale: number = 1.0;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -83,13 +85,15 @@ export class Renderer {
     }
   }
 
-  draw(world: World, camera: Camera, timeOfDay: number): void {
+  draw(world: World, camera: Camera, timeOfDay: number, nightTintScale: number = 1.0): void {
     const ctx = this.ctx;
     const w = camera.viewW;
     const h = camera.viewH;
 
     // (1) Sky / background.
     this.drawSky(timeOfDay, w, h);
+    // Remember the tint scale for (7) below.
+    this.activeTintScale = nightTintScale;
 
     // Compute visible tile range, with a 1-tile margin so partial tiles
     // along the viewport edges still render.
@@ -199,7 +203,9 @@ export class Renderer {
     const phase = (t - 0.25 + 1) % 1; // 0 at noon, 0.5 at midnight
     const dark = Math.max(0, Math.sin(phase * Math.PI));
     if (dark <= 0.02) return;
-    const alpha = Math.min(0.45, dark * 0.45);
+    const scale = Math.max(0, Math.min(1, this.activeTintScale));
+    const alpha = Math.min(0.45, dark * 0.45) * scale;
+    if (alpha <= 0.005) return;
     const ctx = this.ctx;
     ctx.save();
     ctx.fillStyle = `rgba(20, 24, 60, ${alpha.toFixed(3)})`;

@@ -136,6 +136,8 @@ import { tickAchievements } from '../game/achievements';
 import { AchievementsPanel } from '../ui/achievements-panel';
 import { logGold } from '../game/money-log';
 import { MoneyLogPanel } from '../ui/money-log-panel';
+import { getSettings } from '../game/settings';
+import { SettingsPanel } from '../ui/settings-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -194,6 +196,8 @@ export class Game {
   public achievements: AchievementsPanel = new AchievementsPanel();
   /** Money log panel — toggled with `Q`. */
   public moneyLogPanel: MoneyLogPanel = new MoneyLogPanel();
+  /** Settings panel — toggled with `\\`. */
+  public settingsPanel: SettingsPanel = new SettingsPanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -464,8 +468,10 @@ export class Game {
                     ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
                     : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
-      // Auto-save snapshot at every day rollover.
-      if (this.storage) saveToStorage(this, this.storage);
+      // Auto-save snapshot at every day rollover — gated by settings.
+      if (this.storage && getSettings(this.world.player).autoSave) {
+        saveToStorage(this, this.storage);
+      }
     }
     // Achievements: check every frame so a milestone (gold, marriage,
     // greenhouse placement) surfaces immediately rather than at next
@@ -501,6 +507,7 @@ export class Game {
     this.cropJournal.update(dtMs);
     this.achievements.update(dtMs);
     this.moneyLogPanel.update(dtMs);
+    this.settingsPanel.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -597,6 +604,30 @@ export class Game {
       this.moneyLogPanel.toggle();
     } else if (this.moneyLogPanel.isVisible() && this.moneyLogPanel.canAct() && this.input.justPressed.has('escape')) {
       this.moneyLogPanel.close();
+    }
+
+    // \: toggle the settings panel.
+    if (this.input.justPressed.has('\\')) {
+      this.settingsPanel.toggle();
+    } else if (this.settingsPanel.isVisible() && this.settingsPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.settingsPanel.close();
+      } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
+        this.settingsPanel.selectPrev();
+      } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
+        this.settingsPanel.selectNext();
+      } else if (this.input.justPressed.has('enter') || this.input.justPressed.has(' ')) {
+        const out = this.settingsPanel.confirm(this.world.player, this.storage);
+        if (out.kind === 'cycled') {
+          this.setToast(`${out.key}: ${out.value}`);
+        } else if (out.kind === 'reset-requested') {
+          this.setToast('Press Enter again to ERASE your save.');
+        } else if (out.kind === 'reset-done') {
+          this.setToast('Save erased. Refresh to start a fresh farm.');
+        } else if (out.kind === 'closed') {
+          // close() already hides — no toast.
+        }
+      }
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -1198,7 +1229,8 @@ export class Game {
   }
 
   private render(): void {
-    this.renderer.draw(this.world, this.camera, this.timeOfDay);
+    const settings = getSettings(this.world.player);
+    this.renderer.draw(this.world, this.camera, this.timeOfDay, settings.nightTintScale);
     // Sprinklers — render after the world so they sit on top of crops/tiles
     // but below peers / HUD. Each sprinkler is a 14-ish px sprite anchored
     // to the centre of its tile.
@@ -1266,16 +1298,16 @@ export class Game {
     if (this.peerRenderables.length > 0) {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
-    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens
     // the village but not the on-screen text. Only render when the active
-    // weather actually drops water.
+    // weather actually drops water — and skip when reduce-motion is on.
     {
       const today = weatherToday(this.time);
-      if (WEATHER[today].watersCrops) {
+      if (WEATHER[today].watersCrops && !settings.reduceMotion) {
         const intense = today === 'storm';
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         drawRainOverlay(this.ctx, this.canvas.width, this.canvas.height, intense, now);
@@ -1328,6 +1360,7 @@ export class Game {
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);

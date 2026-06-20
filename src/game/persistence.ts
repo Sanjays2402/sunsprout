@@ -85,6 +85,8 @@ export interface SaveSnapshot {
     achievements?: Array<{ id: string; earnedDay: number }>;
     /** Money log entries — most-recent first, capped at MAX_ENTRIES. */
     moneyLog?: Array<{ delta: number; reason: string; day: number }>;
+    /** User settings: autoSave, nightTintScale, hudScale, reduceMotion. */
+    settings?: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean };
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -173,6 +175,9 @@ export function serializeGame(game: Game): SaveSnapshot {
       moneyLog: (p as Player & { moneyLog?: Array<{ delta: number; reason: string; day: number }> }).moneyLog
         ? (p as Player & { moneyLog: Array<{ delta: number; reason: string; day: number }> }).moneyLog.map((e) => ({ ...e }))
         : undefined,
+      settings: (p as Player & { settings?: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean } }).settings
+        ? { ...(p as Player & { settings: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean } }).settings }
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -259,6 +264,15 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.moneyLog) {
     (p as Player & { moneyLog?: Array<{ delta: number; reason: string; day: number }> }).moneyLog =
       snap.player.moneyLog.map((e) => ({ ...e }));
+  }
+  if (snap.player.settings) {
+    const s = snap.player.settings;
+    (p as Player & { settings?: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean } }).settings = {
+      autoSave: s.autoSave,
+      nightTintScale: s.nightTintScale,
+      hudScale: s.hudScale,
+      reduceMotion: s.reduceMotion,
+    };
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {
