@@ -115,6 +115,8 @@ import {
   greenhouseTick,
   placeGreenhouse,
 } from '../game/greenhouse';
+import { deliverDailyMail, readNextLetter, unreadCount } from '../game/mail';
+import { CANDIDATES as MAIL_CANDIDATES } from '../game/hearts';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -361,6 +363,21 @@ export class Game {
     );
   }
 
+  /** True when the player is standing within Chebyshev radius 1 of the farmhouse. */
+  private isAtFarmhouseSimple(): boolean {
+    const p = this.world.player;
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+    const fh = this.world.buildings.find((b) => b.kind === 'farmhouse');
+    if (!fh) return false;
+    return (
+      px >= fh.x - 1 &&
+      px <= fh.x + fh.w &&
+      py >= fh.y - 1 &&
+      py <= fh.y + fh.h
+    );
+  }
+
   private update(dtMs: number): void {
     // Advance the cozy 24-hour clock; flip crop growth on the new day.
     const tick = this.time.tick(dtMs);
@@ -377,6 +394,8 @@ export class Game {
       const dogPaid = dogTick(this.world, this.world.player, this.time);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
+      // Deliver any new letters earned by yesterday's heart gains.
+      const newMail = deliverDailyMail(this.world.player, this.time.day);
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
@@ -391,7 +410,9 @@ export class Game {
                 ? ` (the dog tipped you +${dogPaid}g)`
                 : greenBumped > 0
                   ? ` (greenhouse pushed ${greenBumped} crops)`
-                  : '';
+                  : newMail > 0
+                    ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
+                    : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
@@ -620,6 +641,22 @@ export class Game {
         }
       } else {
         this.setToast(`Need a clear ${GREENHOUSE_W}x${GREENHOUSE_H} grass patch.`);
+      }
+    }
+
+    // [: read the next unread letter from the farmhouse mailbox.
+    if (this.input.justPressed.has('[')) {
+      if (!this.isAtFarmhouseSimple()) {
+        this.setToast('Stand near the farmhouse to check the mailbox.');
+      } else {
+        const letter = readNextLetter(p);
+        if (!letter) {
+          const left = unreadCount(p);
+          if (left === 0) this.setToast('No new letters in the mailbox.');
+        } else {
+          const author = MAIL_CANDIDATES[letter.npcId]?.name ?? letter.npcId;
+          this.dialogue.open(author, `Letter delivered day ${letter.deliveredDay}`, letter.body);
+        }
       }
     }
 

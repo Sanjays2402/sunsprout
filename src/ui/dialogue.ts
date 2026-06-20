@@ -12,21 +12,29 @@ const ROLE_COLOR = '#C8B4E8';
 const BODY_COLOR = '#F5E9D4';
 const HINT_COLOR = 'rgba(245, 233, 212, 0.5)';
 
-/** Wraps `text` to lines of at most `maxChars` characters at word boundaries. */
+/** Wraps `text` to lines of at most `maxChars` characters at word boundaries.
+ *  Hard `\n` characters split paragraphs so a multi-line letter renders with
+ *  its blank line preserved. */
 function wrap(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
   const lines: string[] = [];
-  let cur = '';
-  for (const w of words) {
-    const candidate = cur ? `${cur} ${w}` : w;
-    if (candidate.length > maxChars) {
-      if (cur) lines.push(cur);
-      cur = w;
-    } else {
-      cur = candidate;
+  for (const paragraph of text.split('\n')) {
+    if (paragraph === '') {
+      lines.push('');
+      continue;
     }
+    const words = paragraph.split(/\s+/);
+    let cur = '';
+    for (const w of words) {
+      const candidate = cur ? `${cur} ${w}` : w;
+      if (candidate.length > maxChars) {
+        if (cur) lines.push(cur);
+        cur = w;
+      } else {
+        cur = candidate;
+      }
+    }
+    if (cur) lines.push(cur);
   }
-  if (cur) lines.push(cur);
   return lines;
 }
 

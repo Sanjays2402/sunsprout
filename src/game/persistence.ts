@@ -30,6 +30,7 @@ import { getForage, type PlacedForage } from './forage';
 import { getCoops, type PlacedCoop } from './coop';
 import { defaultDogState, getDog, type FarmDogState } from './farm-dog';
 import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
+import { getMailbox, type Mailbox } from './mail';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -73,6 +74,8 @@ export interface SaveSnapshot {
     marriage?: Marriage;
     /** Per-tool tier (hoe/watering-can). Default 'wood' on a fresh save. */
     tools?: Record<string, string>;
+    /** Mailbox: inbox queue + per-NPC delivered-tier bookkeeping. */
+    mail?: Mailbox;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -136,6 +139,14 @@ export function serializeGame(game: Game): SaveSnapshot {
       tools: (p as Player & { tools?: Record<string, string> }).tools
         ? { ...(p as Player & { tools?: Record<string, string> }).tools }
         : undefined,
+      mail: (p as Player & { mail?: Mailbox }).mail
+        ? {
+            inbox: getMailbox(p).inbox.map((l) => ({ ...l })),
+            delivered: Object.fromEntries(
+              Object.entries(getMailbox(p).delivered).map(([k, v]) => [k, [...v]]),
+            ),
+          }
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -194,6 +205,14 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.marriage) p.marriage = { ...snap.player.marriage };
   if (snap.player.tools) {
     (p as Player & { tools?: Record<string, string> }).tools = { ...snap.player.tools };
+  }
+  if (snap.player.mail) {
+    (p as Player & { mail?: Mailbox }).mail = {
+      inbox: snap.player.mail.inbox.map((l) => ({ ...l })),
+      delivered: Object.fromEntries(
+        Object.entries(snap.player.mail.delivered).map(([k, v]) => [k, [...v]]),
+      ),
+    };
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {
