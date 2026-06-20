@@ -79,6 +79,8 @@ export interface SaveSnapshot {
     mail?: Mailbox;
     /** Per-recipe cooked count for the codex panel. */
     cookCounts?: Record<string, number>;
+    /** Per-crop lifetime tally for the journal panel. */
+    cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }>;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -154,6 +156,13 @@ export function serializeGame(game: Game): SaveSnapshot {
       cookCounts: (p as Player & { cookCounts?: Record<string, number> }).cookCounts
         ? { ...(p as Player & { cookCounts?: Record<string, number> }).cookCounts }
         : undefined,
+      cropJournal: (p as Player & { cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }> }).cropJournal
+        ? Object.fromEntries(
+            Object.entries(
+              (p as Player & { cropJournal: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }> }).cropJournal,
+            ).map(([k, v]) => [k, { ...v }]),
+          )
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -226,6 +235,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     (p as Player & { cookCounts?: Record<string, number> }).cookCounts = {
       ...snap.player.cookCounts,
     };
+  }
+  if (snap.player.cropJournal) {
+    (p as Player & { cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }> }).cropJournal =
+      Object.fromEntries(
+        Object.entries(snap.player.cropJournal).map(([k, v]) => [k, { ...v }]),
+      );
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {

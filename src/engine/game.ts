@@ -130,6 +130,8 @@ import { ChestMenu } from '../ui/chest-menu';
 import { RECIPES } from '../game/cooking';
 import { recordCook } from '../game/cooking-history';
 import { RecipeCodex } from '../ui/recipe-codex';
+import { recordHarvest, recordSown } from '../game/crop-journal';
+import { CropJournalPanel } from '../ui/crop-journal-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -182,6 +184,8 @@ export class Game {
   public chestMenu: ChestMenu = new ChestMenu();
   /** Recipe codex panel — toggled with `R`. */
   public recipeCodex: RecipeCodex = new RecipeCodex();
+  /** Crop journal panel — toggled with `;`. */
+  public cropJournal: CropJournalPanel = new CropJournalPanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -458,6 +462,7 @@ export class Game {
     this.sleepSummary.update(dtMs);
     this.chestMenu.update(dtMs);
     this.recipeCodex.update(dtMs);
+    this.cropJournal.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -526,6 +531,13 @@ export class Game {
       this.recipeCodex.toggle();
     } else if (this.recipeCodex.isVisible() && this.recipeCodex.canAct() && this.input.justPressed.has('escape')) {
       this.recipeCodex.close();
+    }
+
+    // ;: toggle the crop journal panel.
+    if (this.input.justPressed.has(';')) {
+      this.cropJournal.toggle();
+    } else if (this.cropJournal.isVisible() && this.cropJournal.canAct() && this.input.justPressed.has('escape')) {
+      this.cropJournal.close();
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -917,6 +929,7 @@ export class Game {
           const key = CROP_KEYS[i];
           if (isPlantableTile(this.world, front.tx, front.ty) && (p.inventory[key] ?? 0) > 0) {
             if (plant(this.world, front.tx, front.ty, key, p)) {
+              recordSown(p, key);
               this.setToast(`Planted ${key}.`);
               checkQuests(p, { kind: 'plant', cropKey: key });
             }
@@ -1017,12 +1030,16 @@ export class Game {
           // Try to harvest.
           const c = cropAt(this.world, front.tx, front.ty);
           const cropKey = c ? c.crop : '';
+          const streak = (c as unknown as { waterStreak?: number } | undefined)?.waterStreak ?? 0;
           const quality = harvest(this.world, front.tx, front.ty, p);
           if (quality) {
             const flair =
               quality === 'gold' ? ' (gold-star! 2x)' : quality === 'silver' ? ' (silver-star, 1.5x)' : '';
             this.setToast(`Harvested ${cropKey}${flair}.`);
-            if (cropKey) checkQuests(p, { kind: 'harvest', cropKey });
+            if (cropKey) {
+              recordHarvest(p, cropKey, quality, streak);
+              checkQuests(p, { kind: 'harvest', cropKey });
+            }
           }
         } else if (adjacentCoop(this.world, front.tx, front.ty) || adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))) {
           // Collect eggs from a coop the player is standing next to.
@@ -1236,6 +1253,7 @@ export class Game {
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
