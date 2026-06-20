@@ -27,6 +27,7 @@ import type { Marriage } from './marriage';
 import type { Quest } from './quests';
 import { getSprinklers, type PlacedSprinkler } from './sprinklers';
 import { getForage, type PlacedForage } from './forage';
+import { getCoops, type PlacedCoop } from './coop';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -77,6 +78,7 @@ export interface SaveSnapshot {
     crops: CropSnapshot[];
     sprinklers: PlacedSprinkler[];
     forage?: PlacedForage[];
+    coops?: PlacedCoop[];
   };
 }
 
@@ -136,6 +138,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       crops,
       sprinklers: getSprinklers(game.world).map((s) => ({ ...s })),
       forage: getForage(game.world).map((f) => ({ ...f })),
+      coops: getCoops(game.world).map((c) => ({ ...c })),
     },
   };
 }
@@ -213,6 +216,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   forageList.length = 0;
   for (const f of snap.world.forage ?? []) {
     forageList.push({ ...f });
+  }
+  // Coops — forward-compat default.
+  const coopList = getCoops(game.world);
+  coopList.length = 0;
+  for (const c of snap.world.coops ?? []) {
+    coopList.push({ ...c });
   }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;

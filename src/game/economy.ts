@@ -14,7 +14,15 @@ import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
 import { BOUQUET_KEY, BOUQUET_PRICE } from './hearts';
 import { SPRINKLERS, SPRINKLER_KEYS, sprinklerInventoryKey } from './sprinklers';
 import { FORAGE, FORAGE_KEYS, forageInventoryKey, sellAllForage } from './forage';
-export { sellAllForage };
+import {
+  COOP_PRICE,
+  COOP_INVENTORY_KEY,
+  EGG_INVENTORY_KEY,
+  EGG_SELL_PRICE,
+  CHICKEN_PRICE,
+  sellAllEggs,
+} from './coop';
+export { sellAllForage, sellAllEggs };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -70,6 +78,25 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
       sellPrice: def.sellPrice,
     });
   }
+  // Coop kit + chickens + eggs — animal economy.
+  items.push({
+    key: COOP_INVENTORY_KEY,
+    label: 'Chicken Coop',
+    buyPrice: COOP_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: 'chicken',
+    label: 'Chicken',
+    buyPrice: CHICKEN_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: EGG_INVENTORY_KEY,
+    label: 'Egg',
+    buyPrice: null,
+    sellPrice: EGG_SELL_PRICE,
+  });
   return items;
 })();
 

@@ -26,7 +26,7 @@ import {
   updateNPCs,
 } from '../game/npcs';
 import { CROP_KEYS } from '../game/crops';
-import { sellAllHarvest, sellAllGems, sellAllForage } from '../game/economy';
+import { sellAllHarvest, sellAllGems, sellAllForage, sellAllEggs } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
@@ -72,6 +72,20 @@ import {
   drawForageSprite,
   FORAGE,
 } from '../game/forage';
+import {
+  COOP_INVENTORY_KEY,
+  COOP_W,
+  COOP_H,
+  MAX_CHICKENS_PER_COOP,
+  addChicken,
+  adjacentCoop,
+  canPlaceCoop,
+  collectEggs,
+  coopTick,
+  getCoops,
+  placeCoop,
+  drawCoopSprite,
+} from '../game/coop';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -313,6 +327,8 @@ export class Game {
       const rained = applyRain(this.world, w);
       const sprinkled = sprinklerTick(this.world);
       advanceDay(this.world);
+      // Chickens drop their daily eggs into their coop's cache.
+      const eggs = coopTick(this.world);
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
@@ -321,7 +337,9 @@ export class Game {
           ? ` (rain watered ${rained})`
           : sprinkled > 0
             ? ` (sprinklers watered ${sprinkled})`
-            : '';
+            : eggs > 0
+              ? ` (coops laid ${eggs} egg${eggs === 1 ? '' : 's'})`
+              : '';
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
@@ -470,6 +488,41 @@ export class Game {
         }
       } else {
         this.setToast('Nothing to forage here.');
+      }
+    }
+
+    // N: place a chicken coop on the COOP_W x COOP_H grass footprint
+    // starting at the tile in front of the player. Consumes one coop
+    // kit from the bag on success.
+    if (this.input.justPressed.has('n')) {
+      const front = this.tileInFront();
+      const have = p.inventory[COOP_INVENTORY_KEY] ?? 0;
+      if (have <= 0) {
+        this.setToast('Buy a coop kit from Maple first.');
+      } else if (canPlaceCoop(this.world, front.tx, front.ty)) {
+        if (placeCoop(this.world, front.tx, front.ty)) {
+          p.inventory[COOP_INVENTORY_KEY] = have - 1;
+          this.setToast('Placed a coop. Buy chickens to fill it.');
+        }
+      } else {
+        this.setToast(`Need a clear ${COOP_W}x${COOP_H} grass patch.`);
+      }
+    }
+
+    // I: add a chicken to the adjacent coop, consuming one from the bag.
+    if (this.input.justPressed.has('i')) {
+      const front = this.tileInFront();
+      const coop = adjacentCoop(this.world, front.tx, front.ty);
+      const have = p.inventory['chicken'] ?? 0;
+      if (!coop) {
+        this.setToast('Stand next to a coop first.');
+      } else if (have <= 0) {
+        this.setToast('No chickens in your bag. Buy one from Maple.');
+      } else if (coop.chickens >= MAX_CHICKENS_PER_COOP) {
+        this.setToast(`Coop is full (${MAX_CHICKENS_PER_COOP} max).`);
+      } else if (addChicken(coop)) {
+        p.inventory['chicken'] = have - 1;
+        this.setToast(`Chicken added (${coop.chickens}/${MAX_CHICKENS_PER_COOP}).`);
       }
     }
 
@@ -717,6 +770,19 @@ export class Game {
             this.setToast(`Harvested ${cropKey}.`);
             if (cropKey) checkQuests(p, { kind: 'harvest', cropKey });
           }
+        } else if (adjacentCoop(this.world, front.tx, front.ty) || adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))) {
+          // Collect eggs from a coop the player is standing next to.
+          const coop =
+            adjacentCoop(this.world, front.tx, front.ty) ??
+            adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))!;
+          const collected = collectEggs(coop, p);
+          if (collected > 0) {
+            this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}.`);
+          } else if (coop.chickens === 0) {
+            this.setToast('No chickens yet — buy one and press I.');
+          } else {
+            this.setToast('Eggs come in the morning.');
+          }
         } else {
           // Standing in front of the well? Sell all harvest as quick economy.
           // Standing in front of the inn? Sell all dishes for bigger gold.
@@ -726,12 +792,14 @@ export class Game {
               const earned = sellAllHarvest(p);
               const gemGold = sellAllGems(p);
               const forageGold = sellAllForage(p);
-              const total = earned + gemGold + forageGold;
+              const eggGold = sellAllEggs(p);
+              const total = earned + gemGold + forageGold + eggGold;
               if (total > 0) {
                 const parts: string[] = [];
                 if (earned > 0) parts.push(`harvest +${earned}g`);
                 if (gemGold > 0) parts.push(`gems +${gemGold}g`);
                 if (forageGold > 0) parts.push(`forage +${forageGold}g`);
+                if (eggGold > 0) parts.push(`eggs +${eggGold}g`);
                 this.setToast(`Sold at the well: ${parts.join(', ')}`);
               } else {
                 this.setToast('Nothing to sell yet.');
@@ -804,6 +872,17 @@ export class Game {
         const wy = f.ty * TILE_SIZE + TILE_SIZE / 2;
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
         drawForageSprite(this.ctx, sx, sy, f.kind);
+      }
+    }
+    // Coops — chunky 2x2 building rendered after world tiles so it
+    // sits visibly above the grass.
+    {
+      const list = getCoops(this.world);
+      for (const c of list) {
+        const cx = (c.tx + COOP_W / 2) * TILE_SIZE;
+        const cy = (c.ty + COOP_H / 2) * TILE_SIZE;
+        const { sx, sy } = this.camera.worldToScreen(cx, cy);
+        drawCoopSprite(this.ctx, sx, sy, c, TILE_SIZE);
       }
     }
     if (this.peerRenderables.length > 0) {
