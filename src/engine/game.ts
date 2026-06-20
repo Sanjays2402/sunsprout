@@ -51,6 +51,7 @@ import { SleepSummary } from '../ui/sleep-summary';
 import { sleep as sleepAction } from '../game/sleep';
 import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
+import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -535,7 +536,7 @@ export class Game {
       if (this.input.justPressed.has('g')) {
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc && CANDIDATES[npc.id]) {
-          const out = attemptAutoGift(p, npc.id, this.time.day);
+          const out = attemptAutoGift(p, npc.id, this.time.day, this.time);
           if (out.kind === 'gifted') {
             const r = out.result;
             const label =
@@ -699,6 +700,7 @@ export class Game {
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width);
+    drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens
     // the village but not the on-screen text. Only render when the active
     // weather actually drops water.

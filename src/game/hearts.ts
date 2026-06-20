@@ -144,12 +144,18 @@ export function heartsFromPoints(points: number): number {
  * Apply a gift to a candidate. Enforces one-gift-per-day. Returns a
  * GiftResult describing what happened — the caller is responsible for
  * decrementing the player's inventory on `accepted: true`.
+ *
+ * `multiplier` (default 1) lets callers boost the points award — used by
+ * the birthdays layer to apply an 8x bonus on the candidate's special
+ * day. Disliked gifts get the multiplier too (it's a worse insult), to
+ * keep the rule simple and symmetric.
  */
 export function giveGift(
   state: HeartsState,
   npcId: string,
   itemKey: string,
   day: number,
+  multiplier: number = 1,
 ): GiftResult {
   const row = state[npcId];
   if (!row) {
@@ -173,7 +179,7 @@ export function giveGift(
     };
   }
   const taste = tasteOf(npcId, itemKey);
-  const pts = giftPoints(taste);
+  const pts = giftPoints(taste) * multiplier;
   const before = heartsFromPoints(row.points);
   row.points = Math.max(0, Math.min(MAX_HEARTS * HEART_POINTS, row.points + pts));
   row.lastGiftDay = day;
