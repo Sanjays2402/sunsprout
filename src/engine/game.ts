@@ -62,6 +62,12 @@ import {
 } from '../ui/fishing-minigame';
 import { initMultiplayer } from '../game/multiplayer-init';
 import { tickMultiplayerFrame } from '../game/multiplayer-frame';
+import {
+  applySnapshot,
+  loadFromStorage,
+  saveToStorage,
+  type StorageLike,
+} from '../game/persistence';
 import type { MultiplayerDriver } from '../game/multiplayer-driver';
 import type { PeerRenderable } from '../game/peer-view';
 import {
@@ -102,6 +108,8 @@ export class Game {
 
   /** Optional multiplayer driver (null in single-player). */
   public multiplayer: MultiplayerDriver | null = null;
+  /** Localstorage handle for save/load. Null in tests / SSR. */
+  public storage: StorageLike | null = null;
   /** Last peer-list resolved this frame — handed to renderer.drawPeers(). */
   private peerRenderables: PeerRenderable[] = [];
   /** Join/leave toast queue (only used when multiplayer is active). */
@@ -160,6 +168,20 @@ export class Game {
       });
     } catch {
       this.multiplayer = null;
+    }
+
+    // Persistence: if a save exists in localStorage, restore it on top of
+    // the fresh world. We fall back silently to the new game on any error.
+    this.storage = typeof window !== 'undefined' ? (window.localStorage as StorageLike) : null;
+    if (this.storage) {
+      const snap = loadFromStorage(this.storage);
+      if (snap) {
+        try {
+          applySnapshot(this, snap);
+        } catch {
+          // ignore — corrupt snapshot stays in storage but doesn't break boot
+        }
+      }
     }
   }
 
@@ -252,6 +274,8 @@ export class Game {
     if (tick.newDay) {
       advanceDay(this.world);
       this.setToast(`A new day begins · Day ${this.time.day}`);
+      // Auto-save snapshot at every day rollover.
+      if (this.storage) saveToStorage(this, this.storage);
     }
     // Map TimeOfDay → renderer's [0,1) sky cycle.
     // 06:00 → 0 (dawn), 14:00 → 0.5 (midday), 22:00 → ~0.7 (dusk).
@@ -325,6 +349,15 @@ export class Game {
     // Toggle hearts panel.
     if (this.input.justPressed.has('h')) {
       this.heartsPanelVisible = !this.heartsPanelVisible;
+    }
+
+    // K: manual save. Useful before quitting / before risky moves.
+    if (this.input.justPressed.has('k')) {
+      if (this.storage && saveToStorage(this, this.storage)) {
+        this.setToast('Saved.');
+      } else {
+        this.setToast('Save failed.');
+      }
     }
 
     // Dialogue dismiss
