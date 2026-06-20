@@ -81,6 +81,8 @@ export interface SaveSnapshot {
     cookCounts?: Record<string, number>;
     /** Per-crop lifetime tally for the journal panel. */
     cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }>;
+    /** Earned achievements. */
+    achievements?: Array<{ id: string; earnedDay: number }>;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -163,6 +165,9 @@ export function serializeGame(game: Game): SaveSnapshot {
             ).map(([k, v]) => [k, { ...v }]),
           )
         : undefined,
+      achievements: (p as Player & { achievements?: Array<{ id: string; earnedDay: number }> }).achievements
+        ? (p as Player & { achievements: Array<{ id: string; earnedDay: number }> }).achievements.map((a) => ({ ...a }))
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -241,6 +246,10 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       Object.fromEntries(
         Object.entries(snap.player.cropJournal).map(([k, v]) => [k, { ...v }]),
       );
+  }
+  if (snap.player.achievements) {
+    (p as Player & { achievements?: Array<{ id: string; earnedDay: number }> }).achievements =
+      snap.player.achievements.map((a) => ({ ...a }));
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {

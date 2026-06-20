@@ -132,6 +132,8 @@ import { recordCook } from '../game/cooking-history';
 import { RecipeCodex } from '../ui/recipe-codex';
 import { recordHarvest, recordSown } from '../game/crop-journal';
 import { CropJournalPanel } from '../ui/crop-journal-panel';
+import { tickAchievements } from '../game/achievements';
+import { AchievementsPanel } from '../ui/achievements-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -186,6 +188,8 @@ export class Game {
   public recipeCodex: RecipeCodex = new RecipeCodex();
   /** Crop journal panel — toggled with `;`. */
   public cropJournal: CropJournalPanel = new CropJournalPanel();
+  /** Achievements panel — toggled with `V`. */
+  public achievements: AchievementsPanel = new AchievementsPanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -440,6 +444,15 @@ export class Game {
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
     }
+    // Achievements: check every frame so a milestone (gold, marriage,
+    // greenhouse placement) surfaces immediately rather than at next
+    // day rollover. tickAchievements is idempotent — earned ids stay.
+    const newlyEarned = tickAchievements(this.world.player, this.world, this.time);
+    if (newlyEarned.length > 0) {
+      const first = newlyEarned[0];
+      const tail = newlyEarned.length > 1 ? ` (+${newlyEarned.length - 1})` : '';
+      this.setToast(`Achievement unlocked: ${first}${tail}`);
+    }
     // Dusk wipe — forage withers once the sun gets low.
     if (!this.forageCleared && isDusk(this.time.hour)) {
       clearForage(this.world);
@@ -463,6 +476,7 @@ export class Game {
     this.chestMenu.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
+    this.achievements.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -538,6 +552,19 @@ export class Game {
       this.cropJournal.toggle();
     } else if (this.cropJournal.isVisible() && this.cropJournal.canAct() && this.input.justPressed.has('escape')) {
       this.cropJournal.close();
+    }
+
+    // V: toggle the achievements panel. While open, arrows / w/s scroll.
+    if (this.input.justPressed.has('v')) {
+      this.achievements.toggle();
+    } else if (this.achievements.isVisible() && this.achievements.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.achievements.close();
+      } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
+        this.achievements.scrollDown();
+      } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
+        this.achievements.scrollUp();
+      }
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -1254,6 +1281,7 @@ export class Game {
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
