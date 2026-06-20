@@ -49,6 +49,8 @@ import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
 import { SleepSummary } from '../ui/sleep-summary';
 import { sleep as sleepAction } from '../game/sleep';
+import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
+import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -276,8 +278,13 @@ export class Game {
     // Advance the cozy 24-hour clock; flip crop growth on the new day.
     const tick = this.time.tick(dtMs);
     if (tick.newDay) {
+      // Apply today's rain BEFORE advanceDay so it counts toward the
+      // growth tick that's about to fire.
+      const w = weatherToday(this.time);
+      const rained = applyRain(this.world, w);
       advanceDay(this.world);
-      this.setToast(`A new day begins · Day ${this.time.day}`);
+      const flavorTail = rained > 0 ? ` (rain watered ${rained})` : '';
+      this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
     }
@@ -691,6 +698,18 @@ export class Game {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    drawWeatherStrip(this.ctx, this.time, this.canvas.width);
+    // Rain overlay sits between the world and the HUD chrome so it darkens
+    // the village but not the on-screen text. Only render when the active
+    // weather actually drops water.
+    {
+      const today = weatherToday(this.time);
+      if (WEATHER[today].watersCrops) {
+        const intense = today === 'storm';
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        drawRainOverlay(this.ctx, this.canvas.width, this.canvas.height, intense, now);
+      }
+    }
     if (this.multiplayer) {
       drawPeerBadge(this.ctx, {
         peerCount: this.multiplayer.session.registry.size(),

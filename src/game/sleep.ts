@@ -19,6 +19,7 @@ import type { TimeOfDay } from './time';
 import { advanceDay } from './farming';
 import { CANDIDATES, getHearts } from './hearts';
 import { DAY_START } from './time';
+import { applyRain, weatherTomorrow, WEATHER } from './weather';
 
 /** Hours at or below this count as "morning" — sleep refuses. */
 export const MORNING_CUTOFF_HOUR = 7;
@@ -114,6 +115,11 @@ export function sleep(world: World, time: TimeOfDay): SleepOutcome {
     return { kind: 'too-early', until: MORNING_CUTOFF_HOUR };
   }
   const pre = snapshotPreSleep(world.player, time);
+  // Apply tomorrow's rain BEFORE advancing the world day, so crops get
+  // watered before the growth tick. Sleep skips the day, so we use
+  // weatherTomorrow() (the calendar day the player is waking up into).
+  const incoming = weatherTomorrow(time);
+  const rained = applyRain(world, incoming);
   // Roll the world forward exactly one day.
   advanceDay(world);
   // Bump the clock day counter manually — TimeOfDay.tick() handles this
@@ -150,7 +156,7 @@ export function sleep(world: World, time: TimeOfDay): SleepOutcome {
       harvestDelta: post.harvestCount - pre.harvestCount,
       dishesDelta: post.dishesCount - pre.dishesCount,
       heartGains,
-      flavor: pickFlavor(pre.day),
+      flavor: rained > 0 ? WEATHER[incoming].flavor : pickFlavor(pre.day),
     },
   };
 }
