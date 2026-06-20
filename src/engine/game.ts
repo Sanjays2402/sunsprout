@@ -839,8 +839,11 @@ export class Game {
           // Try to harvest.
           const c = cropAt(this.world, front.tx, front.ty);
           const cropKey = c ? c.crop : '';
-          if (harvest(this.world, front.tx, front.ty, p)) {
-            this.setToast(`Harvested ${cropKey}.`);
+          const quality = harvest(this.world, front.tx, front.ty, p);
+          if (quality) {
+            const flair =
+              quality === 'gold' ? ' (gold-star! 2x)' : quality === 'silver' ? ' (silver-star, 1.5x)' : '';
+            this.setToast(`Harvested ${cropKey}${flair}.`);
             if (cropKey) checkQuests(p, { kind: 'harvest', cropKey });
           }
         } else if (adjacentCoop(this.world, front.tx, front.ty) || adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))) {

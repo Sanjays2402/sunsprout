@@ -12,6 +12,7 @@
 
 import type { World, Player, Crop as RenderCrop, Tile } from '../world/world';
 import { CROPS } from './crops';
+import { qualityFromStreak, harvestKey, type CropQuality } from './crop-quality';
 
 /** Gameplay crop instance stored in `world.crops`. */
 export interface FarmCrop {
@@ -33,6 +34,14 @@ export interface FarmCrop {
   daysSinceWater: number;
   /** Legacy renderer growth value — kept in lockstep with stage. */
   growth: number;
+  /**
+   * Consecutive watered-days streak. Increments each advanceDay() when
+   * the crop was watered, resets to 0 the moment a day passes without
+   * water. The streak at harvest time decides the quality tier:
+   *   streak >= growthStages     → silver star (1.5x sell)
+   *   streak >= growthStages + 1 → gold star  (2.0x sell)
+   */
+  waterStreak?: number;
 }
 
 /** Map our crop keys onto the legacy renderer's allowed kinds. */
@@ -112,6 +121,7 @@ export function plant(
     watered: false,
     daysSinceWater: 0,
     growth: 0,
+    waterStreak: 0,
   };
   (world.crops as unknown as FarmCrop[]).push(crop);
   return true;
@@ -133,36 +143,40 @@ export function water(world: World, tx: number, ty: number): boolean {
 /**
  * Attempts to harvest a fully-grown crop. On success the crop is removed,
  * the tile is reset to tilled, and the harvest is added to the player's
- * inventory under `<cropKey>_harvest`. Returns true if harvested.
+ * inventory under the right tier-flavoured key (`<crop>_harvest`,
+ * `<crop>_harvest_silver`, or `<crop>_harvest_gold`). Returns the
+ * resolved quality on success, or `null` if no harvest happened.
  */
 export function harvest(
   world: World,
   tx: number,
   ty: number,
   player: Player,
-): boolean {
+): CropQuality | null {
   const crops = world.crops as unknown as FarmCrop[];
   const idx = crops.findIndex((c) => c.tx === tx && c.ty === ty);
-  if (idx === -1) return false;
+  if (idx === -1) return null;
   const c = crops[idx];
   const catalog = CROPS[c.crop];
-  if (!catalog) return false;
-  if (c.stage < catalog.growthStages - 1) return false;
+  if (!catalog) return null;
+  if (c.stage < catalog.growthStages - 1) return null;
   crops.splice(idx, 1);
   // Reset tile to bare tilled soil.
   if (world.inBounds(tx, ty)) {
     const tile = world.tiles[ty][tx];
     world.tiles[ty][tx] = { type: 'tilled', variant: tile.variant };
   }
-  const harvestKey = `${c.crop}_harvest`;
-  player.inventory[harvestKey] = (player.inventory[harvestKey] ?? 0) + 1;
-  return true;
+  const quality = qualityFromStreak(c.waterStreak ?? 0, catalog.growthStages);
+  const key = harvestKey(c.crop, quality);
+  player.inventory[key] = (player.inventory[key] ?? 0) + 1;
+  return quality;
 }
 
 /**
  * Advances every crop by one day. Watered crops grow one stage (capped
- * at growthStages-1); un-watered crops gain a daysSinceWater counter
- * but don't grow. Resets `watered` to false for the next day.
+ * at growthStages-1) and tick their watered-day streak; un-watered crops
+ * gain a daysSinceWater counter, don't grow, and reset the streak to 0.
+ * Resets `watered` to false for the next day.
  */
 export function advanceDay(world: World): void {
   for (const c of world.crops as unknown as FarmCrop[]) {
@@ -173,8 +187,10 @@ export function advanceDay(world: World): void {
         c.stage += 1;
         c.growth = c.stage;
       }
+      c.waterStreak = (c.waterStreak ?? 0) + 1;
     } else {
       c.daysSinceWater += 1;
+      c.waterStreak = 0;
     }
     c.watered = false;
   }

@@ -53,6 +53,8 @@ export interface CropSnapshot {
   watered: boolean;
   daysSinceWater: number;
   growth: number;
+  /** Consecutive watered-days streak — decides the harvest's star tier. */
+  waterStreak?: number;
 }
 
 /** Full save payload. */
@@ -115,6 +117,7 @@ export function serializeGame(game: Game): SaveSnapshot {
     watered: (c.watered as boolean) ?? false,
     daysSinceWater: (c.daysSinceWater as number) ?? 0,
     growth: (c.growth as number) ?? 0,
+    waterStreak: (c.waterStreak as number) ?? 0,
   }));
   return {
     version: SAVE_VERSION,
@@ -203,6 +206,7 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       watered: c.watered,
       daysSinceWater: c.daysSinceWater,
       growth: c.growth,
+      waterStreak: c.waterStreak ?? 0,
     });
     // Also mirror x/y onto the entry so the renderer's RenderCrop.x/y view works.
     const last = game.world.crops[game.world.crops.length - 1] as unknown as Record<string, number>;

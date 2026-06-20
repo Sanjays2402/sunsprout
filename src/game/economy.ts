@@ -24,6 +24,7 @@ import {
 } from './coop';
 import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
 import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
+import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
 export { sellAllForage, sellAllEggs };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
@@ -50,6 +51,20 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
       label: crop.name,
       buyPrice: null,
       sellPrice: crop.sellPrice,
+    });
+    // Star tiers — same crop, premium prices. Listed so the shop UI
+    // and any quest-y "what does this sell for" lookup can find them.
+    items.push({
+      key: `${key}_harvest_silver`,
+      label: `${crop.name} (silver)`,
+      buyPrice: null,
+      sellPrice: Math.floor(crop.sellPrice * 1.5),
+    });
+    items.push({
+      key: `${key}_harvest_gold`,
+      label: `${crop.name} (gold)`,
+      buyPrice: null,
+      sellPrice: crop.sellPrice * 2,
     });
   }
   // Courtship bouquet — buyable token of affection (v0.5.0).
@@ -177,15 +192,20 @@ export function sellItem(
   return true;
 }
 
-/** Sells every unit of every `_harvest` item the player has. */
+/**
+ * Sells every unit of every harvest bucket the player has (normal,
+ * silver, and gold tiers). Each tier multiplies the base sell price
+ * per QUALITY_MULTIPLIER. Returns the total gold earned.
+ */
 export function sellAllHarvest(player: Player): number {
   let earned = 0;
   for (const key of Object.keys(player.inventory)) {
-    if (!key.endsWith('_harvest')) continue;
-    const cropKey = key.slice(0, -'_harvest'.length);
-    const price = CROPS[cropKey]?.sellPrice ?? 0;
+    const parsed = parseHarvestKey(key);
+    if (!parsed) continue;
+    const base = CROPS[parsed.cropKey]?.sellPrice ?? 0;
+    const mult = QUALITY_MULTIPLIER[parsed.quality];
     const have = player.inventory[key] ?? 0;
-    earned += have * price;
+    earned += Math.floor(have * base * mult);
     player.inventory[key] = 0;
   }
   player.gold += earned;

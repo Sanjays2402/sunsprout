@@ -54,11 +54,17 @@ export type SleepOutcome =
   | { kind: 'too-early'; until: number }
   | { kind: 'not-at-farmhouse' };
 
-/** Sum every `_harvest` inventory key. Used for the day-summary diff. */
+/** Sum every `_harvest`, `_harvest_silver`, and `_harvest_gold` inventory key. Used for the day-summary diff. */
 export function harvestTotal(player: Player): number {
   let total = 0;
   for (const [k, v] of Object.entries(player.inventory)) {
-    if (k.endsWith('_harvest')) total += v;
+    if (
+      k.endsWith('_harvest') ||
+      k.endsWith('_harvest_silver') ||
+      k.endsWith('_harvest_gold')
+    ) {
+      total += v;
+    }
   }
   return total;
 }
