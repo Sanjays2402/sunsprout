@@ -20,6 +20,13 @@ import {
   water,
 } from '../game/farming';
 import {
+  tilesForTool,
+  tierOf,
+  upgradeCost,
+  upgradeTool,
+  toolLabel,
+} from '../game/tools';
+import {
   getDialogue,
   getRole,
   npcInFrontOf,
@@ -334,6 +341,21 @@ export class Game {
       px <= inn.x + inn.w &&
       py >= inn.y - 1 &&
       py <= inn.y + inn.h
+    );
+  }
+
+  /** True when the player is standing within Chebyshev radius 1 of Maple's shop. */
+  private isNearShop(): boolean {
+    const p = this.world.player;
+    const px = Math.round(p.x);
+    const py = Math.round(p.y);
+    const shop = this.world.buildings.find((b) => b.kind === 'shop');
+    if (!shop) return false;
+    return (
+      px >= shop.x - 1 &&
+      px <= shop.x + shop.w &&
+      py >= shop.y - 1 &&
+      py <= shop.y + shop.h
     );
   }
 
@@ -724,13 +746,46 @@ export class Game {
         }
       }
       if (this.input.justPressed.has('t')) {
-        if (till(this.world, front.tx, front.ty)) {
-          this.setToast('Tilled the soil.');
+        let tilledAny = false;
+        for (const tile of tilesForTool(p, 'hoe')) {
+          if (till(this.world, tile.tx, tile.ty)) tilledAny = true;
+        }
+        if (tilledAny) {
+          const tier = tierOf(p, 'hoe');
+          this.setToast(tier === 'wood' ? 'Tilled the soil.' : `Tilled (${tier}).`);
         }
       }
       if (this.input.justPressed.has('w')) {
-        if (water(this.world, front.tx, front.ty)) {
-          this.setToast('Watered the crop.');
+        let wateredAny = 0;
+        for (const tile of tilesForTool(p, 'watering-can')) {
+          if (water(this.world, tile.tx, tile.ty)) wateredAny++;
+        }
+        if (wateredAny > 0) {
+          const tier = tierOf(p, 'watering-can');
+          this.setToast(
+            tier === 'wood'
+              ? 'Watered the crop.'
+              : `Watered ${wateredAny} crop${wateredAny === 1 ? '' : 's'} (${tier}).`,
+          );
+        }
+      }
+      // ,  Upgrade the hoe at Maple's. Requires standing near the shop.
+      // .  Upgrade the watering can. Same rules.
+      if (this.input.justPressed.has(',') || this.input.justPressed.has('.')) {
+        const tool: 'hoe' | 'watering-can' =
+          this.input.justPressed.has(',') ? 'hoe' : 'watering-can';
+        if (!this.isNearShop()) {
+          this.setToast('Stand by Maple\u2019s shop to upgrade tools.');
+        } else {
+          const cost = upgradeCost(p, tool);
+          const out = upgradeTool(p, tool);
+          if (out.kind === 'upgraded') {
+            this.setToast(`Upgraded to ${toolLabel(tool, out.to)} (-${cost ?? 0}g).`);
+          } else if (out.kind === 'max-tier') {
+            this.setToast(`${toolLabel(tool, out.tier)} is already the best tier.`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          }
         }
       }
       // Plant on hotbar key (1..N) — uses front tile.

@@ -71,6 +71,8 @@ export interface SaveSnapshot {
     hearts?: HeartsState;
     engagement?: Engagement;
     marriage?: Marriage;
+    /** Per-tool tier (hoe/watering-can). Default 'wood' on a fresh save. */
+    tools?: Record<string, string>;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -131,6 +133,9 @@ export function serializeGame(game: Game): SaveSnapshot {
       hearts: p.hearts ? structuredCloneHearts(p.hearts) : undefined,
       engagement: p.engagement ? { ...p.engagement } : undefined,
       marriage: p.marriage ? { ...p.marriage } : undefined,
+      tools: (p as Player & { tools?: Record<string, string> }).tools
+        ? { ...(p as Player & { tools?: Record<string, string> }).tools }
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -187,6 +192,9 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.hearts) p.hearts = structuredCloneHearts(snap.player.hearts);
   if (snap.player.engagement) p.engagement = { ...snap.player.engagement };
   if (snap.player.marriage) p.marriage = { ...snap.player.marriage };
+  if (snap.player.tools) {
+    (p as Player & { tools?: Record<string, string> }).tools = { ...snap.player.tools };
+  }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {
     for (let x = 0; x < snap.world.width; x++) {
