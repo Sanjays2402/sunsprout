@@ -128,6 +128,8 @@ import {
 } from '../game/chest';
 import { ChestMenu } from '../ui/chest-menu';
 import { RECIPES } from '../game/cooking';
+import { recordCook } from '../game/cooking-history';
+import { RecipeCodex } from '../ui/recipe-codex';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -178,6 +180,8 @@ export class Game {
   public sleepSummary: SleepSummary = new SleepSummary();
   /** Chest menu — opened with `]` when standing next to a placed chest. */
   public chestMenu: ChestMenu = new ChestMenu();
+  /** Recipe codex panel — toggled with `R`. */
+  public recipeCodex: RecipeCodex = new RecipeCodex();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -453,6 +457,7 @@ export class Game {
     this.cookingMenu.update(dtMs);
     this.sleepSummary.update(dtMs);
     this.chestMenu.update(dtMs);
+    this.recipeCodex.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -514,6 +519,13 @@ export class Game {
     // Toggle hearts panel.
     if (this.input.justPressed.has('h')) {
       this.heartsPanelVisible = !this.heartsPanelVisible;
+    }
+
+    // R: toggle the recipe codex.
+    if (this.input.justPressed.has('r')) {
+      this.recipeCodex.toggle();
+    } else if (this.recipeCodex.isVisible() && this.recipeCodex.canAct() && this.input.justPressed.has('escape')) {
+      this.recipeCodex.close();
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -740,6 +752,7 @@ export class Game {
         } else if (i.has('enter') || i.has(' ')) {
           const outcome = this.cookingMenu.confirm(this.world.player);
           if (outcome.kind === 'cooked') {
+            recordCook(this.world.player, outcome.recipe);
             this.setToast(`Cooked ${outcome.name}!`);
             checkQuests(this.world.player, { kind: 'cook', dishKey: outcome.recipe });
           } else if (outcome.kind === 'missing') {
@@ -1222,6 +1235,7 @@ export class Game {
       }
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
+    this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);

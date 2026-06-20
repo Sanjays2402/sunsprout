@@ -77,6 +77,8 @@ export interface SaveSnapshot {
     tools?: Record<string, string>;
     /** Mailbox: inbox queue + per-NPC delivered-tier bookkeeping. */
     mail?: Mailbox;
+    /** Per-recipe cooked count for the codex panel. */
+    cookCounts?: Record<string, number>;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -149,6 +151,9 @@ export function serializeGame(game: Game): SaveSnapshot {
             ),
           }
         : undefined,
+      cookCounts: (p as Player & { cookCounts?: Record<string, number> }).cookCounts
+        ? { ...(p as Player & { cookCounts?: Record<string, number> }).cookCounts }
+        : undefined,
     },
     time: {
       day: game.time.day,
@@ -215,6 +220,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       delivered: Object.fromEntries(
         Object.entries(snap.player.mail.delivered).map(([k, v]) => [k, [...v]]),
       ),
+    };
+  }
+  if (snap.player.cookCounts) {
+    (p as Player & { cookCounts?: Record<string, number> }).cookCounts = {
+      ...snap.player.cookCounts,
     };
   }
   // Tiles.
