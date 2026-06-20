@@ -13,6 +13,8 @@ import { CROPS } from './crops';
 import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
 import { BOUQUET_KEY, BOUQUET_PRICE } from './hearts';
 import { SPRINKLERS, SPRINKLER_KEYS, sprinklerInventoryKey } from './sprinklers';
+import { FORAGE, FORAGE_KEYS, forageInventoryKey, sellAllForage } from './forage';
+export { sellAllForage };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -55,6 +57,17 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
       label: def.name,
       buyPrice: def.buyPrice,
       sellPrice: null,
+    });
+  }
+  // Forage — also surfaced in the shop so the player can sell-back at
+  // the catalog price when they don't want to walk to the well.
+  for (const k of FORAGE_KEYS) {
+    const def = FORAGE[k];
+    items.push({
+      key: forageInventoryKey(k),
+      label: def.name,
+      buyPrice: null,
+      sellPrice: def.sellPrice,
     });
   }
   return items;

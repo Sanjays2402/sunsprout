@@ -26,7 +26,7 @@ import {
   updateNPCs,
 } from '../game/npcs';
 import { CROP_KEYS } from '../game/crops';
-import { sellAllHarvest, sellAllGems } from '../game/economy';
+import { sellAllHarvest, sellAllGems, sellAllForage } from '../game/economy';
 import { sellAllDishes } from '../game/cooking';
 import { checkQuests, startingQuests } from '../game/quests';
 import { CANDIDATES, creditTalk, getHearts, startingHearts } from '../game/hearts';
@@ -62,6 +62,16 @@ import {
   drawSprinklerSprite,
   type SprinklerKey,
 } from '../game/sprinklers';
+import {
+  regenerateForage,
+  clearForage,
+  isDusk,
+  forageAt,
+  pickupForage,
+  getForage,
+  drawForageSprite,
+  FORAGE,
+} from '../game/forage';
 import { RECIPES } from '../game/cooking';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
@@ -139,6 +149,8 @@ export class Game {
   private toast = '';
   private toastFade = 0;
   private heartsPanelVisible = false;
+  /** Set when we've already wiped today's forage at dusk. */
+  private forageCleared = false;
 
   private canvas: HTMLCanvasElement;
   private running = false;
@@ -199,6 +211,12 @@ export class Game {
           // ignore — corrupt snapshot stays in storage but doesn't break boot
         }
       }
+    }
+    // Seed the day's forage so a fresh boot already has pickables out.
+    // If load restored an older save without forage this is also the
+    // first chance to populate today.
+    if (getForage(this.world).length === 0 && !isDusk(this.time.hour)) {
+      regenerateForage(this.world, this.time.season, this.time.day);
     }
   }
 
@@ -295,6 +313,9 @@ export class Game {
       const rained = applyRain(this.world, w);
       const sprinkled = sprinklerTick(this.world);
       advanceDay(this.world);
+      // Regenerate the day's forage layout — deterministic per (season,day).
+      regenerateForage(this.world, this.time.season, this.time.day);
+      this.forageCleared = false;
       const flavorTail =
         rained > 0
           ? ` (rain watered ${rained})`
@@ -304,6 +325,11 @@ export class Game {
       this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
       // Auto-save snapshot at every day rollover.
       if (this.storage) saveToStorage(this, this.storage);
+    }
+    // Dusk wipe — forage withers once the sun gets low.
+    if (!this.forageCleared && isDusk(this.time.hour)) {
+      clearForage(this.world);
+      this.forageCleared = true;
     }
     // Map TimeOfDay → renderer's [0,1) sky cycle.
     // 06:00 → 0 (dawn), 14:00 → 0.5 (midday), 22:00 → ~0.7 (dusk).
@@ -403,8 +429,6 @@ export class Game {
     }
 
     // O: place / remove a sprinkler on the tile in front of the player.
-    // Consumes one sprinkler from the bag on placement; refunds it on
-    // pickup so misplaced sprinklers are not a sunk cost.
     if (this.input.justPressed.has('o')) {
       const front = this.tileInFront();
       const here = sprinklerAt(this.world, front.tx, front.ty);
@@ -430,6 +454,22 @@ export class Game {
         if (!placed) {
           this.setToast('Need a tilled tile and a sprinkler in your bag.');
         }
+      }
+    }
+
+    // Y: pick up the forage on the tile in front of the player. Plain
+    // grass-tile pickups so the player never has to mash E + risk
+    // talking to an NPC overlapping the same column.
+    if (this.input.justPressed.has('y')) {
+      const front = this.tileInFront();
+      const here = forageAt(this.world, front.tx, front.ty);
+      if (here) {
+        const kind = pickupForage(this.world, p, front.tx, front.ty);
+        if (kind) {
+          this.setToast(`Picked ${FORAGE[kind].name}.`);
+        }
+      } else {
+        this.setToast('Nothing to forage here.');
       }
     }
 
@@ -685,11 +725,13 @@ export class Game {
             if (b.kind === 'well' && front.tx === b.x && front.ty === b.y) {
               const earned = sellAllHarvest(p);
               const gemGold = sellAllGems(p);
-              const total = earned + gemGold;
+              const forageGold = sellAllForage(p);
+              const total = earned + gemGold + forageGold;
               if (total > 0) {
                 const parts: string[] = [];
                 if (earned > 0) parts.push(`harvest +${earned}g`);
                 if (gemGold > 0) parts.push(`gems +${gemGold}g`);
+                if (forageGold > 0) parts.push(`forage +${forageGold}g`);
                 this.setToast(`Sold at the well: ${parts.join(', ')}`);
               } else {
                 this.setToast('Nothing to sell yet.');
@@ -752,6 +794,16 @@ export class Game {
         const wy = s.ty * TILE_SIZE + TILE_SIZE / 2;
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
         drawSprinklerSprite(this.ctx, sx, sy, s.kind);
+      }
+    }
+    // Forage — same layer as sprinklers but only on the daytime grass.
+    {
+      const list = getForage(this.world);
+      for (const f of list) {
+        const wx = f.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = f.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawForageSprite(this.ctx, sx, sy, f.kind);
       }
     }
     if (this.peerRenderables.length > 0) {
