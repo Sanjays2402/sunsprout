@@ -33,7 +33,8 @@ export type DishKey =
   | 'pumpkin-custard'
   | 'mushroom-skillet'
   | 'berry-tart'
-  | 'herb-tea';
+  | 'herb-tea'
+  | 'hot-cocoa';
 
 /** One required ingredient line: an inventory key + how many to consume. */
 export interface Ingredient {
@@ -161,6 +162,17 @@ export const RECIPES: Record<DishKey, Recipe> = {
     flavor: 'Two sprigs steeped in well water. Quiet evenings.',
     ingredients: [{ key: 'forage-herb', count: 2 }],
     sellPrice: 22, // raw: 8 → +14 markup
+  },
+  // ---- Winter comfort tier ----
+  'hot-cocoa': {
+    key: 'hot-cocoa',
+    name: 'Hot Cocoa',
+    flavor: 'Two eggs whipped with milk and a wheat-flour crust. Winter staple.',
+    ingredients: [
+      { key: 'egg', count: 2 },
+      { key: 'wheat_harvest', count: 1 },
+    ],
+    sellPrice: 55, // raw: 12*2 + 8 = 32 -> +23 markup
   },
 };
 

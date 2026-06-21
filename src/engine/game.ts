@@ -118,6 +118,12 @@ import {
 import { deliverDailyMail, readNextLetter, unreadCount } from '../game/mail';
 import { CANDIDATES as MAIL_CANDIDATES } from '../game/hearts';
 import {
+  freezeOutdoorCrops,
+  isFrozenSeason,
+  drawSnowOverlay,
+  winterFlavorLine,
+} from '../game/winter';
+import {
   CHEST_INVENTORY_KEY,
   adjacentChest,
   canPlaceChest,
@@ -440,6 +446,11 @@ export class Game {
       const w = weatherToday(this.time);
       const rained = applyRain(this.world, w);
       const sprinkled = sprinklerTick(this.world);
+      // Winter pass: outdoor crops freeze. Run AFTER rain/sprinklers
+      // (so they harmlessly try to water frozen tiles) and BEFORE
+      // advanceDay (so the growth tick sees watered=false outside).
+      // greenhouseTick later re-asserts watered=true for inside tiles.
+      const frozen = isFrozenSeason(this.time) ? freezeOutdoorCrops(this.world) : 0;
       advanceDay(this.world);
       // Chickens drop their daily eggs into their coop's cache.
       const eggs = coopTick(this.world);
@@ -467,7 +478,14 @@ export class Game {
                   : newMail > 0
                     ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
                     : '';
-      this.setToast(`A new day begins · Day ${this.time.day}${flavorTail}`);
+      // Winter takes priority on day 1 of the season — the player needs
+      // to know the field froze. Days 2+ of winter just show the standard
+      // flavour tail.
+      const isFirstWinterDay = isFrozenSeason(this.time) && this.time.day === 1;
+      const headline = isFirstWinterDay
+        ? winterFlavorLine(frozen)
+        : `A new day begins · Day ${this.time.day}${flavorTail}`;
+      this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {
         saveToStorage(this, this.storage);
@@ -1312,6 +1330,12 @@ export class Game {
         const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
         drawRainOverlay(this.ctx, this.canvas.width, this.canvas.height, intense, now);
       }
+    }
+    // Snow overlay — only in Winter, only when reduce-motion is off.
+    // Layered on top of rain so a stormy Winter day reads as snow-driven.
+    if (isFrozenSeason(this.time) && !settings.reduceMotion) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      drawSnowOverlay(this.ctx, this.canvas.width, this.canvas.height, now);
     }
     if (this.multiplayer) {
       drawPeerBadge(this.ctx, {

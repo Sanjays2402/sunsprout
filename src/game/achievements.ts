@@ -17,6 +17,7 @@ import type { TimeOfDay } from './time';
 import { CANDIDATES, getHearts } from './hearts';
 import { GEM_KEYS, gemInventoryKey } from './gems';
 import { totalDishesCooked, recipesCooked } from './cooking-history';
+import { RECIPE_KEYS } from './cooking';
 import { buildJournal } from './crop-journal';
 import { unreadCount } from './mail';
 import { getDog } from './farm-dog';
@@ -97,7 +98,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: 'Recipe Collector',
     hint: 'Cook at least one of every recipe.',
     done: 'Discovered every recipe in the book.',
-    check: (p) => recipesCooked(p) >= 10,
+    check: (p) => recipesCooked(p) >= RECIPE_KEYS.length,
   },
   {
     id: 'wealthy',
