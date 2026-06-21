@@ -247,6 +247,12 @@ import {
   nearBath,
   takeBath,
 } from '../game/bath-house';
+import {
+  getPond,
+  interactPond,
+  pondStatusLine,
+  pondTick,
+} from '../game/fish-pond';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
 import {
@@ -623,6 +629,9 @@ export class Game {
       // out overnight. Done BEFORE refillStamina so the dawn top-up
       // uses the correct (post-expiry) max.
       maybeExpireBath(this.world.player, this.time.day);
+      // Fish pond — when stocked, drops 1-2 fish into the pending pool
+      // for collection. Idempotent per-day.
+      const pondAdded = pondTick(this.world, this.time.day);
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
       // Hangout invites: clear expired ones, post new ones from any
@@ -657,7 +666,9 @@ export class Game {
                               ? ` (${cartArrivalLine()})`
                               : spouseGift.kind === 'gifted'
                                 ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
-                                : '';
+                                : pondAdded > 0
+                                  ? ` (pond yielded ${pondAdded} fish)`
+                                  : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -1171,6 +1182,29 @@ export class Game {
           p.inventory['craft-coop-deluxe'] = have - 1;
           this.setToast('Coop upgraded to deluxe. Fancy eggs are more common.');
         }
+      }
+    }
+
+    // >: interact with the farm pond — stock with the most-abundant
+    // fish in the bag on first press, collect pending yield on later
+    // presses. Reuses the same key for both verbs since the pond's
+    // state unambiguously picks one or the other.
+    if (this.input.justPressed.has('>')) {
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      const out = interactPond(this.world, p, px, py);
+      if (out.kind === 'too-far') {
+        this.setToast('Stand next to the farm pond.');
+      } else if (out.kind === 'stocked') {
+        this.setToast(`Stocked the pond with a ${out.label}. Come back tomorrow.`);
+      } else if (out.kind === 'collected') {
+        this.setToast(
+          `Collected ${out.count} ${out.label}${out.count === 1 ? '' : 's'} from the pond.`,
+        );
+      } else if (out.kind === 'nothing-pending') {
+        this.setToast(pondStatusLine(getPond(this.world)));
+      } else if (out.kind === 'empty-no-fish') {
+        this.setToast('No fish in your bag — catch one first to stock the pond.');
       }
     }
 

@@ -1,0 +1,191 @@
+// Fish pond at the farm — stock one species, collect daily yield.
+//
+// The starter world already carves a small 4x4 pond on the west side
+// (tiles x in [2,5], y in [18,21]). This module turns that pond into a
+// real gameplay loop: the player can stock it with a caught fish, and
+// from then on the pond produces 1-2 additional fish of the SAME
+// species at each dawn rollover (cached in the pond state). Pressing
+// `>` adjacent to the pond stocks it (when empty) or collects the
+// pending yield (when stocked).
+//
+// Design intent: small-scale "passive" income that doesn't replace the
+// fishing minigame — the pond can only host one species at a time and
+// caps at POND_MAX_PENDING uncollected fish, so the player still has
+// to walk back and harvest. Stocking is permanent: once you've picked
+// a species you can RESET the pond (consume + refresh) only by
+// collecting the current yield first, then standing in front while
+// adjacent and pressing `>` again with a different fish in the bag.
+//
+// Pure module: no IO, no canvas (besides a small per-tile glyph for
+// the pond when stocked). The Game wires the `>` press and the dawn
+// hook.
+
+import type { World } from '../world/world';
+import type { FishKey } from './fish';
+import { FISH, FISH_KEYS } from './fish';
+
+/** Daily fish produced per stocked species. Two for the rare, one for the rest. */
+export const POND_YIELD_PER_DAY: Record<FishKey, number> = {
+  minnow: 2,
+  carp: 1,
+  bass: 1,
+  trout: 1,
+  pike: 1,
+};
+
+/** Max uncollected fish that can sit in the pond. */
+export const POND_MAX_PENDING = 6;
+
+/** Persisted pond state on the world. */
+export interface PondState {
+  /** Which species the pond is currently stocked with, or null when empty. */
+  species: FishKey | null;
+  /** How many of that species are sitting in the pond, uncollected. */
+  pending: number;
+  /** Last day the dawn yield was applied (-1 = never). */
+  lastYieldDay: number;
+}
+
+/** Lazy reader on the World. */
+export function getPond(world: World): PondState {
+  const w = world as World & { pond?: PondState };
+  if (!w.pond) w.pond = { species: null, pending: 0, lastYieldDay: -1 };
+  return w.pond;
+}
+
+/**
+ * Tile-space bounding box of the carved pond — read live from the
+ * world's tiles so changes to the map shift this with it. We return
+ * the first contiguous run of water tiles on the west side.
+ */
+export function pondBounds(world: World): { x0: number; y0: number; x1: number; y1: number } {
+  // The world's pond lives at x:[2,6) y:[18,22). Encode that here so
+  // callers don't have to walk the tile grid; if the world ever grows
+  // multiple ponds this becomes the canonical "farm pond" set.
+  return { x0: 2, y0: 18, x1: 5, y1: 21 };
+}
+
+/** True iff (tx,ty) is a water tile inside the farm pond footprint. */
+export function isPondTile(world: World, tx: number, ty: number): boolean {
+  const b = pondBounds(world);
+  if (tx < b.x0 || tx > b.x1 || ty < b.y0 || ty > b.y1) return false;
+  if (!world.inBounds(tx, ty)) return false;
+  return world.tiles[ty][tx].type === 'water';
+}
+
+/** True when (px,py) is orthogonally or diagonally adjacent to ANY pond tile. */
+export function nearPond(world: World, px: number, py: number): boolean {
+  const b = pondBounds(world);
+  // Cheap rectangle check first.
+  if (px < b.x0 - 1 || px > b.x1 + 1 || py < b.y0 - 1 || py > b.y1 + 1) return false;
+  // The player must be ON a non-water tile that touches a pond water tile.
+  for (let dy = -1; dy <= 1; dy++) {
+    for (let dx = -1; dx <= 1; dx++) {
+      if (dx === 0 && dy === 0) continue;
+      if (isPondTile(world, px + dx, py + dy)) return true;
+    }
+  }
+  return false;
+}
+
+/** Outcome of an interaction attempt. */
+export type PondOutcome =
+  | { kind: 'stocked'; species: FishKey; label: string }
+  | { kind: 'collected'; species: FishKey; count: number; label: string }
+  | { kind: 'too-far' }
+  | { kind: 'empty-no-fish' }
+  | { kind: 'nothing-pending'; species: FishKey };
+
+/**
+ * Stock an empty pond with the player's MOST-ABUNDANT caught fish.
+ * Ties break by FISH_KEYS catalog order. Consumes one fish from the
+ * bag to "seed" the pond. If the pond is already stocked, no-op.
+ */
+export function stockPond(
+  world: World,
+  player: { inventory: Record<string, number> },
+): PondOutcome {
+  const state = getPond(world);
+  if (state.species !== null) {
+    // Already stocked — caller should fall through to collect.
+    return { kind: 'nothing-pending', species: state.species };
+  }
+  // Find the most-abundant fish in the bag.
+  let best: FishKey | null = null;
+  let bestCount = 0;
+  for (const key of FISH_KEYS) {
+    const have = player.inventory[`fish-${key}`] ?? 0;
+    if (have > bestCount) {
+      best = key;
+      bestCount = have;
+    }
+  }
+  if (!best || bestCount === 0) {
+    return { kind: 'empty-no-fish' };
+  }
+  // Consume one seed fish. The pond memorises the species.
+  player.inventory[`fish-${best}`] = bestCount - 1;
+  state.species = best;
+  state.pending = 0;
+  return { kind: 'stocked', species: best, label: FISH[best].name };
+}
+
+/**
+ * Collect every pending fish into the player's bag. Returns
+ * 'nothing-pending' when the pond is stocked but has no waiting fish.
+ */
+export function collectPond(
+  world: World,
+  player: { inventory: Record<string, number> },
+): PondOutcome {
+  const state = getPond(world);
+  if (state.species === null) return { kind: 'empty-no-fish' };
+  if (state.pending <= 0) return { kind: 'nothing-pending', species: state.species };
+  const species = state.species;
+  const count = state.pending;
+  player.inventory[`fish-${species}`] = (player.inventory[`fish-${species}`] ?? 0) + count;
+  state.pending = 0;
+  return { kind: 'collected', species, count, label: FISH[species].name };
+}
+
+/**
+ * Combined "press `>` near the pond" entry-point. Stocks if empty,
+ * collects when there's a pending yield, returns 'nothing-pending'
+ * when the pond is stocked but has no fish ready yet.
+ */
+export function interactPond(
+  world: World,
+  player: { inventory: Record<string, number> },
+  px: number,
+  py: number,
+): PondOutcome {
+  if (!nearPond(world, px, py)) return { kind: 'too-far' };
+  const state = getPond(world);
+  if (state.species === null) return stockPond(world, player);
+  if (state.pending > 0) return collectPond(world, player);
+  return { kind: 'nothing-pending', species: state.species };
+}
+
+/**
+ * Day-rollover hook: if the pond is stocked, add today's yield to its
+ * pending pool (capped at POND_MAX_PENDING). Idempotent per-day via
+ * `lastYieldDay`. Returns the number of fish actually added.
+ */
+export function pondTick(world: World, day: number): number {
+  const state = getPond(world);
+  if (state.species === null) return 0;
+  if (state.lastYieldDay === day) return 0;
+  state.lastYieldDay = day;
+  const yieldToday = POND_YIELD_PER_DAY[state.species] ?? 1;
+  const before = state.pending;
+  state.pending = Math.min(POND_MAX_PENDING, state.pending + yieldToday);
+  return state.pending - before;
+}
+
+/** Pretty status line for HUD / toasts. */
+export function pondStatusLine(state: PondState): string {
+  if (state.species === null) return 'Pond is empty. Stock with a caught fish.';
+  const name = FISH[state.species].name;
+  if (state.pending === 0) return `Pond stocked with ${name}. Come back tomorrow.`;
+  return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting.`;
+}
