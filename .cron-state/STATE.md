@@ -4,7 +4,7 @@
 
 ## STATUS
 
-**STATUS:** Tick #6 complete. 30 autoship features now on `feature/autoship`. This batch shipped fishing rod upgrades, a daily stamina pool, Pip's travelling cart, the auto-restock seed kit, and the village lore panel. 835/835 tests green (+72 this tick); build 171.78 kB / 52.10 kB gz.
+**STATUS:** Tick #7 complete. 35 autoship features now on `feature/autoship`. This batch shipped farmhouse decor (wallpaper + floors at Pip's cart), NPC marriage move-in with daily gifts, a quest-of-the-week notice board south of the well, the seed extractor for crop->seed recycling, and a once-a-season friendship tournament. 910/910 tests green (+75 this tick); build 185.75 kB / 56.90 kB gz.
 
 Active branch: `feature/autoship`
 Default branch: `main` (NEVER push to it from cron)
@@ -51,12 +51,12 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [x] **Stamina / energy system** — daily 100-point pool drains on till/water/mine/cast; refills at dawn + on sleep; Z sips the best available drink (cocoa +35 > tea +20). (1897764)
 - [x] **Travelling merchant cart** — Pip parks at the village square on day 3 of every season (09-18h); E opens a premium catalog with rare seeds, ready-to-drink flasks, and a brass lantern cosmetic. (991bbbc)
 - [x] **Auto-restock seed kit** — buyable 600g kit re-buys the player's last-planted seed up to 5 every dawn from the shop's gold; spend tagged in the money log. (c3331d4)
-- [ ] **Wallpaper / floor cosmetics for the farmhouse** — sold via the merchant cart; redraws the interior tile palette when entering the farmhouse.
-- [ ] **NPC marriage move-in** — after the wedding, your spouse moves into the farmhouse; daily morning dialogue + greenhouse buff.
+- [x] **Wallpaper / floor cosmetics for the farmhouse** — three wallpapers + three floors sold at Pip's cart (260-420g); apply auto-applies; decorPalette() retints the farmhouse renderer only. (78d5e68)
+- [x] **NPC marriage move-in** — after the wedding the spouse stands south of the farmhouse door during day + inside at night; dawn gift + per-spouse greeting line for E-press dialogue. (8527af9)
 - [x] **Bookshelf / lore panel** — backtick toggles a 5-tab bestiary (fish/gems/forage/crops/folk) that auto-discovers entries as the player encounters them. (2d0a556)
-- [ ] **Quest-of-the-week board** — village notice board near the well posts rotating fetch quests with gold/seeds rewards.
-- [ ] **Seed extractor** — a placeable that turns one harvest into 1-2 seeds of the same crop, enabling self-sufficient farming.
-- [ ] **Friendship tournament** — once a season the village holds a friendly competition (fishing derby, harvest weigh-in) for prize gold.
+- [x] **Quest-of-the-week board** — village notice board south of the well posts one rotating fetch quest per season; E reads / turns in; nine catalogued tasks. (332b335)
+- [x] **Seed extractor** — Maple sells a 350g kit; L consumes one of the largest harvest stack and grants 1-2 seeds of the same crop (deterministic alternating yield). (f0fb391)
+- [x] **Friendship tournament** — day 6 of every season the village runs a contest at the well (flower show / fishing derby / harvest weigh-in / cook-off); bronze/silver/gold ribbons + gold prizes; one entry per season. (487425a)
 - [ ] **Carpenter's bench** — buyable; opens a craft menu that turns harvested wood + gems into new placeables (lantern variants, scarecrow, fence).
 - [ ] **Outdoor scarecrow** — placeable that grants the crops within a 3-tile radius a +1 quality nudge at harvest time.
 - [ ] **Animal yield variety** — chickens occasionally lay a "fancy egg" worth 3x; coop quality tier upgrade unlocks it.
@@ -64,7 +64,9 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 
 ## OPEN BLOCKERS
 
-(none — but key bindings are very tight. Recent additions: `,` `.` `[` `]` `X` `R` `;` `V` `Q` `\\` `/` `'` `-` `=` `Z` `` ` ``. Open letter keys: numerics, `{` `}`, F-keys, `~`. Future panels MUST share a single panel-toggle key cycling through panels — we're out of the obvious singletons.)
+(none, but two recurring observations:
+ 1. KEY BINDINGS ARE EXTREMELY TIGHT. New singletons added this tick: `L` (seed extractor). Letter keys still free: most numerics, F-keys, `{` `}` `~` and a few odd chars. Future panels MUST share a single panel-toggle key cycling through panels.
+ 2. NO SHOP UI EXISTS. SHOP_ITEMS in economy.ts is a catalog the codex can read, but there's no in-game way for the player to spend gold at Maple's beyond the upgrade hotkeys (,/.=/`/`). Every "Buy from Maple" toast currently points at a vaporware purchase path. Worth a dedicated tick to add a shop menu modal — without it, half the buyable items the game references (Coop Kit, Chest Kit, Greenhouse Kit, Auto-Restock Kit, Seed Extractor, Chickens, Bouquets, Dog/Cat tickets) can only be obtained via dev-console tweaks. Recommend Sanjay queue this as the next user-facing priority.)
 
 ## TICK LOG
 
@@ -75,3 +77,4 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - 2026-06-20 15:35 PT — 5/5 shipped: codex (5a09261), journal (78ea1af), achievements (6707f0f), money-log (b712a59), settings (ba82aa4). 697/697 tests green (+50). Build 142.86 kB / 44.53 kB gz. New keybinds: R=recipe codex, ;=crop journal, V=achievements, Q=money log, \\=settings. (Note: tick was a resume — 4 commits had landed locally pre-resume from an earlier interrupted run; this tick finished the settings slice + gate + push.)
 - 2026-06-20 18:08 PT — 5/5 shipped: winter (7589e6d), pickaxe (18f6028), quest-log (7d376af), hangouts (9b0e148), farm-cat (a57147b). 763/763 tests green (+66). Build 154.80 kB / 47.68 kB gz. New keybinds: /=pickaxe upgrade, '=quest log, -=adopt/pet cat. Also added Hot Cocoa to the cookbook; Recipe Collector achievement now references RECIPE_KEYS.length instead of a hardcoded 10.
 - 2026-06-20 21:17 PT — 5/5 shipped: rod-upgrades (e36f20d), stamina (1897764), cart (991bbbc), auto-restock (c3331d4), lore (2d0a556). 835/835 tests green (+72). Build 171.78 kB / 52.10 kB gz. New keybinds: ==rod upgrade at Maple's, Z=sip best drink, `=lore panel. Cart parks at (16,9) on day 3 of every season 09-18h; E opens the menu. Auto-restock kit hooks into the dawn rollover and the plant verb; lore panel reads inventory live (no separate unlock state). Also extended fishing.ts Rod to accept per-cast bite-window + fish-picker overrides, kept fully backward-compatible.
+- 2026-06-20 23:48 PT — 5/5 shipped: decor (78d5e68), spouse (8527af9), board (332b335), seed-extractor (f0fb391), tournament (487425a). 910/910 tests green (+75). Build 185.75 kB / 56.90 kB gz. New keybind: L=seed extractor. New world fixtures: notice board sprite at (19,11); decor palette retints farmhouse only; tournament uses well E-press during day-6 14-18h. Spouse overrides NPC schedule and replaces dialogue with a private greeting. Persistence wired for all five (decor/spouse/board/extractor/tournament). Open issue surfaced: SHOP_ITEMS exists but no shop UI -- buyable items only landable via dev console; recommend a shop modal as the next priority tick.
