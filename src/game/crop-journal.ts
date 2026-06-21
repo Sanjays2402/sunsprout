@@ -22,6 +22,18 @@ export interface CropJournalRow {
   silver: number;
   gold: number;
   bestStreak: number;
+  /**
+   * Heaviest single-day harvest count for this crop across the run.
+   * Bumped at every recordHarvest call when today's running tally
+   * exceeds the previous record. The `ribbonDay` field tags which
+   * (season,day) earned the ribbon so the journal can flavour it.
+   */
+  bestDayHarvest?: number;
+  ribbonSeason?: number;
+  ribbonDay?: number;
+  /** Internal running tally for the current in-game day. */
+  todayHarvest?: number;
+  todayKey?: string;
 }
 
 /** Journal map keyed by crop key (wheat / tomato / pumpkin / flower). */
@@ -51,12 +63,18 @@ export function recordSown(player: Player, cropKey: string): void {
 /**
  * Increment the right harvest bucket. Optionally pass the water-streak
  * the crop had at harvest time so we can update the best-streak record.
+ *
+ * Pass `time` (as `{ season, day }`) so we can attribute today's harvest
+ * to a single calendar day and update the per-crop ribbon (heaviest
+ * single-day yield ever). Calls without a time field still work — the
+ * ribbon just won't be touched.
  */
 export function recordHarvest(
   player: Player,
   cropKey: string,
   quality: CropQuality,
   streak: number = 0,
+  time?: { season: number; day: number },
 ): void {
   if (!CROPS[cropKey]) return;
   const r = row(getJournal(player), cropKey);
@@ -64,6 +82,19 @@ export function recordHarvest(
   else if (quality === 'silver') r.silver += 1;
   else r.normal += 1;
   if (streak > r.bestStreak) r.bestStreak = streak;
+  if (time) {
+    const key = `${time.season}:${time.day}`;
+    if (r.todayKey !== key) {
+      r.todayKey = key;
+      r.todayHarvest = 0;
+    }
+    r.todayHarvest = (r.todayHarvest ?? 0) + 1;
+    if ((r.todayHarvest ?? 0) > (r.bestDayHarvest ?? 0)) {
+      r.bestDayHarvest = r.todayHarvest;
+      r.ribbonSeason = time.season;
+      r.ribbonDay = time.day;
+    }
+  }
 }
 
 /** Total harvest count (all tiers) for a crop. */
@@ -98,6 +129,20 @@ export interface CropJournalEntry {
   silver: number;
   gold: number;
   bestStreak: number;
+  /** Heaviest single-day harvest count this crop ever produced. 0 when none. */
+  ribbonCount: number;
+  /** Human-readable label for the ribbon day, e.g. "Fall d4" or undefined. */
+  ribbonWhen?: string;
+}
+
+/** Season-index → short two-letter label used for ribbons + festivals. */
+const SEASON_NAMES = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+
+/** Format a (season, day) record as "Fall d4" / "Spring d1". */
+export function formatRibbonWhen(season: number | undefined, day: number | undefined): string | undefined {
+  if (season === undefined || day === undefined) return undefined;
+  const name = SEASON_NAMES[Math.abs(season) % 4] ?? 'Spring';
+  return `${name} d${day}`;
 }
 
 /** Snapshot every crop with current catalog + journal data. */
@@ -119,6 +164,8 @@ export function buildJournal(player: Player): CropJournalEntry[] {
       silver: r.silver,
       gold: r.gold,
       bestStreak: r.bestStreak,
+      ribbonCount: r.bestDayHarvest ?? 0,
+      ribbonWhen: formatRibbonWhen(r.ribbonSeason, r.ribbonDay),
     };
   });
 }

@@ -139,3 +139,79 @@ describe('crop-journal persistence', () => {
     expect(j.pumpkin.bestStreak).toBe(6);
   });
 });
+
+describe('crop ribbon journal', () => {
+  it('records the heaviest single-day harvest and the day it earned the ribbon', () => {
+    const w = new World();
+    // Day 1: harvest 2 wheat.
+    recordHarvest(w.player, 'wheat', 'normal', 1, { season: 0, day: 1 });
+    recordHarvest(w.player, 'wheat', 'normal', 1, { season: 0, day: 1 });
+    // Day 2: harvest 3 wheat — should overtake the ribbon.
+    recordHarvest(w.player, 'wheat', 'silver', 3, { season: 0, day: 2 });
+    recordHarvest(w.player, 'wheat', 'silver', 3, { season: 0, day: 2 });
+    recordHarvest(w.player, 'wheat', 'silver', 3, { season: 0, day: 2 });
+    // Day 3: harvest only 1.
+    recordHarvest(w.player, 'wheat', 'gold', 4, { season: 0, day: 3 });
+    const row = getJournal(w.player).wheat;
+    expect(row.bestDayHarvest).toBe(3);
+    expect(row.ribbonSeason).toBe(0);
+    expect(row.ribbonDay).toBe(2);
+  });
+
+  it('per-crop ribbons are independent', () => {
+    const w = new World();
+    recordHarvest(w.player, 'wheat', 'normal', 0, { season: 1, day: 4 });
+    recordHarvest(w.player, 'pumpkin', 'gold', 5, { season: 2, day: 7 });
+    recordHarvest(w.player, 'pumpkin', 'gold', 5, { season: 2, day: 7 });
+    const j = getJournal(w.player);
+    expect(j.wheat.bestDayHarvest).toBe(1);
+    expect(j.pumpkin.bestDayHarvest).toBe(2);
+    expect(j.pumpkin.ribbonDay).toBe(7);
+  });
+
+  it('a harvest without a time arg leaves the ribbon untouched', () => {
+    const w = new World();
+    recordHarvest(w.player, 'wheat', 'normal', 0);
+    const row = getJournal(w.player).wheat;
+    expect(row.bestDayHarvest).toBeUndefined();
+    expect(row.ribbonSeason).toBeUndefined();
+  });
+
+  it('buildJournal surfaces ribbonCount + ribbonWhen', () => {
+    const w = new World();
+    recordHarvest(w.player, 'tomato', 'normal', 1, { season: 1, day: 5 });
+    recordHarvest(w.player, 'tomato', 'normal', 1, { season: 1, day: 5 });
+    const rows = buildJournal(w.player);
+    const tomato = rows.find((r) => r.key === 'tomato')!;
+    expect(tomato.ribbonCount).toBe(2);
+    expect(tomato.ribbonWhen).toBe('Summer d5');
+    const flower = rows.find((r) => r.key === 'flower')!;
+    expect(flower.ribbonCount).toBe(0);
+    expect(flower.ribbonWhen).toBeUndefined();
+  });
+
+  it('the ribbon round-trips through persistence', () => {
+    const a = fakeGame();
+    recordHarvest(a.world.player, 'wheat', 'gold', 7, { season: 2, day: 4 });
+    recordHarvest(a.world.player, 'wheat', 'gold', 7, { season: 2, day: 4 });
+    const snap = serializeGame(a);
+    const b = fakeGame();
+    applySnapshot(b, snap);
+    const restored = getJournal(b.world.player).wheat;
+    expect(restored.bestDayHarvest).toBe(2);
+    expect(restored.ribbonSeason).toBe(2);
+    expect(restored.ribbonDay).toBe(4);
+  });
+
+  it('a new day resets todayHarvest so the ribbon counts a single day only', () => {
+    const w = new World();
+    recordHarvest(w.player, 'wheat', 'normal', 0, { season: 0, day: 1 });
+    recordHarvest(w.player, 'wheat', 'normal', 0, { season: 0, day: 1 });
+    // Tomorrow — only one harvest. Ribbon stays at 2 from yesterday.
+    recordHarvest(w.player, 'wheat', 'normal', 0, { season: 0, day: 2 });
+    const row = getJournal(w.player).wheat;
+    expect(row.bestDayHarvest).toBe(2);
+    expect(row.ribbonDay).toBe(1);
+    expect(row.todayHarvest).toBe(1);
+  });
+});

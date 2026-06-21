@@ -1666,7 +1666,10 @@ export class Game {
               quality === 'gold' ? ' (gold-star! 2x)' : quality === 'silver' ? ' (silver-star, 1.5x)' : '';
             this.setToast(`Harvested ${cropKey}${flair}.`);
             if (cropKey) {
-              recordHarvest(p, cropKey, quality, streak);
+              recordHarvest(p, cropKey, quality, streak, {
+                season: this.time.season,
+                day: this.time.day,
+              });
               this.checkQuests({ kind: 'harvest', cropKey });
             }
           }

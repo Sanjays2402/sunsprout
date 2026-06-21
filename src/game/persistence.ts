@@ -89,7 +89,7 @@ export interface SaveSnapshot {
     /** Per-recipe cooked count for the codex panel. */
     cookCounts?: Record<string, number>;
     /** Per-crop lifetime tally for the journal panel. */
-    cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }>;
+    cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number; bestDayHarvest?: number; ribbonSeason?: number; ribbonDay?: number }>;
     /** Earned achievements. */
     achievements?: Array<{ id: string; earnedDay: number }>;
     /** Money log entries — most-recent first, capped at MAX_ENTRIES. */

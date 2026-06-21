@@ -29,7 +29,7 @@ const SILVER = '#D5D8DC';
 const GREEN = '#A3D77A';
 
 const PANEL_W = 360;
-const ROW_H = 44;
+const ROW_H = 50;
 
 export class CropJournalPanel {
   private opened = false;
@@ -165,6 +165,15 @@ export class CropJournalPanel {
         const s = `streak ${e.bestStreak}`;
         ctx.textAlign = 'right';
         ctx.fillText(s, x + PANEL_W - 12, ry + 28);
+      }
+      // Ribbon — heaviest single-day harvest. Sits one line below the
+      // sown/streak strip, only when the player has actually set one.
+      if (e.ribbonCount > 0) {
+        ctx.fillStyle = '#F0A828';
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.textAlign = 'left';
+        const tag = e.ribbonWhen ? ` -  ${e.ribbonWhen}` : '';
+        ctx.fillText(`ribbon: ${e.ribbonCount} in a day${tag}`, x + 12, ry + 40 - 7);
       }
     }
 
