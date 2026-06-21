@@ -25,6 +25,7 @@ import { GREENHOUSE_INVENTORY_KEY } from './greenhouse';
 import { CHEST_INVENTORY_KEY } from './chest';
 import { AUTO_RESTOCK_KEY } from './auto-restock';
 import { EXTRACTOR_INVENTORY_KEY } from './seed-extractor';
+import { COMPOST_BIN_INVENTORY_KEY } from './compost';
 import { sprinklerInventoryKey } from './sprinklers';
 import { CROPS } from './crops';
 import type { TimeOfDay } from './time';
@@ -80,6 +81,7 @@ function categoryFor(key: string): ShopCategory {
     key === CHEST_INVENTORY_KEY ||
     key === AUTO_RESTOCK_KEY ||
     key === EXTRACTOR_INVENTORY_KEY ||
+    key === COMPOST_BIN_INVENTORY_KEY ||
     key === sprinklerInventoryKey('basic')
   ) {
     return 'kits';
@@ -100,6 +102,8 @@ function flavorFor(key: string): string {
   if (key === CHEST_INVENTORY_KEY) return 'A cellar chest you place with X. Press ] to manage.';
   if (key === AUTO_RESTOCK_KEY) return "Maple keeps your last-planted seed topped up each dawn.";
   if (key === EXTRACTOR_INVENTORY_KEY) return 'Press L to mill one harvest stack into 1-2 seeds.';
+  if (key === COMPOST_BIN_INVENTORY_KEY)
+    return 'Place with X and deposit normal-tier crops with F. Yields fertilizer.';
   if (key === sprinklerInventoryKey('basic'))
     return 'Place on tilled soil with O. Waters its four neighbours at dawn.';
   if (key === DOG_TICKET_KEY) return 'Adopt the farm dog. Press J at the farmhouse.';

@@ -28,6 +28,7 @@ import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
 import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
 import { AUTO_RESTOCK_KEY, AUTO_RESTOCK_PRICE } from './auto-restock';
 import { EXTRACTOR_INVENTORY_KEY, EXTRACTOR_PRICE } from './seed-extractor';
+import { COMPOST_BIN_INVENTORY_KEY, COMPOST_BIN_PRICE } from './compost';
 import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
 export { sellAllForage, sellAllEggs };
 
@@ -157,6 +158,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: EXTRACTOR_INVENTORY_KEY,
     label: 'Seed Extractor',
     buyPrice: EXTRACTOR_PRICE,
+    sellPrice: null,
+  });
+  // Compost bin — recycle normal-tier harvests into fertilizer bags.
+  items.push({
+    key: COMPOST_BIN_INVENTORY_KEY,
+    label: 'Compost Bin',
+    buyPrice: COMPOST_BIN_PRICE,
     sellPrice: null,
   });
   return items;

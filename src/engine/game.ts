@@ -265,6 +265,19 @@ import {
   loadEgg,
   placeHatchery,
 } from '../game/hatchery';
+import {
+  COMPOST_BIN_INVENTORY_KEY,
+  FERTILIZER_INVENTORY_KEY,
+  adjacentCompost,
+  applyFertilizer,
+  canPlaceCompost,
+  compostStatusLine,
+  compostTick,
+  depositCrops,
+  drawCompostSprite,
+  getComposts,
+  placeCompost,
+} from '../game/compost';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
@@ -659,6 +672,13 @@ export class Game {
           this.setToast('A chick hatched but every coop is full. Make room.');
           break;
         }
+      }
+      // Compost bins — any batch whose finish day is past mints fertilizer
+      // bags into the bag. A single toast carries the total so the
+      // morning doesn't spam multiple lines per bin.
+      const fertMinted = compostTick(this.world, this.world.player, this.time.day);
+      if (fertMinted > 0) {
+        this.setToast(`Compost yielded ${fertMinted} fertilizer bag${fertMinted === 1 ? '' : 's'}.`);
       }
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
@@ -1282,6 +1302,49 @@ export class Game {
           }
         } else {
           this.setToast('Hatchery needs a clear grass tile next to a coop.');
+        }
+      }
+    }
+
+    // 7: compost loop, context-sensitive in priority order:
+    //   1. Standing next to a bin -> deposit normal-tier harvests.
+    //   2. Crop in front + fertilizer in bag -> apply fertilizer.
+    //   3. Carrying a bin kit -> place on the grass tile in front.
+    //   4. Otherwise -> status hint.
+    if (this.input.justPressed.has('7')) {
+      const front = this.tileInFront();
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      const bin = adjacentCompost(this.world, px, py);
+      const crop = cropAt(this.world, front.tx, front.ty);
+      const hasFert = (p.inventory[FERTILIZER_INVENTORY_KEY] ?? 0) > 0;
+      if (bin) {
+        const out = depositCrops(bin, p, this.time.day);
+        if (out.kind === 'deposited') {
+          this.setToast(
+            `Composted ${out.crops} crop${out.crops === 1 ? '' : 's'}. Ready in 3 days.`,
+          );
+        } else if (out.kind === 'no-crops') {
+          this.setToast(compostStatusLine(bin, this.time.day));
+        } else if (out.kind === 'bin-full') {
+          this.setToast('Compost bin is full. Wait for batches to finish.');
+        }
+      } else if (crop && hasFert) {
+        const out = applyFertilizer(this.world, p, front.tx, front.ty);
+        if (out.kind === 'applied') {
+          this.setToast(`Fertilized — streak now ${out.newStreak}.`);
+        }
+      } else {
+        const have = p.inventory[COMPOST_BIN_INVENTORY_KEY] ?? 0;
+        if (have <= 0) {
+          this.setToast('Buy a compost bin from Maple.');
+        } else if (canPlaceCompost(this.world, front.tx, front.ty)) {
+          if (placeCompost(this.world, front.tx, front.ty)) {
+            p.inventory[COMPOST_BIN_INVENTORY_KEY] = have - 1;
+            this.setToast('Placed compost bin. Press 7 with a crop bag nearby.');
+          }
+        } else {
+          this.setToast('Need a clear grass tile in front of you.');
         }
       }
     }
@@ -2027,6 +2090,16 @@ export class Game {
         const wy = h.ty * TILE_SIZE + TILE_SIZE / 2;
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
         drawHatcherySprite(this.ctx, sx, sy, h, this.time.day, TILE_SIZE);
+      }
+    }
+    // Compost bins — small wooden bin sprites placed on grass.
+    {
+      const list = getComposts(this.world);
+      for (const c of list) {
+        const wx = c.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = c.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawCompostSprite(this.ctx, sx, sy, c, this.time.day, TILE_SIZE);
       }
     }
     // Greenhouses — translucent glass frame over tilled soil tiles.
