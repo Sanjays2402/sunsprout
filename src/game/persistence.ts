@@ -44,6 +44,7 @@ import { getTournament, type TournamentState } from './tournament';
 import { getStorm, type StormState } from './storm';
 import { getBath, type BathState } from './bath-house';
 import { getPond, type PondState } from './fish-pond';
+import { getHatcheries, type PlacedHatchery } from './hatchery';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -143,6 +144,8 @@ export interface SaveSnapshot {
     chests?: PlacedChest[];
     /** Farm pond — stocked species + pending yield + last tick day. */
     pond?: PondState;
+    /** Hatcheries — placed baskets + per-basket incubation state. */
+    hatcheries?: PlacedHatchery[];
   };
 }
 
@@ -292,6 +295,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       greenhouses: getGreenhouses(game.world).map((g) => ({ ...g })),
       chests: getChests(game.world).map((c) => ({ ...c, items: { ...c.items } })),
       pond: { ...getPond(game.world) },
+      hatcheries: getHatcheries(game.world).map((h) => ({ ...h })),
     },
   };
 }
@@ -532,6 +536,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     cur.species = snap.world.pond.species;
     cur.pending = snap.world.pond.pending;
     cur.lastYieldDay = snap.world.pond.lastYieldDay;
+  }
+  // Hatcheries — forward-compat default for older saves (empty list).
+  const hatcheryList = getHatcheries(game.world);
+  hatcheryList.length = 0;
+  for (const h of snap.world.hatcheries ?? []) {
+    hatcheryList.push({ ...h });
   }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;

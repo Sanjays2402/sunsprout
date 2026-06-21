@@ -70,6 +70,13 @@ export const BENCH_RECIPES: BenchRecipe[] = [
     gem: { key: 'copper', count: 1 },
     flavor: 'Tidy stacked-stone post. Cosmetic edging for fields.',
   },
+  {
+    key: 'craft-hatchery',
+    label: 'Hatchery Basket',
+    gold: 220,
+    gem: { key: 'copper', count: 2 },
+    flavor: 'Place next to a coop. Incubates a fancy egg into a new chicken.',
+  },
 ];
 
 /** True iff the player is within range to interact with the bench. */

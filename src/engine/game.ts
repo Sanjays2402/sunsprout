@@ -253,6 +253,18 @@ import {
   pondStatusLine,
   pondTick,
 } from '../game/fish-pond';
+import {
+  HATCHERY_INVENTORY_KEY,
+  adjacentHatchery,
+  canPlaceHatchery,
+  claimPendingChicken,
+  drawHatcherySprite,
+  getHatcheries,
+  hatcheryStatusLine,
+  hatcheryTick,
+  loadEgg,
+  placeHatchery,
+} from '../game/hatchery';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
@@ -633,6 +645,21 @@ export class Game {
       // Fish pond — when stocked, drops 1-2 fish into the pending pool
       // for collection. Idempotent per-day.
       const pondAdded = pondTick(this.world, this.time.day);
+      // Hatcheries — egg-countdown ticks, fires hatch when due. We post
+      // a toast for the first hatcher of the morning so the player
+      // knows their incubation paid off (or stalled on a full coop).
+      const hatchOutcomes = hatcheryTick(this.world, this.time.day);
+      for (const out of hatchOutcomes) {
+        if (out.kind === 'hatched-into-coop') {
+          this.setToast(
+            `A chick hatched and joined the coop (${out.coop.chickens}/4).`,
+          );
+          break;
+        } else if (out.kind === 'hatched-no-room') {
+          this.setToast('A chick hatched but every coop is full. Make room.');
+          break;
+        }
+      }
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
       // Hangout invites: clear expired ones, post new ones from any
@@ -1206,6 +1233,56 @@ export class Game {
         this.setToast(pondStatusLine(getPond(this.world)));
       } else if (out.kind === 'empty-no-fish') {
         this.setToast('No fish in your bag — catch one first to stock the pond.');
+      }
+    }
+
+    // 6: hatchery interactions. Three modes, in priority order:
+    //   - Standing on/next to a hatchery + holding a kit AND we want to
+    //     PLACE a new one: only fires if we are NOT already adjacent to
+    //     an existing hatchery (otherwise the press is for the existing).
+    //   - Adjacent to an existing hatchery: load an egg, claim a pending
+    //     chick, or report status.
+    //   - Otherwise, try to place a new hatchery on the tile in front
+    //     when the player has a kit in the bag.
+    if (this.input.justPressed.has('6')) {
+      const front = this.tileInFront();
+      const px = Math.round(p.x);
+      const py = Math.round(p.y);
+      const standing = adjacentHatchery(this.world, px, py);
+      if (standing) {
+        if (standing.pendingChicken) {
+          const moved = claimPendingChicken(this.world, standing);
+          if (moved) {
+            this.setToast(
+              `Moved the chick into a coop (${moved.chickens}/${MAX_CHICKENS_PER_COOP}).`,
+            );
+          } else {
+            this.setToast('Every coop is still full. Free up a slot first.');
+          }
+        } else {
+          const out = loadEgg(standing, p, this.time.day);
+          if (out.kind === 'loaded') {
+            this.setToast('Fancy egg in the hatchery. Hatch in 5 days.');
+          } else if (out.kind === 'busy') {
+            this.setToast(`Hatchery already running. ${out.daysLeft} day${out.daysLeft === 1 ? '' : 's'} left.`);
+          } else if (out.kind === 'no-egg') {
+            this.setToast('Need a fancy egg in your bag to start the hatchery.');
+          } else if (out.kind === 'pending') {
+            this.setToast(hatcheryStatusLine(standing, this.time.day));
+          }
+        }
+      } else {
+        const have = p.inventory[HATCHERY_INVENTORY_KEY] ?? 0;
+        if (have <= 0) {
+          this.setToast('Craft a Hatchery Basket at the bench first.');
+        } else if (canPlaceHatchery(this.world, front.tx, front.ty)) {
+          if (placeHatchery(this.world, front.tx, front.ty)) {
+            p.inventory[HATCHERY_INVENTORY_KEY] = have - 1;
+            this.setToast('Placed the hatchery. Press 6 again with a fancy egg.');
+          }
+        } else {
+          this.setToast('Hatchery needs a clear grass tile next to a coop.');
+        }
       }
     }
 
@@ -1939,6 +2016,17 @@ export class Game {
         const cy = (c.ty + COOP_H / 2) * TILE_SIZE;
         const { sx, sy } = this.camera.worldToScreen(cx, cy);
         drawCoopSprite(this.ctx, sx, sy, c, TILE_SIZE);
+      }
+    }
+    // Hatcheries — small basket sprites rendered next to coops. Drawn
+    // after coops so the basket reads as sitting in front of the coop.
+    {
+      const list = getHatcheries(this.world);
+      for (const h of list) {
+        const wx = h.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = h.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawHatcherySprite(this.ctx, sx, sy, h, this.time.day, TILE_SIZE);
       }
     }
     // Greenhouses — translucent glass frame over tilled soil tiles.
