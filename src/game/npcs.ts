@@ -13,13 +13,20 @@
 import type { NPC, World } from '../world/world';
 import type { TimeOfDay } from './time';
 import { spouseAnchor } from './spouse';
+import { routeAnchor } from './npc-route';
 
-/** A schedule slot: between `from` and `to` the NPC drifts toward (x,y). */
+/** A schedule slot: between `from` and `to` the NPC drifts toward (x,y).
+ *  If `walkTo` is set, the NPC paces between (x,y) and (walkTo.x, walkTo.y)
+ *  across the hour window — see npc-route.ts for the lerp math. */
 export interface ScheduleSlot {
   from: number;
   to: number;
   x: number;
   y: number;
+  /** Optional secondary waypoint — NPC paces (x,y) <-> walkTo. */
+  walkTo?: { x: number; y: number };
+  /** Override the default route period (in in-game hours). */
+  periodHours?: number;
 }
 
 /** Dialogue + schedule metadata, keyed by NPC id. */
@@ -43,9 +50,12 @@ export const NPC_DEFS: Record<string, NPCDef> = {
   mayor: {
     role: 'Mayor of Sunsprout',
     schedule: [
-      { from: 6, to: 10, x: 19, y: 6 },
-      { from: 10, to: 14, x: 18, y: 9 },
-      { from: 14, to: 22, x: 20, y: 7 },
+      // Morning: paces the well plaza, weighing in on village business.
+      { from: 6, to: 10, x: 19, y: 6, walkTo: { x: 21, y: 6 } },
+      // Midday: walks down to the south path to inspect the road.
+      { from: 10, to: 14, x: 18, y: 9, walkTo: { x: 18, y: 11 } },
+      // Afternoon: settles back near the plaza, ambling between two posts.
+      { from: 14, to: 22, x: 20, y: 7, walkTo: { x: 22, y: 7 } },
     ],
     dialogue: [
       'The lavender by the well bloomed early this year — must be a good omen.',
@@ -67,7 +77,8 @@ export const NPC_DEFS: Record<string, NPCDef> = {
     role: 'Shopkeep',
     schedule: [
       { from: 6, to: 9, x: 24, y: 7 },
-      { from: 9, to: 19, x: 24, y: 8 },
+      // Shop hours: paces between the counter and the door.
+      { from: 9, to: 19, x: 24, y: 8, walkTo: { x: 25, y: 9 } },
       { from: 19, to: 22, x: 24, y: 7 },
     ],
     dialogue: [
@@ -88,9 +99,10 @@ export const NPC_DEFS: Record<string, NPCDef> = {
   finn: {
     role: 'Fisher',
     schedule: [
-      { from: 6, to: 11, x: 7, y: 21 },
+      // Dawn: paces the pond edge.
+      { from: 6, to: 11, x: 7, y: 21, walkTo: { x: 8, y: 22 } },
       { from: 11, to: 14, x: 8, y: 21 },
-      { from: 14, to: 18, x: 7, y: 21 },
+      { from: 14, to: 18, x: 7, y: 21, walkTo: { x: 6, y: 22 } },
       { from: 18, to: 22, x: 18, y: 8 },
     ],
     dialogue: [
@@ -112,7 +124,8 @@ export const NPC_DEFS: Record<string, NPCDef> = {
     role: 'Innkeeper',
     schedule: [
       { from: 6, to: 8, x: 15, y: 9 },
-      { from: 8, to: 22, x: 15, y: 8 },
+      // Service hours: paces between the long table and the kitchen window.
+      { from: 8, to: 22, x: 15, y: 8, walkTo: { x: 16, y: 9 }, periodHours: 3 },
     ],
     dialogue: [
       "Carrots forgive a missed watering. Tomatoes do not.",
@@ -175,11 +188,23 @@ export function getRole(npc: NPC): string {
 export function getCurrentAnchor(
   npc: NPC,
   hour: number,
+  minute: number = 0,
 ): { x: number; y: number } | null {
   const def = NPC_DEFS[npc.id];
   if (!def) return null;
   for (const slot of def.schedule) {
     if (hour >= slot.from && hour < slot.to) {
+      // If the slot has a walkTo waypoint, interpolate via cosine wave
+      // so the NPC eases between (x,y) and walkTo across the period.
+      if (slot.walkTo) {
+        return routeAnchor(
+          { x: slot.x, y: slot.y },
+          slot.walkTo,
+          hour,
+          minute,
+          slot.periodHours,
+        );
+      }
       return { x: slot.x, y: slot.y };
     }
   }
@@ -204,7 +229,7 @@ export function updateNPCs(world: World, time: TimeOfDay, dtMs: number): void {
     if (spouse && spouseId === npc.id) {
       anchor = { x: spouse.x, y: spouse.y };
     } else {
-      anchor = getCurrentAnchor(npc, time.hour);
+      anchor = getCurrentAnchor(npc, time.hour, time.minute);
     }
     if (!anchor) continue;
     const dx = anchor.x - npc.x;
