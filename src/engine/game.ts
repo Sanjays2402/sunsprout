@@ -238,6 +238,7 @@ import {
   petTipBonus,
 } from '../game/animal-happiness';
 import { maybeFireStorm, stormFlavorLine, takeStormMemo } from '../game/storm';
+import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -1374,11 +1375,18 @@ export class Game {
               this.setToast('Too tired to cast. Sleep or sip cocoa (Z).');
             } else {
               const biteWindowMs = rodBiteWindowFor(p);
-              const fishPicker = (rng: () => number) => weightedFishPick(p, rng);
+              // Combine rod-tier bias with the late-night perk so a
+              // 22-04h cast biases toward trout / pike on top of the
+              // rod's own catalog rebalance.
+              const fishPicker = (rng: () => number) => nightAwareFishPick(p, this.time, rng);
               if (this.rod.cast({ biteWindowMs, fishPicker })) {
                 this.reelLockedCursor = null;
                 this.reelGrade = null;
-                this.setToast('Cast! Wait for a bite…');
+                if (isLateNightFishing(this.time)) {
+                  this.setToast(`Cast! ${nightFlavorLine()}`);
+                } else {
+                  this.setToast('Cast! Wait for a bite…');
+                }
               } else {
                 getStamina(p).current = Math.min(getStamina(p).max, getStamina(p).current + STAMINA_COST.cast);
               }
