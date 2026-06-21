@@ -171,6 +171,13 @@ import {
   weightedGemPick,
 } from '../game/pickaxe-upgrades';
 import {
+  rodBiteWindowFor,
+  rodTierLabel,
+  rodUpgradeCost,
+  upgradeRod,
+  weightedFishPick,
+} from '../game/rod-upgrades';
+import {
   cursorPosition,
   drawFishingBar,
   gradeBonus,
@@ -1027,7 +1034,9 @@ export class Game {
           this.reelGrade = gradeReel(cursor);
         } else if (this.rod.state === 'idle') {
           if (canCastInto(this.world, front.tx, front.ty)) {
-            if (this.rod.cast()) {
+            const biteWindowMs = rodBiteWindowFor(p);
+            const fishPicker = (rng: () => number) => weightedFishPick(p, rng);
+            if (this.rod.cast({ biteWindowMs, fishPicker })) {
               this.reelLockedCursor = null;
               this.reelGrade = null;
               this.setToast('Cast! Wait for a bite…');
@@ -1144,6 +1153,23 @@ export class Game {
             this.setToast(`${pickaxeTierLabel(out.tier)} is already the best tier.`);
           } else if (out.kind === 'not-enough-gold') {
             this.setToast(`Need ${out.need}g for the next pickaxe (have ${out.have}g).`);
+          }
+        }
+      }
+      // =  Upgrade the fishing rod at Maple's. wood -> copper -> iron -> gold.
+      if (this.input.justPressed.has('=')) {
+        if (!this.isNearShop()) {
+          this.setToast('Stand by Maple\u2019s shop to upgrade the rod.');
+        } else {
+          const cost = rodUpgradeCost(p);
+          const out = upgradeRod(p);
+          if (out.kind === 'upgraded') {
+            if (cost) logGold(p, -cost, `${rodTierLabel(out.to)} upgrade`, this.time.day);
+            this.setToast(`Upgraded to ${rodTierLabel(out.to)} (-${cost ?? 0}g).`);
+          } else if (out.kind === 'max-tier') {
+            this.setToast(`${rodTierLabel(out.tier)} is already the best tier.`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g for the next rod (have ${out.have}g).`);
           }
         }
       }

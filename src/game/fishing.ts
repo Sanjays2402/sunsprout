@@ -70,6 +70,8 @@ export class Rod {
   public elapsedMs = 0;
   /** Random wait duration rolled on each cast. Surfaced for the UI. */
   public waitMs = 0;
+  /** Bite-window ms for THIS cast — set on cast(), defaults to catalog. */
+  public biteWindowMs: number = FISHING.biteWindowMs;
   /** Last fish that bit (set when state enters BITING; cleared on idle). */
   public hookedFish: FishKey | null = null;
   /** Last successful catch, kept so the UI can show a "you caught X!" toast. */
@@ -78,6 +80,8 @@ export class Rod {
   public lastResult: 'caught' | 'escaped' | null = null;
 
   private rng: () => number;
+  /** Optional override for fish selection — set per-cast. */
+  private fishPicker: ((rng: () => number) => FishKey) | null = null;
 
   constructor(opts: RodOptions = {}) {
     this.rng = opts.seed === undefined ? Math.random : mulberry32(opts.seed);
@@ -91,8 +95,14 @@ export class Rod {
   /**
    * Starts a new cast. No-op (returns false) if the rod is already busy.
    * Rolls the next bite-delay using the seeded RNG so tests are stable.
+   *
+   * Optional opts override the bite window and fish picker for THIS cast
+   * — used by rod-tier upgrades to stretch the window + bias the catch.
    */
-  cast(): boolean {
+  cast(opts?: {
+    biteWindowMs?: number;
+    fishPicker?: (rng: () => number) => FishKey;
+  }): boolean {
     if (this.isBusy()) return false;
     this.state = 'casting';
     this.elapsedMs = 0;
@@ -100,6 +110,8 @@ export class Rod {
     this.lastResult = null;
     const span = FISHING.waitMaxMs - FISHING.waitMinMs;
     this.waitMs = FISHING.waitMinMs + this.rng() * span;
+    this.biteWindowMs = opts?.biteWindowMs ?? FISHING.biteWindowMs;
+    this.fishPicker = opts?.fishPicker ?? null;
     return true;
   }
 
@@ -110,7 +122,8 @@ export class Rod {
    */
   reel(): FishKey | null {
     if (this.state === 'biting') {
-      const fish = this.hookedFish ?? pickFish(this.rng);
+      const pick = this.fishPicker ?? pickFish;
+      const fish = this.hookedFish ?? pick(this.rng);
       this.state = 'reeling';
       this.elapsedMs = 0;
       this.hookedFish = fish;
@@ -143,12 +156,13 @@ export class Rod {
         if (this.elapsedMs >= this.waitMs) {
           this.state = 'biting';
           this.elapsedMs = 0;
-          this.hookedFish = pickFish(this.rng);
+          const pick = this.fishPicker ?? pickFish;
+          this.hookedFish = pick(this.rng);
           return true;
         }
         return false;
       case 'biting':
-        if (this.elapsedMs >= FISHING.biteWindowMs) {
+        if (this.elapsedMs >= this.biteWindowMs) {
           // Missed the window — fish escapes.
           this.state = 'idle';
           this.elapsedMs = 0;
