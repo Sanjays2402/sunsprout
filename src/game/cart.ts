@@ -21,6 +21,7 @@
 
 import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
+import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './decor';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -80,6 +81,15 @@ export const CART_CATALOG: CartItem[] = [
     buyPrice: 350,
     flavor: 'A trinket for the farmhouse mantle. Counts toward decorator.',
   },
+  // Decor pieces — buyable wallpaper + floor packs that retint the
+  // farmhouse exterior. Each row mirrors a DECOR_CATALOG entry so the
+  // cart UI lists them alongside Pip's other premium goods.
+  ...DECOR_CATALOG.map((d) => ({
+    key: `decor-${d.key}`,
+    label: `${d.label} (decor)`,
+    buyPrice: d.price,
+    flavor: d.flavor,
+  })),
 ];
 
 /** Returns true on the in-game day Pip rolls into town. */
@@ -104,6 +114,7 @@ export function nearCart(px: number, py: number): boolean {
 /** Outcome of an attempted purchase. */
 export type CartBuyOutcome =
   | { kind: 'bought'; item: CartItem; remainingGold: number }
+  | { kind: 'already-owned'; item: CartItem }
   | { kind: 'closed' }
   | { kind: 'too-far' }
   | { kind: 'unknown-item' }
@@ -112,6 +123,10 @@ export type CartBuyOutcome =
 /**
  * Attempt to buy a cart item by key. Validates that Pip is open and
  * the player can afford it, then deducts gold and grants the item.
+ *
+ * Items whose key starts with `decor-` are routed through the decor
+ * module instead of the bag — they unlock a piece of farmhouse
+ * cosmetics and auto-apply it.
  */
 export function buyFromCart(
   player: Player,
@@ -126,6 +141,22 @@ export function buyFromCart(
   if (!item) return { kind: 'unknown-item' };
   if (player.gold < item.buyPrice) {
     return { kind: 'not-enough-gold', need: item.buyPrice, have: player.gold };
+  }
+  if (itemKey.startsWith('decor-')) {
+    const decorKey = itemKey.slice('decor-'.length);
+    // Already owned -> short-circuit so the player doesn't accidentally
+    // double-spend on the same wallpaper.
+    if (ownsDecor(player, decorKey)) {
+      return { kind: 'already-owned', item };
+    }
+    const out: DecorBuyOutcome = buyDecor(player, decorKey);
+    if (out.kind === 'bought') {
+      return { kind: 'bought', item, remainingGold: out.remainingGold };
+    }
+    if (out.kind === 'not-enough-gold') {
+      return { kind: 'not-enough-gold', need: out.need, have: out.have };
+    }
+    return { kind: 'unknown-item' };
   }
   player.gold -= item.buyPrice;
   player.inventory[item.key] = (player.inventory[item.key] ?? 0) + 1;

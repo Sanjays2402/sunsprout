@@ -1097,6 +1097,8 @@ export class Game {
           if (out.kind === 'bought') {
             logGold(this.world.player, -out.item.buyPrice, `cart: ${out.item.label}`, this.time.day);
             this.setToast(`Bought ${out.item.label}. (${out.remainingGold}g left)`);
+          } else if (out.kind === 'already-owned') {
+            this.setToast(`You already own ${out.item.label}.`);
           } else if (out.kind === 'not-enough-gold') {
             this.setToast(`Need ${out.need}g (have ${out.have}g).`);
           } else if (out.kind === 'closed') {

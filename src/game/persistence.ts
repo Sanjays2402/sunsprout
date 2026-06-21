@@ -35,6 +35,7 @@ import { getMailbox, type Mailbox } from './mail';
 import { getChests, type PlacedChest } from './chest';
 import { defaultStaminaState, getStamina, type StaminaState } from './stamina';
 import { getRestock, type AutoRestockState } from './auto-restock';
+import { getDecor, type DecorState } from './decor';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -98,6 +99,8 @@ export interface SaveSnapshot {
     stamina?: StaminaState;
     /** Auto-restock kit memo — last seed planted (for the dawn top-up). */
     restock?: AutoRestockState;
+    /** Farmhouse decor — owned pieces + active slot selections. */
+    decor?: DecorState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -200,6 +203,13 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       restock: (p as Player & { restock?: AutoRestockState }).restock
         ? { ...(p as Player & { restock: AutoRestockState }).restock }
+        : undefined,
+      decor: (p as Player & { decor?: DecorState }).decor
+        ? {
+            owned: [...getDecor(p).owned],
+            activeWallpaper: getDecor(p).activeWallpaper,
+            activeFloor: getDecor(p).activeFloor,
+          }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -320,6 +330,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.restock) {
     const cur = getRestock(p);
     cur.lastSeed = snap.player.restock.lastSeed;
+  }
+  // Farmhouse decor — restore owned pieces + active slot selections.
+  if (snap.player.decor) {
+    const cur = getDecor(p);
+    cur.owned = [...snap.player.decor.owned];
+    cur.activeWallpaper = snap.player.decor.activeWallpaper;
+    cur.activeFloor = snap.player.decor.activeFloor;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

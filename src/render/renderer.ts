@@ -18,6 +18,7 @@ import type { Building, Crop, NPC, Tile, World } from '../world/world';
 import type { PeerRenderable } from '../game/peer-view';
 import { drawPeerSprite, peerScreenPos } from './peer-sprite';
 import { drawPeerMuteMark, type MuteSource } from './peer-mute-mark';
+import { decorPalette, type DecorPalette } from '../game/decor';
 import {
   drawPixelCircle,
   drawPixelRect,
@@ -95,6 +96,9 @@ export class Renderer {
     // Remember the tint scale for (7) below.
     this.activeTintScale = nightTintScale;
 
+    // Resolve current farmhouse decor palette once per frame.
+    const decor = world.player ? decorPalette(world.player) : ({} as DecorPalette);
+
     // Compute visible tile range, with a 1-tile margin so partial tiles
     // along the viewport edges still render.
     const startX = Math.max(0, Math.floor(camera.x / TILE_SIZE) - 1);
@@ -124,7 +128,7 @@ export class Renderer {
       (a, b) => a.y + a.h - (b.y + b.h),
     );
     for (const b of buildings) {
-      this.drawBuilding(b, camera);
+      this.drawBuilding(b, camera, decor);
     }
 
     // (4) Crops on tilled tiles.
@@ -282,7 +286,7 @@ export class Renderer {
   // Buildings
   // -------------------------------------------------------------------
 
-  private drawBuilding(b: Building, camera: Camera): void {
+  private drawBuilding(b: Building, camera: Camera, decor: DecorPalette = {}): void {
     if (b.kind === 'well') {
       this.drawWell(b, camera);
       return;
@@ -315,6 +319,15 @@ export class Renderer {
       roofDark = '#5A5A5A';
       trim = '#5A4030';
       window = '#FFE4A0';
+      // Decor overrides — only the farmhouse re-skins; the inn and
+      // shop stay on their canonical palette so the village still
+      // reads correctly at a glance.
+      if (decor.wall) wall = decor.wall;
+      if (decor.wallDark) wallDark = decor.wallDark;
+      if (decor.roof) roof = decor.roof;
+      if (decor.roofDark) roofDark = decor.roofDark;
+      if (decor.trim) trim = decor.trim;
+      if (decor.window) window = decor.window;
     }
 
     // Shadow under the building footprint.

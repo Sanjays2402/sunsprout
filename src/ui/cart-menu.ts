@@ -8,6 +8,7 @@
 import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
+import { ownsDecor } from '../game/decor';
 
 const PANEL_W = 560;
 const PANEL_H = 380;
@@ -148,7 +149,9 @@ export class CartMenu {
       ctx.fillText(item.flavor, rowX + 10, rowY + 28);
 
       // Owned counter.
-      const owned = player.inventory[item.key] ?? 0;
+      const owned = item.key.startsWith('decor-')
+        ? (ownsDecor(player, item.key.slice('decor-'.length)) ? 1 : 0)
+        : (player.inventory[item.key] ?? 0);
       if (owned > 0) {
         ctx.font = 'bold 10px ui-monospace, monospace';
         ctx.fillStyle = TITLE_COLOR;
