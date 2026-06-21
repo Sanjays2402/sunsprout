@@ -86,7 +86,18 @@ export interface PlacedCoop {
   happiness?: number;
   /** Day index of the last successful care bump. -1 / undefined = never. */
   lastCareDay?: number;
+  /**
+   * Per-chicken heritage flag. Heritage chickens roll fancy eggs at a
+   * HERITAGE_FANCY_BONUS-higher base rate than their non-heritage
+   * coopmates. Indices align with chicken slots [0..MAX_CHICKENS_PER_COOP).
+   * Missing / undefined entries default to false. Persists in the save
+   * snapshot via the coops blob.
+   */
+  heritage?: boolean[];
 }
+
+/** Per-chicken fancy-rate bump granted to a heritage chicken (additive). */
+export const HERITAGE_FANCY_BONUS = 0.15;
 
 export interface WorldWithCoops {
   coops?: PlacedCoop[];
@@ -186,11 +197,34 @@ export function adjacentCoop(world: World, tx: number, ty: number): PlacedCoop |
   return undefined;
 }
 
-/** Adds a chicken to `coop`. Returns true on success, false at cap. */
-export function addChicken(coop: PlacedCoop): boolean {
+/** Adds a chicken to `coop`. Returns true on success, false at cap.
+ *
+ * Pass `heritage=true` to mark the new slot as a heritage chicken —
+ * its fancy-egg roll uses the higher rate. Default is non-heritage so
+ * Maple's regular chickens stay vanilla; only hatched chicks that
+ * survived the heritage roll come in flagged.
+ */
+export function addChicken(coop: PlacedCoop, heritage: boolean = false): boolean {
   if (coop.chickens >= MAX_CHICKENS_PER_COOP) return false;
+  if (!coop.heritage) coop.heritage = [];
+  coop.heritage[coop.chickens] = heritage;
   coop.chickens += 1;
   return true;
+}
+
+/** True if the chicken at the given slot is a heritage breed. */
+export function isHeritageChicken(coop: PlacedCoop, slot: number): boolean {
+  return Boolean(coop.heritage && coop.heritage[slot]);
+}
+
+/** Total heritage chickens in this coop. */
+export function heritageCount(coop: PlacedCoop): number {
+  if (!coop.heritage) return 0;
+  let n = 0;
+  for (let i = 0; i < coop.chickens; i++) {
+    if (coop.heritage[i]) n += 1;
+  }
+  return n;
 }
 
 /**
@@ -207,6 +241,11 @@ export function addChicken(coop: PlacedCoop): boolean {
  * Happiness factors into the rate via animal-happiness.coopFancyRate
  * — a thriving coop bumps fancy odds by up to +6 percentage points
  * on top of the tier base, lazily-loaded so older saves still work.
+ *
+ * Heritage chickens (coop.heritage[slot] === true) additionally get
+ * HERITAGE_FANCY_BONUS percentage points on top of the per-coop rate.
+ * A heritage chicken in a basic coop with 0 happiness already lays
+ * fancy eggs ~23% of the time vs the regular 8%.
  */
 export function coopTick(world: World, day: number = 0): number {
   let produced = 0;
@@ -216,9 +255,13 @@ export function coopTick(world: World, day: number = 0): number {
     const rate = coopFancyRate(c, baseRate);
     let fancy = 0;
     for (let i = 0; i < c.chickens; i++) {
+      // Per-chicken rate — heritage chickens get a flat +HERITAGE_FANCY_BONUS.
+      const perChickenRate = isHeritageChicken(c, i)
+        ? Math.min(1, rate + HERITAGE_FANCY_BONUS)
+        : rate;
       // Hash (tx, ty, day, i) into a [0,1) roll.
       const r = pseudoRoll(c.tx, c.ty, day, i);
-      if (r < rate) fancy += 1;
+      if (r < perChickenRate) fancy += 1;
     }
     const plain = c.chickens - fancy;
     c.eggs += plain;

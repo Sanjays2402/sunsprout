@@ -35,6 +35,15 @@ export const FANCY_EGG_INVENTORY_KEY = 'egg-fancy';
 /** How many in-game days a fancy egg takes to hatch. */
 export const HATCH_DAYS = 5;
 
+/**
+ * Probability that a hatch produces a heritage chicken instead of a
+ * regular one. Heritage chickens lay fancy eggs at a meaningfully
+ * higher rate (see HERITAGE_FANCY_BONUS in coop.ts). Tuned at 18% so
+ * the player typically sees one in 5-6 hatches — a satisfying surprise
+ * without flooding the coop with heritage breeds.
+ */
+export const HERITAGE_HATCH_RATE = 0.18;
+
 /** One placed hatchery in the world. */
 export interface PlacedHatchery {
   /** Tile-space coordinates. Footprint is 1x1. */
@@ -44,6 +53,15 @@ export interface PlacedHatchery {
   hatchOnDay: number;
   /** Last hatch outcome we couldn't place into a coop; held until next pickup. */
   pendingChicken?: boolean;
+  /** True when the pending or finished chick is a heritage breed. */
+  pendingHeritage?: boolean;
+  /**
+   * Heritage roll snapshot for the in-progress incubation. Set at
+   * loadEgg() time so the outcome stays deterministic per egg-load
+   * even if HERITAGE_HATCH_RATE changes between loadEgg and the dawn
+   * hatch tick.
+   */
+  incubatingHeritage?: boolean;
 }
 
 export interface WorldWithHatcheries {
@@ -133,6 +151,10 @@ export type LoadOutcome =
  * hatch countdown to (today + HATCH_DAYS). Returns 'busy' when the
  * hatchery already has an incubating egg, 'pending' when a hatched
  * chicken hasn't been moved out yet, 'no-egg' when the bag is empty.
+ *
+ * Snapshots the heritage roll for THIS egg at load time — the same
+ * (hatchery position, today) always rolls the same heritage flag so
+ * reload-scumming is harmless.
  */
 export function loadEgg(
   hatchery: PlacedHatchery,
@@ -149,7 +171,24 @@ export function loadEgg(
   if (have <= 0) return { kind: 'no-egg' };
   player.inventory[FANCY_EGG_INVENTORY_KEY] = have - 1;
   hatchery.hatchOnDay = today + HATCH_DAYS - 1;
+  hatchery.incubatingHeritage = rollHeritage(hatchery.tx, hatchery.ty, today);
   return { kind: 'loaded', hatchOnDay: hatchery.hatchOnDay };
+}
+
+/**
+ * Deterministic heritage roll for an egg loaded at (tx, ty) on `day`.
+ * Same inputs always return the same boolean — keeps reload-scumming
+ * harmless and lets tests assert by computing the same hash.
+ */
+export function rollHeritage(tx: number, ty: number, day: number): boolean {
+  // Cheap 32-bit avalanche over (tx, ty, day). Distinct multiplier from
+  // pseudoRoll in coop.ts so the two streams don't correlate.
+  let h = (tx | 0) * 1597334677 + (ty | 0) * 2147483647;
+  h = (h ^ (h >>> 13)) * 374761393;
+  h = (h ^ ((day | 0) * 668265263));
+  h ^= h >>> 16;
+  const r = (h >>> 0) / 4294967296;
+  return r < HERITAGE_HATCH_RATE;
 }
 
 /** True if the hatchery has an egg currently in incubation on `today`. */
@@ -166,17 +205,19 @@ export function daysUntilHatch(hatchery: PlacedHatchery, today: number): number 
 /** Outcome bag per hatchery on a dawn tick. */
 export type HatchOutcome =
   | { kind: 'none' }
-  | { kind: 'hatched-into-coop'; coop: PlacedCoop }
-  | { kind: 'hatched-no-room' };
+  | { kind: 'hatched-into-coop'; coop: PlacedCoop; heritage: boolean }
+  | { kind: 'hatched-no-room'; heritage: boolean };
 
 /**
  * Day-rollover hook. Walk every hatchery; for any whose hatchOnDay is
  * less than today AND that still has an active egg (hatchOnDay >= 0),
  * fire a hatch:
  *   - find the closest coop with a free chicken slot;
- *   - on success: addChicken(coop), reset hatchOnDay to -1;
+ *   - on success: addChicken(coop, heritage), reset hatchOnDay to -1;
  *   - on failure: leave hatchOnDay at -1 but flag pendingChicken so the
- *     player has to clear a coop before another egg can incubate.
+ *     player has to clear a coop before another egg can incubate. The
+ *     heritage flag is preserved on pendingHeritage so claim time still
+ *     hands the right breed into the coop.
  *
  * Returns the array of outcomes (one per hatchery, in stored order).
  */
@@ -193,16 +234,21 @@ export function hatcheryTick(world: World, today: number): HatchOutcome[] {
       continue;
     }
     // Hatch fired today.
+    const heritage = Boolean(h.incubatingHeritage);
     const coop = closestFreeCoop(world, h.tx, h.ty);
     if (coop) {
-      addChicken(coop);
+      addChicken(coop, heritage);
       h.hatchOnDay = -1;
       h.pendingChicken = false;
-      outcomes.push({ kind: 'hatched-into-coop', coop });
+      h.pendingHeritage = false;
+      h.incubatingHeritage = false;
+      outcomes.push({ kind: 'hatched-into-coop', coop, heritage });
     } else {
       h.hatchOnDay = -1;
       h.pendingChicken = true;
-      outcomes.push({ kind: 'hatched-no-room' });
+      h.pendingHeritage = heritage;
+      h.incubatingHeritage = false;
+      outcomes.push({ kind: 'hatched-no-room', heritage });
     }
   }
   return outcomes;
@@ -220,8 +266,9 @@ export function claimPendingChicken(
   if (!hatchery.pendingChicken) return null;
   const coop = closestFreeCoop(world, hatchery.tx, hatchery.ty);
   if (!coop) return null;
-  addChicken(coop);
+  addChicken(coop, Boolean(hatchery.pendingHeritage));
   hatchery.pendingChicken = false;
+  hatchery.pendingHeritage = false;
   return coop;
 }
 
@@ -248,13 +295,15 @@ function closestFreeCoop(
 /** Status line for the HUD toast when the player walks up to the hatchery. */
 export function hatcheryStatusLine(h: PlacedHatchery, today: number): string {
   if (h.pendingChicken) {
-    return 'A chick is waiting here — clear a coop slot first.';
+    const breed = h.pendingHeritage ? 'heritage chick' : 'chick';
+    return `A ${breed} is waiting here — clear a coop slot first.`;
   }
   if (h.hatchOnDay < 0) {
     return `Hatchery is empty. Load a fancy egg to start a ${HATCH_DAYS}-day cycle.`;
   }
   const left = daysUntilHatch(h, today);
-  return `Hatchery: ${left} day${left === 1 ? '' : 's'} until hatch.`;
+  const breedHint = h.incubatingHeritage ? ' (heritage)' : '';
+  return `Hatchery: ${left} day${left === 1 ? '' : 's'} until hatch${breedHint}.`;
 }
 
 // ---------------------------------------------------------------------

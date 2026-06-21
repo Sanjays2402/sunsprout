@@ -675,12 +675,16 @@ export class Game {
       const hatchOutcomes = hatcheryTick(this.world, this.time.day);
       for (const out of hatchOutcomes) {
         if (out.kind === 'hatched-into-coop') {
+          const breed = out.heritage ? 'heritage chick' : 'chick';
           this.setToast(
-            `A chick hatched and joined the coop (${out.coop.chickens}/4).`,
+            `A ${breed} hatched and joined the coop (${out.coop.chickens}/4).`,
           );
           break;
         } else if (out.kind === 'hatched-no-room') {
-          this.setToast('A chick hatched but every coop is full. Make room.');
+          const breed = out.heritage ? 'heritage chick' : 'chick';
+          this.setToast(
+            `A ${breed} hatched but every coop is full. Make room.`,
+          );
           break;
         }
       }
@@ -1315,10 +1319,12 @@ export class Game {
       const standing = adjacentHatchery(this.world, px, py);
       if (standing) {
         if (standing.pendingChicken) {
+          const wasHeritage = Boolean(standing.pendingHeritage);
           const moved = claimPendingChicken(this.world, standing);
           if (moved) {
+            const breed = wasHeritage ? 'heritage chick' : 'chick';
             this.setToast(
-              `Moved the chick into a coop (${moved.chickens}/${MAX_CHICKENS_PER_COOP}).`,
+              `Moved the ${breed} into a coop (${moved.chickens}/${MAX_CHICKENS_PER_COOP}).`,
             );
           } else {
             this.setToast('Every coop is still full. Free up a slot first.');
