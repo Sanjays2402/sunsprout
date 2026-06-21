@@ -33,6 +33,7 @@ import { defaultCatState, getCat, type FarmCatState } from './farm-cat';
 import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
 import { getMailbox, type Mailbox } from './mail';
 import { getChests, type PlacedChest } from './chest';
+import { defaultStaminaState, getStamina, type StaminaState } from './stamina';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -92,6 +93,8 @@ export interface SaveSnapshot {
     pickaxeTier?: string;
     /** Fishing rod tier — wood / copper / iron / gold. */
     rodTier?: string;
+    /** Daily stamina pool — current + max + last-refilled day. */
+    stamina?: StaminaState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -189,6 +192,9 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       pickaxeTier: (p as Player & { pickaxeTier?: string }).pickaxeTier,
       rodTier: (p as Player & { rodTier?: string }).rodTier,
+      stamina: (p as Player & { stamina?: StaminaState }).stamina
+        ? { ...(p as Player & { stamina: StaminaState }).stamina }
+        : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
         : undefined,
@@ -298,6 +304,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.rodTier) {
     (p as Player & { rodTier?: string }).rodTier = snap.player.rodTier;
   }
+  // Stamina — overwrite the pool on load; default-init for older saves.
+  const staminaCur = getStamina(p);
+  const staminaIncoming = snap.player.stamina ?? defaultStaminaState(snap.time.day);
+  staminaCur.current = staminaIncoming.current;
+  staminaCur.max = staminaIncoming.max;
+  staminaCur.lastRefillDay = staminaIncoming.lastRefillDay;
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =
       snap.player.npcInvites.map((iv) => ({ ...iv }));

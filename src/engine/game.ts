@@ -178,6 +178,14 @@ import {
   weightedFishPick,
 } from '../game/rod-upgrades';
 import {
+  STAMINA_COST,
+  drinkBest,
+  getStamina,
+  refillStamina,
+  spendStamina,
+} from '../game/stamina';
+import { drawStaminaBar } from '../ui/stamina-bar';
+import {
   cursorPosition,
   drawFishingBar,
   gradeBonus,
@@ -492,6 +500,8 @@ export class Game {
       // Farm cat's morale payout for yesterday's pet (if any).
       const catPaid = catTick(this.world, this.world.player, this.time);
       if (catPaid > 0) logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
+      // Stamina refill — top the pool back to max once per new day.
+      refillStamina(this.world.player, this.time.day);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
@@ -735,12 +745,27 @@ export class Game {
     if (this.input.justPressed.has('b') && !this.sleepSummary.isVisible()) {
       const out = sleepAction(this.world, this.time);
       if (out.kind === 'slept') {
+        // Sleep also restores stamina, mirroring the dawn rollover.
+        refillStamina(this.world.player, this.time.day);
         this.sleepSummary.open(out.summary);
         if (this.storage) saveToStorage(this, this.storage);
       } else if (out.kind === 'not-at-farmhouse') {
         this.setToast('Stand by the farmhouse to sleep.');
       } else if (out.kind === 'too-early') {
         this.setToast(`Too early to sleep (after ${out.until}:00).`);
+      }
+    }
+
+    // Z: drink the best stamina-restoring dish in the bag (hot cocoa > tea).
+    if (this.input.justPressed.has('z')) {
+      const out = drinkBest(this.world.player);
+      if (out.kind === 'drank') {
+        const pretty = out.key.replace('dish-', '').replace('-', ' ');
+        this.setToast(`Sipped ${pretty}. +${out.restored} stamina.`);
+      } else if (out.kind === 'no-drink') {
+        this.setToast('No tea or cocoa in your bag.');
+      } else if (out.kind === 'already-full') {
+        this.setToast('Already at full stamina.');
       }
     }
 
@@ -1034,12 +1059,18 @@ export class Game {
           this.reelGrade = gradeReel(cursor);
         } else if (this.rod.state === 'idle') {
           if (canCastInto(this.world, front.tx, front.ty)) {
-            const biteWindowMs = rodBiteWindowFor(p);
-            const fishPicker = (rng: () => number) => weightedFishPick(p, rng);
-            if (this.rod.cast({ biteWindowMs, fishPicker })) {
-              this.reelLockedCursor = null;
-              this.reelGrade = null;
-              this.setToast('Cast! Wait for a bite…');
+            if (!spendStamina(p, STAMINA_COST.cast)) {
+              this.setToast('Too tired to cast. Sleep or sip cocoa (Z).');
+            } else {
+              const biteWindowMs = rodBiteWindowFor(p);
+              const fishPicker = (rng: () => number) => weightedFishPick(p, rng);
+              if (this.rod.cast({ biteWindowMs, fishPicker })) {
+                this.reelLockedCursor = null;
+                this.reelGrade = null;
+                this.setToast('Cast! Wait for a bite…');
+              } else {
+                getStamina(p).current = Math.min(getStamina(p).max, getStamina(p).current + STAMINA_COST.cast);
+              }
             }
           } else {
             this.setToast('Stand facing water to cast.');
@@ -1080,10 +1111,14 @@ export class Game {
           }
         } else if (this.pickaxe.state === 'idle') {
           if (canStrikeInto(this.world, front.tx, front.ty)) {
-            if (this.pickaxe.swing()) {
+            if (!spendStamina(p, STAMINA_COST.mine)) {
+              this.setToast('Too tired to swing. Sleep or sip cocoa (Z).');
+            } else if (this.pickaxe.swing()) {
               this.strikeLockedCursor = null;
               this.strikeGrade = null;
               this.setToast('Swinging the pickaxe…');
+            } else {
+              getStamina(p).current = Math.min(getStamina(p).max, getStamina(p).current + STAMINA_COST.mine);
             }
           } else {
             this.setToast('Face stone to mine.');
@@ -1096,27 +1131,40 @@ export class Game {
         }
       }
       if (this.input.justPressed.has('t')) {
-        let tilledAny = false;
-        for (const tile of tilesForTool(p, 'hoe')) {
-          if (till(this.world, tile.tx, tile.ty)) tilledAny = true;
-        }
-        if (tilledAny) {
-          const tier = tierOf(p, 'hoe');
-          this.setToast(tier === 'wood' ? 'Tilled the soil.' : `Tilled (${tier}).`);
+        if (!spendStamina(p, STAMINA_COST.till)) {
+          this.setToast('Too tired to till. Sleep or sip cocoa (Z).');
+        } else {
+          let tilledAny = false;
+          for (const tile of tilesForTool(p, 'hoe')) {
+            if (till(this.world, tile.tx, tile.ty)) tilledAny = true;
+          }
+          if (tilledAny) {
+            const tier = tierOf(p, 'hoe');
+            this.setToast(tier === 'wood' ? 'Tilled the soil.' : `Tilled (${tier}).`);
+          } else {
+            // Refund the cost — nothing actually happened.
+            getStamina(p).current = Math.min(getStamina(p).max, getStamina(p).current + STAMINA_COST.till);
+          }
         }
       }
       if (this.input.justPressed.has('w')) {
-        let wateredAny = 0;
-        for (const tile of tilesForTool(p, 'watering-can')) {
-          if (water(this.world, tile.tx, tile.ty)) wateredAny++;
-        }
-        if (wateredAny > 0) {
-          const tier = tierOf(p, 'watering-can');
-          this.setToast(
-            tier === 'wood'
-              ? 'Watered the crop.'
-              : `Watered ${wateredAny} crop${wateredAny === 1 ? '' : 's'} (${tier}).`,
-          );
+        if (!spendStamina(p, STAMINA_COST.water)) {
+          this.setToast('Too tired to water. Sleep or sip cocoa (Z).');
+        } else {
+          let wateredAny = 0;
+          for (const tile of tilesForTool(p, 'watering-can')) {
+            if (water(this.world, tile.tx, tile.ty)) wateredAny++;
+          }
+          if (wateredAny > 0) {
+            const tier = tierOf(p, 'watering-can');
+            this.setToast(
+              tier === 'wood'
+                ? 'Watered the crop.'
+                : `Watered ${wateredAny} crop${wateredAny === 1 ? '' : 's'} (${tier}).`,
+            );
+          } else {
+            getStamina(p).current = Math.min(getStamina(p).max, getStamina(p).current + STAMINA_COST.water);
+          }
         }
       }
       // ,  Upgrade the hoe at Maple's. Requires standing near the shop.
@@ -1469,6 +1517,7 @@ export class Game {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
+    drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
