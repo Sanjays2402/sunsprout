@@ -237,6 +237,7 @@ import {
   decayCoopHappiness,
   petTipBonus,
 } from '../game/animal-happiness';
+import { maybeFireStorm, stormFlavorLine, takeStormMemo } from '../game/storm';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -598,6 +599,16 @@ export class Game {
       const tournamentLine = tournamentDawnLine(this.time);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
+      // Seasonal storm — once per season, deterministically picked. Fires
+      // here (AFTER greenhouseTick) so the greenhouse is the shelter:
+      // crops inside the glass keep their streak point intact.
+      const stormOut = maybeFireStorm(this.world, this.world.player, this.time.season, this.time.day);
+      if (stormOut.kind === 'fired') {
+        const memo = takeStormMemo(this.world.player);
+        if (memo) {
+          this.setToast(stormFlavorLine(memo));
+        }
+      }
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
       // Hangout invites: clear expired ones, post new ones from any

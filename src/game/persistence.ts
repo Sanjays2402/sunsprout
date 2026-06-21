@@ -41,6 +41,7 @@ import { getSpouseState, type SpouseState } from './spouse';
 import { getBoard, type BoardState } from './board';
 import { getExtractor, type ExtractorState } from './seed-extractor';
 import { getTournament, type TournamentState } from './tournament';
+import { getStorm, type StormState } from './storm';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -114,6 +115,8 @@ export interface SaveSnapshot {
     extractor?: ExtractorState;
     /** Friendship tournament — per (season,kind) entry record. */
     tournament?: TournamentState;
+    /** Seasonal storm — per (year,season) hit record + last memo. */
+    storm?: StormState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -245,6 +248,12 @@ export function serializeGame(game: Game): SaveSnapshot {
             entries: Object.fromEntries(
               Object.entries(getTournament(p).entries).map(([k, v]) => [k, { ...v }]),
             ),
+          }
+        : undefined,
+      storm: (p as Player & { storm?: StormState }).storm
+        ? {
+            hit: { ...getStorm(p).hit },
+            lastMemo: getStorm(p).lastMemo ? { ...getStorm(p).lastMemo! } : undefined,
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -402,6 +411,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     cur.entries = Object.fromEntries(
       Object.entries(snap.player.tournament.entries).map(([k, v]) => [k, { ...v }]),
     );
+  }
+  // Seasonal storm — restore the per-season hit log + most-recent memo
+  // so reload right after a storm shows the same dawn summary.
+  if (snap.player.storm) {
+    const cur = getStorm(p);
+    cur.hit = { ...snap.player.storm.hit };
+    cur.lastMemo = snap.player.storm.lastMemo ? { ...snap.player.storm.lastMemo } : undefined;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =
