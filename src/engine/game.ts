@@ -238,6 +238,15 @@ import {
   petTipBonus,
 } from '../game/animal-happiness';
 import { maybeFireStorm, stormFlavorLine, takeStormMemo } from '../game/storm';
+import {
+  BATH_X,
+  BATH_Y,
+  bathFlavorLine,
+  drawBathHouseSprite,
+  maybeExpireBath,
+  nearBath,
+  takeBath,
+} from '../game/bath-house';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
 import {
@@ -610,6 +619,10 @@ export class Game {
           this.setToast(stormFlavorLine(memo));
         }
       }
+      // Bath house — drop the stamina cap back to base if the buff ran
+      // out overnight. Done BEFORE refillStamina so the dawn top-up
+      // uses the correct (post-expiry) max.
+      maybeExpireBath(this.world.player, this.time.day);
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
       // Hangout invites: clear expired ones, post new ones from any
@@ -1680,6 +1693,19 @@ export class Game {
           );
           return;
         }
+        // Bath house — a soak lifts the stamina cap for a few days.
+        if (nearBath(px, py)) {
+          const out = takeBath(p, px, py, this.time.day);
+          if (out.kind === 'soaked') {
+            logGold(p, -200, 'bath house: soak', this.time.day);
+            this.setToast(bathFlavorLine(out));
+          } else if (out.kind === 'already-active') {
+            this.setToast(`Already soaked — buff lasts ${out.daysLeft} more day${out.daysLeft === 1 ? '' : 's'}.`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Bath house costs ${out.need}g (you have ${out.have}g).`);
+          }
+          return;
+        }
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
           const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
@@ -1921,6 +1947,14 @@ export class Game {
       const wy = BOARD_Y * TILE_SIZE + TILE_SIZE / 2;
       const { sx, sy } = this.camera.worldToScreen(wx, wy);
       drawBoardSprite(this.ctx, sx, sy);
+    }
+    // Bath house — always visible NE of the plaza so the player has a
+    // clear late-game stamina sink to walk to.
+    {
+      const wx = BATH_X * TILE_SIZE + TILE_SIZE / 2;
+      const wy = BATH_Y * TILE_SIZE + TILE_SIZE / 2;
+      const { sx, sy } = this.camera.worldToScreen(wx, wy);
+      drawBathHouseSprite(this.ctx, sx, sy, TILE_SIZE);
     }
     // Farm dog — drawn after coops so it appears in front of them.
     {

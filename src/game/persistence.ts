@@ -42,6 +42,7 @@ import { getBoard, type BoardState } from './board';
 import { getExtractor, type ExtractorState } from './seed-extractor';
 import { getTournament, type TournamentState } from './tournament';
 import { getStorm, type StormState } from './storm';
+import { getBath, type BathState } from './bath-house';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -117,6 +118,8 @@ export interface SaveSnapshot {
     tournament?: TournamentState;
     /** Seasonal storm — per (year,season) hit record + last memo. */
     storm?: StormState;
+    /** Bath house — buff expiry day (-1 = no buff). */
+    bath?: BathState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -255,6 +258,9 @@ export function serializeGame(game: Game): SaveSnapshot {
             hit: { ...getStorm(p).hit },
             lastMemo: getStorm(p).lastMemo ? { ...getStorm(p).lastMemo! } : undefined,
           }
+        : undefined,
+      bath: (p as Player & { bath?: BathState }).bath
+        ? { expiresOnDay: getBath(p).expiresOnDay }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -418,6 +424,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     const cur = getStorm(p);
     cur.hit = { ...snap.player.storm.hit };
     cur.lastMemo = snap.player.storm.lastMemo ? { ...snap.player.storm.lastMemo } : undefined;
+  }
+  // Bath house — preserve buff expiry so a reload mid-soak still
+  // honours the stamina-cap lift.
+  if (snap.player.bath) {
+    const cur = getBath(p);
+    cur.expiresOnDay = snap.player.bath.expiresOnDay;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =
