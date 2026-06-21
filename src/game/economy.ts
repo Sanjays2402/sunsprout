@@ -26,6 +26,7 @@ import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
 import { CAT_PRICE, CAT_TICKET_KEY } from './farm-cat';
 import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
 import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
+import { AUTO_RESTOCK_KEY, AUTO_RESTOCK_PRICE } from './auto-restock';
 import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
 export { sellAllForage, sellAllEggs };
 
@@ -142,6 +143,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: CHEST_INVENTORY_KEY,
     label: 'Chest Kit',
     buyPrice: CHEST_PRICE,
+    sellPrice: null,
+  });
+  // Auto-restock kit — Maple keeps your last-planted seed topped up at dawn.
+  items.push({
+    key: AUTO_RESTOCK_KEY,
+    label: 'Auto-Restock Kit',
+    buyPrice: AUTO_RESTOCK_PRICE,
     sellPrice: null,
   });
   return items;

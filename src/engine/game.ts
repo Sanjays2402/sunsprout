@@ -195,6 +195,7 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { drawCartSprite } from '../render/cart-sprite';
+import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import {
   cursorPosition,
   drawFishingBar,
@@ -514,6 +515,12 @@ export class Game {
       if (catPaid > 0) logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
       // Stamina refill — top the pool back to max once per new day.
       refillStamina(this.world.player, this.time.day);
+      // Auto-restock kit — re-buy the last seed up to target so the
+      // player isn't stuck waiting at Maple's for a single packet.
+      const restockOut = dawnRestock(this.world.player);
+      if (restockOut.kind === 'restocked') {
+        logGold(this.world.player, -restockOut.gold, `auto-restock ${restockOut.cropKey}`, this.time.day);
+      }
       // Pip's cart — surface a dawn toast on the day he arrives so the
       // player knows to head over to the village square.
       const pipArrived = cartVisitToday(this.time);
@@ -1274,6 +1281,7 @@ export class Game {
           if (isPlantableTile(this.world, front.tx, front.ty) && (p.inventory[key] ?? 0) > 0) {
             if (plant(this.world, front.tx, front.ty, key, p)) {
               recordSown(p, key);
+              recordLastSeed(p, key);
               this.setToast(`Planted ${key}.`);
               this.checkQuests({ kind: 'plant', cropKey: key });
             }

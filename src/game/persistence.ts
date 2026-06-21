@@ -34,6 +34,7 @@ import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
 import { getMailbox, type Mailbox } from './mail';
 import { getChests, type PlacedChest } from './chest';
 import { defaultStaminaState, getStamina, type StaminaState } from './stamina';
+import { getRestock, type AutoRestockState } from './auto-restock';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -95,6 +96,8 @@ export interface SaveSnapshot {
     rodTier?: string;
     /** Daily stamina pool — current + max + last-refilled day. */
     stamina?: StaminaState;
+    /** Auto-restock kit memo — last seed planted (for the dawn top-up). */
+    restock?: AutoRestockState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -194,6 +197,9 @@ export function serializeGame(game: Game): SaveSnapshot {
       rodTier: (p as Player & { rodTier?: string }).rodTier,
       stamina: (p as Player & { stamina?: StaminaState }).stamina
         ? { ...(p as Player & { stamina: StaminaState }).stamina }
+        : undefined,
+      restock: (p as Player & { restock?: AutoRestockState }).restock
+        ? { ...(p as Player & { restock: AutoRestockState }).restock }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -310,6 +316,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   staminaCur.current = staminaIncoming.current;
   staminaCur.max = staminaIncoming.max;
   staminaCur.lastRefillDay = staminaIncoming.lastRefillDay;
+  // Auto-restock memo — overwrite when present, leave default null otherwise.
+  if (snap.player.restock) {
+    const cur = getRestock(p);
+    cur.lastSeed = snap.player.restock.lastSeed;
+  }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =
       snap.player.npcInvites.map((iv) => ({ ...iv }));
