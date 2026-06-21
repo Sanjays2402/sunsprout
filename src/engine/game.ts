@@ -90,9 +90,11 @@ import {
   adjacentCoop,
   canPlaceCoop,
   collectEggs,
+  collectEggsDetailed,
   coopTick,
   getCoops,
   placeCoop,
+  upgradeCoop,
   drawCoopSprite,
 } from '../game/coop';
 import {
@@ -545,7 +547,7 @@ export class Game {
       const frozen = isFrozenSeason(this.time) ? freezeOutdoorCrops(this.world) : 0;
       advanceDay(this.world);
       // Chickens drop their daily eggs into their coop's cache.
-      const eggs = coopTick(this.world);
+      const eggs = coopTick(this.world, this.time.day);
       // Farm dog's morale payout for yesterday's pet (if any).
       const dogPaid = dogTick(this.world, this.world.player, this.time);
       if (dogPaid > 0) logGold(this.world.player, dogPaid, 'farm dog streak', this.time.day);
@@ -1089,6 +1091,28 @@ export class Game {
       }
     }
 
+    // }: apply a Coop Deluxe Upgrade Kit to the adjacent coop. Bumps
+    // the coop's fancy-egg odds; the kit is consumed.
+    if (this.input.justPressed.has('}')) {
+      const have = p.inventory['craft-coop-deluxe'] ?? 0;
+      if (have <= 0) {
+        this.setToast('Craft a Coop Deluxe Upgrade Kit at the bench first.');
+      } else {
+        const front = this.tileInFront();
+        const coop =
+          adjacentCoop(this.world, front.tx, front.ty) ??
+          adjacentCoop(this.world, Math.round(p.x), Math.round(p.y));
+        if (!coop) {
+          this.setToast('Stand by a coop to apply the upgrade.');
+        } else if ((coop.tier ?? 'basic') === 'deluxe') {
+          this.setToast('This coop is already deluxe.');
+        } else if (upgradeCoop(coop, 'deluxe')) {
+          p.inventory['craft-coop-deluxe'] = have - 1;
+          this.setToast('Coop upgraded to deluxe. Fancy eggs are more common.');
+        }
+      }
+    }
+
     // Dialogue dismiss
     if (this.sleepSummary.isVisible()) {
       // Sleep summary takes priority — it locks the world. Wait until it's
@@ -1602,9 +1626,11 @@ export class Game {
           const coop =
             adjacentCoop(this.world, front.tx, front.ty) ??
             adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))!;
-          const collected = collectEggs(coop, p);
+          const detail = collectEggsDetailed(coop, p);
+          const collected = detail.plain + detail.fancy;
           if (collected > 0) {
-            this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}.`);
+            const fancyTail = detail.fancy > 0 ? ` (incl. ${detail.fancy} fancy)` : '';
+            this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}${fancyTail}.`);
           } else if (coop.chickens === 0) {
             this.setToast('No chickens yet — buy one and press I.');
           } else {

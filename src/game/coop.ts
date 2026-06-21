@@ -4,19 +4,27 @@
 // farmhouse (the player picks a spot, like a sprinkler). Inside the
 // coop the player keeps up to MAX_CHICKENS_PER_COOP chickens; each
 // chicken lays one egg at day rollover, dropped into the coop's
-// internal eggs cache.
+// internal eggs cache. A small per-chicken roll each morning replaces
+// a plain egg with a "fancy egg" (sells for 3x). The fancy-roll rate
+// depends on the coop's tier — a basic coop sees the occasional
+// fancy egg, a deluxe coop sees them roughly twice as often.
 //
 // Collect eggs by standing next to the coop and pressing E (the
 // existing "interact" key in game.ts). Eggs go into the player's
 // inventory under the EGG_INVENTORY_KEY for the recipe / sell loops.
+// Fancy eggs use a distinct FANCY_EGG_INVENTORY_KEY so the well /
+// recipe loops can route them at the premium price.
 //
 // Pure module: no DOM, no rendering side effects in tick logic. A
 // drawCoopSprite + drawChickenSprite helper paint the procedural art.
 
 import type { World } from '../world/world';
 
-/** Inventory key for a collected egg. */
+/** Inventory key for a collected (standard) egg. */
 export const EGG_INVENTORY_KEY = 'egg';
+
+/** Inventory key for the rare 3x-priced "fancy" egg. */
+export const FANCY_EGG_INVENTORY_KEY = 'egg-fancy';
 
 /** Inventory key for an unplaced coop. */
 export const COOP_INVENTORY_KEY = 'coop';
@@ -26,6 +34,9 @@ export const COOP_PRICE = 600;
 
 /** Sell price of one egg at the well. */
 export const EGG_SELL_PRICE = 12;
+
+/** Sell price of one fancy egg at the well. 3x of the standard egg. */
+export const FANCY_EGG_SELL_PRICE = EGG_SELL_PRICE * 3;
 
 /** Sell price of one (sad) hen — used if the player wants to clear a coop. */
 export const CHICKEN_SELL_PRICE = 80;
@@ -40,6 +51,18 @@ export const MAX_CHICKENS_PER_COOP = 4;
 export const COOP_W = 2;
 export const COOP_H = 2;
 
+/** Coop quality tiers. */
+export type CoopTier = 'basic' | 'deluxe';
+
+/** Probability that a single chicken lays a fancy egg per day, per tier. */
+export const FANCY_EGG_RATE: Record<CoopTier, number> = {
+  basic: 0.08,
+  deluxe: 0.18,
+};
+
+/** Gold cost of the deluxe upgrade kit at the carpenter's bench / shop. */
+export const COOP_DELUXE_PRICE = 700;
+
 /** One placed coop in the world. */
 export interface PlacedCoop {
   /** Tile-space top-left coordinate. */
@@ -47,8 +70,13 @@ export interface PlacedCoop {
   ty: number;
   /** Number of chickens currently inside. */
   chickens: number;
-  /** Eggs sitting inside the coop, waiting to be collected. */
+  /** Standard eggs sitting inside the coop, waiting to be collected. */
   eggs: number;
+  /** Fancy eggs sitting inside the coop. Counted separately so the
+   *  collect step can split them out into FANCY_EGG_INVENTORY_KEY. */
+  fancyEggs?: number;
+  /** Quality tier — drives the fancy-egg roll rate. Default 'basic'. */
+  tier?: CoopTier;
 }
 
 export interface WorldWithCoops {
@@ -158,46 +186,116 @@ export function addChicken(coop: PlacedCoop): boolean {
 
 /**
  * Day-rollover hook. Every chicken in every coop drops one egg into
- * its coop's eggs cache. Returns total eggs produced this morning.
+ * its coop's eggs cache. With a per-tier probability, each chicken's
+ * egg becomes a "fancy" egg instead — counted in coop.fancyEggs and
+ * sold at the premium price. Returns the total egg count laid this
+ * morning (standard + fancy summed).
+ *
+ * The fancy roll is deterministic per (coop position, day, chicken
+ * index) so the same in-game day always produces the same outcome —
+ * the player can't reload-scum it.
  */
-export function coopTick(world: World): number {
+export function coopTick(world: World, day: number = 0): number {
   let produced = 0;
   for (const c of getCoops(world)) {
-    c.eggs += c.chickens;
+    const tier: CoopTier = c.tier ?? 'basic';
+    const rate = FANCY_EGG_RATE[tier];
+    let fancy = 0;
+    for (let i = 0; i < c.chickens; i++) {
+      // Hash (tx, ty, day, i) into a [0,1) roll.
+      const r = pseudoRoll(c.tx, c.ty, day, i);
+      if (r < rate) fancy += 1;
+    }
+    const plain = c.chickens - fancy;
+    c.eggs += plain;
+    c.fancyEggs = (c.fancyEggs ?? 0) + fancy;
     produced += c.chickens;
   }
   return produced;
 }
 
+/** Tiny deterministic 32-bit avalanche over (tx, ty, day, idx) -> [0,1). */
+function pseudoRoll(tx: number, ty: number, day: number, idx: number): number {
+  let h = (tx | 0) * 374761393 + (ty | 0) * 668265263;
+  h = (h ^ (h >>> 13)) * 1274126177;
+  h = (h ^ ((day | 0) * 2246822519));
+  h = (h ^ (idx | 0) * 1013904223);
+  h ^= h >>> 16;
+  // >>> 0 forces unsigned; divide by 2^32 to land in [0,1).
+  return (h >>> 0) / 4294967296;
+}
+
 /**
- * Collect every egg in `coop` into the player's inventory. Returns
- * the number actually collected.
+ * Collect every egg in `coop` (standard + fancy) into the player's
+ * inventory. Returns a breakdown { total, plain, fancy } so the toast
+ * can tell the player when a fancy one landed.
  */
 export function collectEggs(
   coop: PlacedCoop,
   player: { inventory: Record<string, number> },
 ): number {
-  const n = coop.eggs;
-  if (n <= 0) return 0;
+  const plain = coop.eggs;
+  const fancy = coop.fancyEggs ?? 0;
+  if (plain <= 0 && fancy <= 0) return 0;
   coop.eggs = 0;
-  player.inventory[EGG_INVENTORY_KEY] = (player.inventory[EGG_INVENTORY_KEY] ?? 0) + n;
-  return n;
+  coop.fancyEggs = 0;
+  if (plain > 0) {
+    player.inventory[EGG_INVENTORY_KEY] = (player.inventory[EGG_INVENTORY_KEY] ?? 0) + plain;
+  }
+  if (fancy > 0) {
+    player.inventory[FANCY_EGG_INVENTORY_KEY] =
+      (player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0) + fancy;
+  }
+  return plain + fancy;
+}
+
+/** Detailed collection result used by the toast layer. */
+export function collectEggsDetailed(
+  coop: PlacedCoop,
+  player: { inventory: Record<string, number> },
+): { plain: number; fancy: number } {
+  const plain = coop.eggs;
+  const fancy = coop.fancyEggs ?? 0;
+  coop.eggs = 0;
+  coop.fancyEggs = 0;
+  if (plain > 0) {
+    player.inventory[EGG_INVENTORY_KEY] = (player.inventory[EGG_INVENTORY_KEY] ?? 0) + plain;
+  }
+  if (fancy > 0) {
+    player.inventory[FANCY_EGG_INVENTORY_KEY] =
+      (player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0) + fancy;
+  }
+  return { plain, fancy };
+}
+
+/** Upgrade a coop's tier. Returns true on success (tier actually changed). */
+export function upgradeCoop(coop: PlacedCoop, next: CoopTier): boolean {
+  if ((coop.tier ?? 'basic') === next) return false;
+  coop.tier = next;
+  return true;
 }
 
 /** Total egg count across every coop in the world (for stats / quests). */
 export function totalEggsWaiting(world: World): number {
   let total = 0;
-  for (const c of getCoops(world)) total += c.eggs;
+  for (const c of getCoops(world)) total += c.eggs + (c.fancyEggs ?? 0);
   return total;
 }
 
 /** Sells every egg in the player's inventory. Returns gold earned. */
 export function sellAllEggs(player: { inventory: Record<string, number>; gold: number }): number {
-  const have = player.inventory[EGG_INVENTORY_KEY] ?? 0;
-  if (have <= 0) return 0;
-  const earned = have * EGG_SELL_PRICE;
-  player.inventory[EGG_INVENTORY_KEY] = 0;
-  player.gold += earned;
+  let earned = 0;
+  const plain = player.inventory[EGG_INVENTORY_KEY] ?? 0;
+  if (plain > 0) {
+    earned += plain * EGG_SELL_PRICE;
+    player.inventory[EGG_INVENTORY_KEY] = 0;
+  }
+  const fancy = player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0;
+  if (fancy > 0) {
+    earned += fancy * FANCY_EGG_SELL_PRICE;
+    player.inventory[FANCY_EGG_INVENTORY_KEY] = 0;
+  }
+  if (earned > 0) player.gold += earned;
   return earned;
 }
 

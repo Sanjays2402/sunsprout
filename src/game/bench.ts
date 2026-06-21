@@ -34,8 +34,7 @@ export interface BenchRecipe {
   flavor: string;
 }
 
-/**
- * Catalog of bench recipes. Stable order — additions go at the end.
+/** Catalog of bench recipes. Stable order — additions go at the end.
  *
  * Pricing intent: each recipe costs roughly half a small day's gold
  * plus one low-to-mid tier gem so a mining run translates directly
@@ -49,6 +48,13 @@ export const BENCH_RECIPES: BenchRecipe[] = [
     gold: 300,
     gem: { key: 'iron', count: 1 },
     flavor: 'Plant in your field. Nearby crops harvest at a higher tier.',
+  },
+  {
+    key: 'craft-coop-deluxe',
+    label: 'Coop Deluxe Upgrade Kit',
+    gold: 700,
+    gem: { key: 'iron', count: 2 },
+    flavor: 'Apply at a coop ( } key ) to more than double fancy egg odds.',
   },
   {
     key: 'craft-lantern',
