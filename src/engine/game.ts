@@ -1293,6 +1293,10 @@ export class Game {
         this.setToast('Stand next to the farm pond.');
       } else if (out.kind === 'stocked') {
         this.setToast(`Stocked the pond with a ${out.label}. Come back tomorrow.`);
+      } else if (out.kind === 'restocked') {
+        this.setToast(
+          `Swapped the pond from ${out.fromLabel} to ${out.toLabel}. New yield starts tomorrow.`,
+        );
       } else if (out.kind === 'collected') {
         this.setToast(
           `Collected ${out.count} ${out.label}${out.count === 1 ? '' : 's'} from the pond.`,

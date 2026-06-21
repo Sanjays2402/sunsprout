@@ -91,6 +91,7 @@ export function nearPond(world: World, px: number, py: number): boolean {
 /** Outcome of an interaction attempt. */
 export type PondOutcome =
   | { kind: 'stocked'; species: FishKey; label: string }
+  | { kind: 'restocked'; from: FishKey; to: FishKey; fromLabel: string; toLabel: string }
   | { kind: 'collected'; species: FishKey; count: number; label: string }
   | { kind: 'too-far' }
   | { kind: 'empty-no-fish' }
@@ -131,6 +132,61 @@ export function stockPond(
 }
 
 /**
+ * Reseed an already-stocked-but-empty pond with the player's
+ * most-abundant DIFFERENT species from the bag. The pond must have
+ * pending == 0 (else collect first) and the candidate species must
+ * differ from the currently stocked one. Returns 'empty-no-fish' if no
+ * other species is in the bag.
+ *
+ * Use case: the player has wrung out a season's worth of minnows from
+ * the pond and now wants to flip it to pike before the boss night
+ * fishing window.
+ */
+export function reseedPond(
+  world: World,
+  player: { inventory: Record<string, number> },
+): PondOutcome {
+  const state = getPond(world);
+  if (state.species === null) {
+    // Falls through to stockPond.
+    return stockPond(world, player);
+  }
+  if (state.pending > 0) {
+    // Pending fish would be stranded if we swapped species — caller
+    // should collect first.
+    return { kind: 'nothing-pending', species: state.species };
+  }
+  const current = state.species;
+  // Find the most-abundant OTHER species.
+  let best: FishKey | null = null;
+  let bestCount = 0;
+  for (const key of FISH_KEYS) {
+    if (key === current) continue;
+    const have = player.inventory[`fish-${key}`] ?? 0;
+    if (have > bestCount) {
+      best = key;
+      bestCount = have;
+    }
+  }
+  if (!best || bestCount === 0) {
+    return { kind: 'empty-no-fish' };
+  }
+  player.inventory[`fish-${best}`] = bestCount - 1;
+  const from = current;
+  state.species = best;
+  state.pending = 0;
+  // lastYieldDay stays — the new species starts producing at the next
+  // dawn rollover via pondTick, just like a fresh stock.
+  return {
+    kind: 'restocked',
+    from,
+    to: best,
+    fromLabel: FISH[from].name,
+    toLabel: FISH[best].name,
+  };
+}
+
+/**
  * Collect every pending fish into the player's bag. Returns
  * 'nothing-pending' when the pond is stocked but has no waiting fish.
  */
@@ -150,8 +206,9 @@ export function collectPond(
 
 /**
  * Combined "press `>` near the pond" entry-point. Stocks if empty,
- * collects when there's a pending yield, returns 'nothing-pending'
- * when the pond is stocked but has no fish ready yet.
+ * collects when there's a pending yield, attempts a species swap when
+ * the pond is stocked-but-empty AND the player carries a different
+ * species, otherwise returns 'nothing-pending'.
  */
 export function interactPond(
   world: World,
@@ -163,6 +220,9 @@ export function interactPond(
   const state = getPond(world);
   if (state.species === null) return stockPond(world, player);
   if (state.pending > 0) return collectPond(world, player);
+  // Stocked but empty -> try a reseed before falling through to the hint.
+  const reseed = reseedPond(world, player);
+  if (reseed.kind === 'restocked') return reseed;
   return { kind: 'nothing-pending', species: state.species };
 }
 
@@ -186,6 +246,7 @@ export function pondTick(world: World, day: number): number {
 export function pondStatusLine(state: PondState): string {
   if (state.species === null) return 'Pond is empty. Stock with a caught fish.';
   const name = FISH[state.species].name;
-  if (state.pending === 0) return `Pond stocked with ${name}. Come back tomorrow.`;
+  if (state.pending === 0)
+    return `Pond stocked with ${name}. Come back tomorrow — or press > with a different fish to swap.`;
   return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting.`;
 }
