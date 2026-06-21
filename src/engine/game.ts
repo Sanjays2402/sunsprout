@@ -207,6 +207,11 @@ import {
   refreshBoard,
   turnIn,
 } from '../game/board';
+import {
+  EXTRACTOR_INVENTORY_KEY,
+  hasExtractor,
+  runExtract,
+} from '../game/seed-extractor';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -1022,6 +1027,23 @@ export class Game {
         }
       } else {
         this.setToast('Need a clear grass tile in front of you.');
+      }
+    }
+
+    // L: run the seed extractor — consumes one of the most-abundant
+    // harvest in the bag, grants 1-2 seeds of the same crop.
+    if (this.input.justPressed.has('l')) {
+      if (!hasExtractor(p)) {
+        this.setToast('Buy a Seed Extractor from Maple first.');
+      } else {
+        const out = runExtract(p);
+        if (out.kind === 'extracted') {
+          this.setToast(
+            `Extractor: -1 ${out.cropKey} harvest, +${out.seedsAdded} ${out.cropKey} seed${out.seedsAdded === 1 ? '' : 's'}.`,
+          );
+        } else if (out.kind === 'no-harvest') {
+          this.setToast('No harvested crops in your bag to extract from.');
+        }
       }
     }
 

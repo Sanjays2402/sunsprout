@@ -38,6 +38,7 @@ import { getRestock, type AutoRestockState } from './auto-restock';
 import { getDecor, type DecorState } from './decor';
 import { getSpouseState, type SpouseState } from './spouse';
 import { getBoard, type BoardState } from './board';
+import { getExtractor, type ExtractorState } from './seed-extractor';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -107,6 +108,8 @@ export interface SaveSnapshot {
     spouse?: SpouseState;
     /** Village quest board — active quest + completed count + recent. */
     board?: BoardState;
+    /** Seed extractor — usage counter drives alternating yields. */
+    extractor?: ExtractorState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -228,6 +231,9 @@ export function serializeGame(game: Game): SaveSnapshot {
             completedCount: getBoard(p).completedCount,
             recent: [...getBoard(p).recent],
           }
+        : undefined,
+      extractor: (p as Player & { extractor?: ExtractorState }).extractor
+        ? { uses: getExtractor(p).uses }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -369,6 +375,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     cur.postedDay = snap.player.board.postedDay;
     cur.completedCount = snap.player.board.completedCount;
     cur.recent = [...snap.player.board.recent];
+  }
+  // Seed extractor — preserve the use-counter so the 1/2 yield rhythm
+  // doesn't reset on every reload.
+  if (snap.player.extractor) {
+    const cur = getExtractor(p);
+    cur.uses = snap.player.extractor.uses;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

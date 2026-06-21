@@ -27,6 +27,7 @@ import { CAT_PRICE, CAT_TICKET_KEY } from './farm-cat';
 import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
 import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
 import { AUTO_RESTOCK_KEY, AUTO_RESTOCK_PRICE } from './auto-restock';
+import { EXTRACTOR_INVENTORY_KEY, EXTRACTOR_PRICE } from './seed-extractor';
 import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
 export { sellAllForage, sellAllEggs };
 
@@ -150,6 +151,12 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: AUTO_RESTOCK_KEY,
     label: 'Auto-Restock Kit',
     buyPrice: AUTO_RESTOCK_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: EXTRACTOR_INVENTORY_KEY,
+    label: 'Seed Extractor',
+    buyPrice: EXTRACTOR_PRICE,
     sellPrice: null,
   });
   return items;
