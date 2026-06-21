@@ -284,6 +284,7 @@ import {
   canPlaceShelter,
   drawShelterSprite,
   getShelters,
+  isPaired,
   placeShelter,
 } from '../game/storm-shelter';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
@@ -1380,9 +1381,18 @@ export class Game {
       if (have <= 0) {
         this.setToast('Craft a Storm Shelter at the bench first.');
       } else if (canPlaceShelter(this.world, front.tx, front.ty)) {
-        if (placeShelter(this.world, front.tx, front.ty)) {
+        const placed = placeShelter(this.world, front.tx, front.ty);
+        if (placed) {
           p.inventory[STORM_SHELTER_INVENTORY_KEY] = have - 1;
-          this.setToast('Storm shelter placed. Crops within 1 tile stay dry next storm.');
+          if (isPaired(this.world, placed)) {
+            this.setToast(
+              'Storm shelter placed and paired. Pair coverage widens to a 5x5 next storm.',
+            );
+          } else {
+            this.setToast(
+              'Storm shelter placed. Crops within 1 tile stay dry next storm.',
+            );
+          }
         }
       } else {
         this.setToast('Need a clear grass or tilled tile in front of you.');
@@ -2151,7 +2161,7 @@ export class Game {
         const wx = s.tx * TILE_SIZE + TILE_SIZE / 2;
         const wy = s.ty * TILE_SIZE + TILE_SIZE / 2;
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
-        drawShelterSprite(this.ctx, sx, sy, TILE_SIZE);
+        drawShelterSprite(this.ctx, sx, sy, TILE_SIZE, isPaired(this.world, s));
       }
     }
     // Greenhouses — translucent glass frame over tilled soil tiles.

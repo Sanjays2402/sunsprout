@@ -29,8 +29,23 @@ import type { World, Tile } from '../world/world';
 /** Crafted-kit inventory key (unplaced shelter). */
 export const STORM_SHELTER_INVENTORY_KEY = 'craft-shelter';
 
-/** Chebyshev radius the shelter covers. */
+/** Chebyshev radius the shelter covers when standing alone. */
 export const SHELTER_RADIUS = 1;
+
+/**
+ * Chebyshev radius the shelter covers when paired with a partner
+ * shelter within SHELTER_PAIR_RANGE. Two shelters paired = each one's
+ * coverage widens from a 3x3 to a 5x5. Both still get consumed when
+ * the storm hits.
+ */
+export const SHELTER_RADIUS_PAIRED = 2;
+
+/**
+ * Two shelters within this Chebyshev distance form a "pair" and each
+ * one's coverage widens to SHELTER_RADIUS_PAIRED. Anything farther
+ * apart falls back to the SHELTER_RADIUS single-coverage footprint.
+ */
+export const SHELTER_PAIR_RANGE = 2;
 
 /** One placed shelter in the world. */
 export interface PlacedShelter {
@@ -71,10 +86,39 @@ export function placeShelter(world: World, tx: number, ty: number): PlacedShelte
   return s;
 }
 
-/** True iff (tx,ty) is within SHELTER_RADIUS of any placed shelter. */
+/**
+ * Returns the effective Chebyshev radius for `shelter`, taking into
+ * account any partner shelter sitting within SHELTER_PAIR_RANGE. A
+ * shelter with at least one neighbour in range covers the wider
+ * SHELTER_RADIUS_PAIRED footprint; an isolated shelter falls back to
+ * SHELTER_RADIUS.
+ */
+export function effectiveRadius(world: World, shelter: PlacedShelter): number {
+  const shelters = getShelters(world);
+  for (const other of shelters) {
+    if (other === shelter) continue;
+    if (other.tx === shelter.tx && other.ty === shelter.ty) continue;
+    if (
+      Math.abs(other.tx - shelter.tx) <= SHELTER_PAIR_RANGE &&
+      Math.abs(other.ty - shelter.ty) <= SHELTER_PAIR_RANGE
+    ) {
+      return SHELTER_RADIUS_PAIRED;
+    }
+  }
+  return SHELTER_RADIUS;
+}
+
+/** True iff `shelter` has at least one partner within SHELTER_PAIR_RANGE. */
+export function isPaired(world: World, shelter: PlacedShelter): boolean {
+  return effectiveRadius(world, shelter) === SHELTER_RADIUS_PAIRED;
+}
+
+/** True iff (tx,ty) is within the effective radius of any placed shelter. */
 export function isUnderShelter(world: World, tx: number, ty: number): boolean {
-  for (const s of getShelters(world)) {
-    if (Math.abs(s.tx - tx) <= SHELTER_RADIUS && Math.abs(s.ty - ty) <= SHELTER_RADIUS) {
+  const shelters = getShelters(world);
+  for (const s of shelters) {
+    const r = effectiveRadius(world, s);
+    if (Math.abs(s.tx - tx) <= r && Math.abs(s.ty - ty) <= r) {
       return true;
     }
   }
@@ -88,6 +132,9 @@ export function isUnderShelter(world: World, tx: number, ty: number): boolean {
  *
  * `coveredCropTiles` is the deduplicated list of (tx,ty) crops the
  * caller would have docked. Returns the count of shelters consumed.
+ *
+ * Honours pairing: a paired shelter covers SHELTER_RADIUS_PAIRED so
+ * a crop two tiles away counts as covered by it.
  */
 export function consumeShelteringShelters(
   world: World,
@@ -95,14 +142,15 @@ export function consumeShelteringShelters(
 ): number {
   if (coveredCropTiles.length === 0) return 0;
   const shelters = getShelters(world);
+  // Snapshot effective radii BEFORE we start removing shelters — otherwise
+  // removing one half of a pair could shrink the partner's coverage mid-loop.
+  const radii: number[] = shelters.map((s) => effectiveRadius(world, s));
   const used: Set<number> = new Set();
   for (const c of coveredCropTiles) {
     for (let i = 0; i < shelters.length; i++) {
       const s = shelters[i];
-      if (
-        Math.abs(s.tx - c.tx) <= SHELTER_RADIUS &&
-        Math.abs(s.ty - c.ty) <= SHELTER_RADIUS
-      ) {
+      const r = radii[i];
+      if (Math.abs(s.tx - c.tx) <= r && Math.abs(s.ty - c.ty) <= r) {
         used.add(i);
       }
     }
@@ -143,12 +191,17 @@ function px(
  * Draws a small lean-to shelter sprite centred at (cx, cy). Two
  * wooden uprights, a tilted slate roof, and a small chimneyless cap.
  * Designed to read as "rain cover" without dominating the tile.
+ *
+ * When `paired` is true the storm-cloud glyph on the roof is replaced
+ * with a wider double-arc so the player can see at a glance that this
+ * shelter is in pair-coverage range of another.
  */
 export function drawShelterSprite(
   ctx: CanvasRenderingContext2D,
   cx: number,
   cy: number,
   tileSize: number,
+  paired: boolean = false,
 ): void {
   const w = tileSize;
   const h = tileSize;
@@ -172,7 +225,16 @@ export function drawShelterSprite(
   for (let i = 0; i < 3; i++) {
     px(ctx, x + 6, y + h * 0.62 + i * 2, w - 12, 1, '#3A2818');
   }
-  // Storm cloud glyph on the roof — single pixel cluster.
-  px(ctx, x + w / 2 - 2, y + h * 0.36, 4, 2, 'rgba(245,233,212,0.9)');
-  px(ctx, x + w / 2 - 1, y + h * 0.34, 2, 1, 'rgba(245,233,212,0.9)');
+  // Roof glyph — single storm cloud, or a wider paired-arc when this
+  // shelter is in pair range of another.
+  if (paired) {
+    // Two cloud puffs side by side + a small connector — tiny pair sigil.
+    px(ctx, x + w / 2 - 4, y + h * 0.36, 3, 2, 'rgba(245,233,212,0.9)');
+    px(ctx, x + w / 2 + 1, y + h * 0.36, 3, 2, 'rgba(245,233,212,0.9)');
+    px(ctx, x + w / 2 - 1, y + h * 0.38, 2, 1, 'rgba(245,233,212,0.9)');
+  } else {
+    // Storm cloud glyph on the roof — single pixel cluster.
+    px(ctx, x + w / 2 - 2, y + h * 0.36, 4, 2, 'rgba(245,233,212,0.9)');
+    px(ctx, x + w / 2 - 1, y + h * 0.34, 2, 1, 'rgba(245,233,212,0.9)');
+  }
 }
