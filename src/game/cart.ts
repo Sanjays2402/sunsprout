@@ -22,6 +22,7 @@
 import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
 import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './decor';
+import { SPA_PASS_INVENTORY_KEY, SPA_PASS_PRICE, SPA_PASS_PUNCHES } from './bath-house';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -80,6 +81,12 @@ export const CART_CATALOG: CartItem[] = [
     label: 'Brass Lantern (cosmetic)',
     buyPrice: 350,
     flavor: 'A trinket for the farmhouse mantle. Counts toward decorator.',
+  },
+  {
+    key: SPA_PASS_INVENTORY_KEY,
+    label: 'Spa Pass (punch card)',
+    buyPrice: SPA_PASS_PRICE,
+    flavor: `${SPA_PASS_PUNCHES} free soaks at the bath house. Auto-redeems on first use.`,
   },
   // Decor pieces — buyable wallpaper + floor packs that retint the
   // farmhouse exterior. Each row mirrors a DECOR_CATALOG entry so the

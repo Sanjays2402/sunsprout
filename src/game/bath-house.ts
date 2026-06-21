@@ -44,6 +44,48 @@ export const BATH_BONUS = 30;
 /** How many in-game days the buff lasts AFTER the dawn it was bought. */
 export const BATH_DURATION_DAYS = 3;
 
+/** Inventory key for an unredeemed spa pass (sold at Pip's cart). */
+export const SPA_PASS_INVENTORY_KEY = 'spa-pass';
+
+/** Gold cost of a spa pass at Pip's cart. */
+export const SPA_PASS_PRICE = 700;
+
+/** Number of free soaks one spa pass carries. */
+export const SPA_PASS_PUNCHES = 4;
+
+/** Per-player spa-pass bookkeeping. */
+export interface SpaPassState {
+  /** Total free soaks remaining across all redeemed passes. */
+  punchesLeft: number;
+}
+
+/** Lazy reader on the Player. */
+export function getSpaPass(player: Player): SpaPassState {
+  const p = player as Player & { spaPass?: SpaPassState };
+  if (!p.spaPass) p.spaPass = { punchesLeft: 0 };
+  return p.spaPass;
+}
+
+/** True iff the player has at least one free soak remaining. */
+export function hasSpaPass(player: Player): boolean {
+  return getSpaPass(player).punchesLeft > 0;
+}
+
+/**
+ * Redeem one spa pass from the bag into the punches pool. Returns the
+ * total punches left after the redemption, or 0 when there was no pass
+ * to redeem. Auto-called by takeBath() when the player presses E with
+ * an unredeemed pass — keeps the cart-only purchase flow self-driving.
+ */
+export function redeemSpaPass(player: Player): number {
+  const have = player.inventory[SPA_PASS_INVENTORY_KEY] ?? 0;
+  if (have <= 0) return getSpaPass(player).punchesLeft;
+  player.inventory[SPA_PASS_INVENTORY_KEY] = have - 1;
+  const state = getSpaPass(player);
+  state.punchesLeft += SPA_PASS_PUNCHES;
+  return state.punchesLeft;
+}
+
 /** Per-player bath-house bookkeeping. */
 export interface BathState {
   /** Day index the buff EXPIRES on (>= today means buff is active). */
@@ -96,17 +138,30 @@ export function isWinterDiscountActive(time: TimeOfDay): boolean {
 
 /** Outcome of an attempted soak. */
 export type BathOutcome =
-  | { kind: 'soaked'; remainingGold: number; daysLeft: number; bonus: number; pricePaid: number; discounted: boolean }
+  | {
+      kind: 'soaked';
+      remainingGold: number;
+      daysLeft: number;
+      bonus: number;
+      pricePaid: number;
+      discounted: boolean;
+      paidWithPass: boolean;
+      passesLeft: number;
+    }
   | { kind: 'too-far' }
   | { kind: 'not-enough-gold'; need: number; have: number }
   | { kind: 'already-active'; daysLeft: number };
 
 /**
- * Try to take a soak. Spends `bathPriceFor(time)` gold, refreshes the
+ * Try to take a soak. Spends `bathPriceFor(time)` gold OR one spa-pass
+ * punch (preferring the pass when one is available), refreshes the
  * buff timer to BATH_DURATION_DAYS, lifts the stamina cap by
  * BATH_BONUS, and tops the current pool by the same amount (so the
  * player feels the boost immediately rather than waiting for
  * tomorrow's dawn refill).
+ *
+ * Auto-redeems an unredeemed spa pass from the bag if punches are 0 —
+ * the player can buy + soak without a separate "redeem" press.
  *
  * Refuses with 'already-active' when the buff is already running —
  * keeps the player from accidentally double-spending on the same day.
@@ -126,10 +181,24 @@ export function takeBath(
     return { kind: 'already-active', daysLeft: bathDaysLeft(player, day) };
   }
   const price = time ? bathPriceFor(time) : BATH_FEE;
-  if (player.gold < price) {
+  // Auto-redeem an unredeemed spa pass into the punches pool first so
+  // the player never accidentally pays gold while a pass sits unused.
+  const passState = getSpaPass(player);
+  if (passState.punchesLeft <= 0 && (player.inventory[SPA_PASS_INVENTORY_KEY] ?? 0) > 0) {
+    redeemSpaPass(player);
+  }
+  const useSpaPass = passState.punchesLeft > 0;
+  if (!useSpaPass && player.gold < price) {
     return { kind: 'not-enough-gold', need: price, have: player.gold };
   }
-  player.gold -= price;
+  let pricePaid: number;
+  if (useSpaPass) {
+    passState.punchesLeft -= 1;
+    pricePaid = 0;
+  } else {
+    player.gold -= price;
+    pricePaid = price;
+  }
   // Apply the buff. Expiry sits on (today + duration - 1) so the soak
   // covers today AND the next (duration-1) days. Lift the cap, then
   // top the pool by the same amount so the player feels it now.
@@ -143,8 +212,10 @@ export function takeBath(
     remainingGold: player.gold,
     daysLeft: BATH_DURATION_DAYS,
     bonus: BATH_BONUS,
-    pricePaid: price,
+    pricePaid,
     discounted: time ? isWinterDiscountActive(time) : false,
+    paidWithPass: useSpaPass,
+    passesLeft: passState.punchesLeft,
   };
 }
 
@@ -169,6 +240,9 @@ export function maybeExpireBath(player: Player, day: number): boolean {
 /** Short HUD line for the toast surfaced after a fresh soak. */
 export function bathFlavorLine(out: Extract<BathOutcome, { kind: 'soaked' }>): string {
   const plural = out.daysLeft === 1 ? '' : 's';
+  if (out.paidWithPass) {
+    return `Soaked at the bath house (spa pass, ${out.passesLeft} punch${out.passesLeft === 1 ? '' : 'es'} left). +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
+  }
   const winterTag = out.discounted ? ' (winter rate)' : '';
   return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
 }

@@ -150,6 +150,8 @@ describe('bathFlavorLine', () => {
       bonus: BATH_BONUS,
       pricePaid: BATH_FEE,
       discounted: false,
+      paidWithPass: false,
+      passesLeft: 0,
     });
     expect(line).toMatch(/Soaked/);
     expect(line).toMatch(new RegExp(`${BATH_BONUS}`));

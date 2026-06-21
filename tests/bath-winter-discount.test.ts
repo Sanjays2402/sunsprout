@@ -112,6 +112,8 @@ describe('bathFlavorLine with winter tag', () => {
       bonus: BATH_BONUS,
       pricePaid: 150,
       discounted: true,
+      paidWithPass: false,
+      passesLeft: 0,
     });
     expect(line).toContain('winter rate');
   });
@@ -124,6 +126,8 @@ describe('bathFlavorLine with winter tag', () => {
       bonus: BATH_BONUS,
       pricePaid: BATH_FEE,
       discounted: false,
+      paidWithPass: false,
+      passesLeft: 0,
     });
     expect(line).not.toContain('winter rate');
   });

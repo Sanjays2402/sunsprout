@@ -42,7 +42,7 @@ import { getBoard, type BoardState } from './board';
 import { getExtractor, type ExtractorState } from './seed-extractor';
 import { getTournament, type TournamentState } from './tournament';
 import { getStorm, type StormState } from './storm';
-import { getBath, type BathState } from './bath-house';
+import { getBath, getSpaPass, type BathState, type SpaPassState } from './bath-house';
 import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
 import { getComposts, type PlacedCompost } from './compost';
@@ -124,6 +124,8 @@ export interface SaveSnapshot {
     storm?: StormState;
     /** Bath house — buff expiry day (-1 = no buff). */
     bath?: BathState;
+    /** Spa pass — punches remaining on the player's redeemed punch card. */
+    spaPass?: SpaPassState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -273,6 +275,9 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       bath: (p as Player & { bath?: BathState }).bath
         ? { expiresOnDay: getBath(p).expiresOnDay }
+        : undefined,
+      spaPass: (p as Player & { spaPass?: SpaPassState }).spaPass
+        ? { punchesLeft: getSpaPass(p).punchesLeft }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -449,6 +454,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.bath) {
     const cur = getBath(p);
     cur.expiresOnDay = snap.player.bath.expiresOnDay;
+  }
+  // Spa pass — restore punches so the player doesn't lose paid-for
+  // soaks when the page reloads mid-season.
+  if (snap.player.spaPass) {
+    const cur = getSpaPass(p);
+    cur.punchesLeft = snap.player.spaPass.punchesLeft;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =
