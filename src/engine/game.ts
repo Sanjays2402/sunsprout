@@ -278,6 +278,7 @@ import {
   getComposts,
   placeCompost,
 } from '../game/compost';
+import { drawBarks, tickBarks } from '../game/npc-barks';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
@@ -751,6 +752,21 @@ export class Game {
 
     // NPC schedule + drift.
     updateNPCs(this.world, this.time, dtMs);
+    // NPC ambient barks — fires a small bubble when the player walks
+    // within BARK_RADIUS of an NPC for the first time this (day, hour).
+    {
+      const p = this.world.player;
+      const nowMs = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      tickBarks(
+        this.world,
+        p.x,
+        p.y,
+        this.time.day,
+        this.time.hour,
+        nowMs,
+        dtMs,
+      );
+    }
 
     // Farm dog follow movement — soft chase the player when too far.
     updateDog(this.world, this.world.player, dtMs);
@@ -2187,6 +2203,10 @@ export class Game {
     if (this.peerRenderables.length > 0) {
       this.renderer.drawPeers(this.peerRenderables, this.camera, this.multiplayer?.mutes);
     }
+    // NPC barks — small ambient bubbles above NPCs who just registered
+    // a player walk-by. Drawn after peers + dog/cat so the bubble sits
+    // on top of any sprite that happens to overlap.
+    drawBarks(this.ctx, this.world, (wx, wy) => this.camera.worldToScreen(wx, wy), TILE_SIZE);
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width);
