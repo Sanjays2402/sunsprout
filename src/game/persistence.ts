@@ -29,6 +29,7 @@ import { getSprinklers, type PlacedSprinkler } from './sprinklers';
 import { getForage, type PlacedForage } from './forage';
 import { getCoops, type PlacedCoop } from './coop';
 import { defaultDogState, getDog, type FarmDogState } from './farm-dog';
+import { defaultCatState, getCat, type FarmCatState } from './farm-cat';
 import { getGreenhouses, type PlacedGreenhouse } from './greenhouse';
 import { getMailbox, type Mailbox } from './mail';
 import { getChests, type PlacedChest } from './chest';
@@ -105,6 +106,7 @@ export interface SaveSnapshot {
     forage?: PlacedForage[];
     coops?: PlacedCoop[];
     dog?: FarmDogState;
+    cat?: FarmCatState;
     greenhouses?: PlacedGreenhouse[];
     chests?: PlacedChest[];
   };
@@ -206,6 +208,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       forage: getForage(game.world).map((f) => ({ ...f })),
       coops: getCoops(game.world).map((c) => ({ ...c })),
       dog: { ...getDog(game.world) },
+      cat: { ...getCat(game.world) },
       greenhouses: getGreenhouses(game.world).map((g) => ({ ...g })),
       chests: getChests(game.world).map((c) => ({ ...c, items: { ...c.items } })),
     },
@@ -353,6 +356,15 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   dogCur.petLastDay = dogIncoming.petLastDay;
   dogCur.petTotal = dogIncoming.petTotal;
   dogCur.petStreak = dogIncoming.petStreak;
+  // Cat — same forward-compat story; older v1 saves predate the cat.
+  const catCur = getCat(game.world);
+  const catIncoming = snap.world.cat ?? defaultCatState();
+  catCur.owned = catIncoming.owned;
+  catCur.x = catIncoming.x;
+  catCur.y = catIncoming.y;
+  catCur.petLastDay = catIncoming.petLastDay;
+  catCur.petTotal = catIncoming.petTotal;
+  catCur.petStreak = catIncoming.petStreak;
   // Greenhouses — forward-compat default.
   const greenList = getGreenhouses(game.world);
   greenList.length = 0;

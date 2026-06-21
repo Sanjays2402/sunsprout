@@ -106,6 +106,15 @@ import {
   updateDog,
 } from '../game/farm-dog';
 import {
+  CAT_TICKET_KEY,
+  adoptCat,
+  canPetCat,
+  catTick,
+  drawCatSprite,
+  getCat,
+  petCat,
+} from '../game/farm-cat';
+import {
   GREENHOUSE_INVENTORY_KEY,
   GREENHOUSE_W,
   GREENHOUSE_H,
@@ -473,6 +482,9 @@ export class Game {
       // Farm dog's morale payout for yesterday's pet (if any).
       const dogPaid = dogTick(this.world, this.world.player, this.time);
       if (dogPaid > 0) logGold(this.world.player, dogPaid, 'farm dog streak', this.time.day);
+      // Farm cat's morale payout for yesterday's pet (if any).
+      const catPaid = catTick(this.world, this.world.player, this.time);
+      if (catPaid > 0) logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
@@ -493,15 +505,17 @@ export class Game {
               ? ` (coops laid ${eggs} egg${eggs === 1 ? '' : 's'})`
               : dogPaid > 0
                 ? ` (the dog tipped you +${dogPaid}g)`
-                : greenBumped > 0
-                  ? ` (greenhouse pushed ${greenBumped} crops)`
-                  : newMail > 0
-                    ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
-                    : newInvites.length === 1
-                      ? ` (${inviteToastLine(newInvites[0])})`
-                      : newInvites.length > 1
-                        ? ` (${newInvites.length} hangout invites pending)`
-                        : '';
+                : catPaid > 0
+                  ? ` (the cat tipped you +${catPaid}g)`
+                  : greenBumped > 0
+                    ? ` (greenhouse pushed ${greenBumped} crops)`
+                    : newMail > 0
+                      ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
+                      : newInvites.length === 1
+                        ? ` (${inviteToastLine(newInvites[0])})`
+                        : newInvites.length > 1
+                          ? ` (${newInvites.length} hangout invites pending)`
+                          : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -826,6 +840,31 @@ export class Game {
         }
       } else {
         this.setToast('Walk closer to the dog to pet it.');
+      }
+    }
+
+    // -: adopt the cat on first press, pet the cat on subsequent presses.
+    // Cat sits on the farmhouse roof — stand near the farmhouse to pet.
+    if (this.input.justPressed.has('-')) {
+      const cat = getCat(this.world);
+      if (!cat.owned) {
+        const have = p.inventory[CAT_TICKET_KEY] ?? 0;
+        if (have > 0) {
+          if (adoptCat(this.world, p)) {
+            this.setToast('A grey tabby kitten settles on your farmhouse roof.');
+          }
+        } else {
+          this.setToast('Buy a Kitten Ticket from Maple first.');
+        }
+      } else if (canPetCat(this.world, p)) {
+        const out = petCat(this.world, p, this.time);
+        if (out.kind === 'petted') {
+          this.setToast(`Pet the cat. Streak ${out.streak} (+${out.bonus}g tomorrow).`);
+        } else if (out.kind === 'already-today') {
+          this.setToast('The cat has had enough scritches for today.');
+        }
+      } else {
+        this.setToast('Stand by the farmhouse to pet the cat.');
       }
     }
 
@@ -1386,6 +1425,18 @@ export class Game {
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
         const facingRight = this.world.player.x >= dog.x;
         drawDogSprite(this.ctx, sx, sy, facingRight);
+      }
+    }
+    // Farm cat — perched on the farmhouse roof.
+    {
+      const cat = getCat(this.world);
+      if (cat.owned) {
+        const wx = cat.x * TILE_SIZE + TILE_SIZE / 2;
+        // Render the cat a few pixels HIGHER than the tile centre so it
+        // visually sits on top of the farmhouse roof rather than inside it.
+        const wy = cat.y * TILE_SIZE + TILE_SIZE / 2 - 8;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawCatSprite(this.ctx, sx, sy);
       }
     }
     if (this.peerRenderables.length > 0) {

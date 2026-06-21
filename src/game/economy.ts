@@ -23,6 +23,7 @@ import {
   sellAllEggs,
 } from './coop';
 import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
+import { CAT_PRICE, CAT_TICKET_KEY } from './farm-cat';
 import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
 import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
 import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
@@ -120,6 +121,13 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
     key: DOG_TICKET_KEY,
     label: 'Farm Dog Ticket',
     buyPrice: DOG_PRICE,
+    sellPrice: null,
+  });
+  // Kitten ticket — redeem at the farmhouse via the - keybind.
+  items.push({
+    key: CAT_TICKET_KEY,
+    label: 'Kitten Ticket',
+    buyPrice: CAT_PRICE,
     sellPrice: null,
   });
   // Greenhouse kit — place onto a 3x3 grass footprint via the U keybind.
