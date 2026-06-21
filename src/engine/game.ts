@@ -206,6 +206,7 @@ import {
   getScarecrows,
   placeScarecrow,
 } from '../game/scarecrow';
+import { OwlMenu } from '../ui/owl-menu';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -296,6 +297,8 @@ export class Game {
   public shopMenu: ShopMenu = new ShopMenu();
   /** Carpenter's bench menu — opened with E when standing next to the bench. */
   public benchMenu: BenchMenu = new BenchMenu();
+  /** Owl post menu — opened with `~` near the farmhouse mailbox. */
+  public owlMenu: OwlMenu = new OwlMenu();
   /** Lore / bestiary panel — toggled with backtick. */
   public lorePanel: LorePanel = new LorePanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
@@ -670,6 +673,7 @@ export class Game {
     this.cartMenu.update(dtMs);
     this.shopMenu.update(dtMs);
     this.benchMenu.update(dtMs);
+    this.owlMenu.update(dtMs);
     this.lorePanel.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
@@ -721,7 +725,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible() || this.owlMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1029,6 +1033,17 @@ export class Game {
       }
     }
 
+    // ~: summon the owl post (near the farmhouse mailbox). Cheaper than
+    // a village walk on rainy days; harder to abuse than face-to-face
+    // gifts because it costs gold.
+    if (this.input.justPressed.has('~')) {
+      if (!this.isAtFarmhouseSimple()) {
+        this.setToast('Stand near the farmhouse to call the owl.');
+      } else {
+        this.owlMenu.open();
+      }
+    }
+
     // ]: open the adjacent chest (deposit / withdraw).
     if (this.input.justPressed.has(']') && !this.chestMenu.isVisible()) {
       const front = this.tileInFront();
@@ -1261,6 +1276,40 @@ export class Game {
             this.setToast(`Need ${out.need}g (have ${out.have}g).`);
           } else if (out.kind === 'not-enough-gems') {
             this.setToast(`Need ${out.need}x ${out.gemKey} (have ${out.have}).`);
+          }
+        }
+      }
+    } else if (this.owlMenu.isVisible()) {
+      // Owl post input — Up/Down picks candidate, Enter dispatches.
+      if (this.owlMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has('~') || i.has('`')) {
+          this.owlMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.owlMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.owlMenu.selectNext();
+        } else if (i.has('enter') || i.has(' ')) {
+          const out = this.owlMenu.confirm(this.world.player, this.time.day, this.time);
+          if (out.kind === 'sent') {
+            logGold(this.world.player, -40, `owl post: ${out.npcName}`, this.time.day);
+            // attemptAutoGift already credited hearts; surface a toast
+            // matching the existing in-person gift feel.
+            if (out.gift.kind === 'gifted') {
+              const tasteLine =
+                out.gift.result.taste === 'loved'
+                  ? 'beams at the gift'
+                  : out.gift.result.taste === 'liked'
+                    ? 'smiles, charmed'
+                    : 'nods politely';
+              this.setToast(`Owl post: ${out.npcName} ${tasteLine}. +${out.gift.result.pointsApplied} pts.`);
+            }
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          } else if (out.kind === 'already-today') {
+            this.setToast(`Already gifted ${out.npcName} today.`);
+          } else if (out.kind === 'no-items') {
+            this.setToast(`Nothing nice in your bag to send ${out.npcName}.`);
           }
         }
       }
@@ -1931,6 +1980,7 @@ export class Game {
     this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.benchMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.owlMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
