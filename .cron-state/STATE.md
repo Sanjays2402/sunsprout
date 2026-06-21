@@ -4,7 +4,7 @@
 
 ## STATUS
 
-**STATUS:** Tick #4 complete. 20 autoship features now on `feature/autoship`. This batch shipped the next 5 cozy-life depth + QoL items: recipe codex, crop journal, achievements, money log, and the settings panel (with night-tint, HUD scale, reduce-motion, autosave toggle, two-step reset-save). 697/697 tests green (+50 this tick); build 142.86 kB / 44.53 kB gz.
+**STATUS:** Tick #5 complete. 25 autoship features now on `feature/autoship`. This batch shipped Winter pass + Hot Cocoa, pickaxe upgrades, quest log panel, heart-4 NPC hangouts, and the rooftop cat companion. 763/763 tests green (+66 this tick); build 154.80 kB / 47.68 kB gz.
 
 Active branch: `feature/autoship`
 Default branch: `main` (NEVER push to it from cron)
@@ -42,20 +42,25 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [x] **Achievements panel** — `V` opens a 15-badge milestone tracker with scroll + persistence; checked every frame so milestones surface immediately. (6707f0f)
 - [x] **Money log** — `Q` opens a 20-row gold ledger with reasons + per-row signed deltas + a footer total; persists; every gold change posts an entry. (b712a59)
 - [x] **Settings panel** — `\\` opens a panel for autoSave toggle, night-tint cycling (0/30/60/100%), HUD scale (1.0/1.25/1.5x), reduce-motion toggle, and a two-step reset-save. (ba82aa4)
-- [ ] **Winter quiet-season pass** — crops refuse to grow outside in winter, greenhouse becomes essential, snow particles, hot-cocoa recipe.
-- [ ] **Mining depth tiers** — different gem distributions by depth; pickaxe upgrades unlock the deeper cave layers.
-- [ ] **Quest log panel** — current/completed quests with rewards and a teasing next-step hint; opens via a panel toggle.
-- [ ] **NPC scheduled events** — when ♥ 4 with an NPC, they invite you to an evening hangout on a specific day; cutscene-lite walk to a shared spot.
-- [ ] **Pet-the-cat companion** — Rose adopts you out a kitten for 250g; sits on your roof, gives a comfort buff to the next morning's stamina.
+- [x] **Winter quiet-season pass** — outdoor crops refuse to grow in Winter (greenhouse essential); snow particles overlay; Hot Cocoa joins the cookbook. (7589e6d)
+- [x] **Pickaxe upgrades + drop bias** — Maple sells copper/iron/gold/diamond upgrades (200/600/1500/3500g, `/` keybind); per-tier gem-weight bias shifts rolls toward rare gems as you climb. (18f6028)
+- [x] **Quest log panel** — `'` toggles a centred panel listing active + completed quests with hints, progress bars, and pre-formatted reward lines. (7d376af)
+- [x] **NPC scheduled events** — heart-4 candidates post evening hangout invites with a (season, day) date + 18-20h window; walking onto the meeting spot fires +120g + heart points. (9b0e148)
+- [x] **Rooftop cat companion** — Maple sells a Kitten Ticket (250g); `-` near the farmhouse redeems then pets; cat perches on the farmhouse roof; pet streak tips morning gold (8g/day, cap 14). (a57147b)
 - [ ] **Fishing rod upgrades** — copper/iron/gold rods reduce escape rate + widen catch table; Maple sells from the same upgrade row as hoe/can.
 - [ ] **Stamina / energy system** — a daily stamina pool; tilling, mining, fishing each cost; sleep restores; cocoa + tea give morning boost.
 - [ ] **Travelling merchant cart** — once per season, a cart parks near the village square selling rare seeds + cosmetic placeables for premium gold.
 - [ ] **Auto-restock seed kit** — buyable kit that re-buys the player's last seed pick at dawn from the shop's stock + gold.
 - [ ] **Wallpaper / floor cosmetics for the farmhouse** — sold via the merchant cart; redraws the interior tile palette when entering the farmhouse.
+- [ ] **NPC marriage move-in** — after the wedding, your spouse moves into the farmhouse; daily morning dialogue + greenhouse buff.
+- [ ] **Bookshelf / lore panel** — a dedicated panel for the village's bestiary, history, and recipe-codex-style discoverables.
+- [ ] **Quest-of-the-week board** — village notice board near the well posts rotating fetch quests with gold/seeds rewards.
+- [ ] **Seed extractor** — a placeable that turns one harvest into 1-2 seeds of the same crop, enabling self-sufficient farming.
+- [ ] **Friendship tournament** — once a season the village holds a friendly competition (fishing derby, harvest weigh-in) for prize gold.
 
 ## OPEN BLOCKERS
 
-(none — but key bindings are getting tight. Recent additions: `,` `.` `[` `]` `X` `R` `;` `V` `Q` `\\`. Open letter keys: numerics, brackets `{` `}` `'` `` ` ``, F-keys. Future panels should consider sharing a single panel-toggle key cycling through panels.)
+(none — but key bindings are very tight. Recent additions: `,` `.` `[` `]` `X` `R` `;` `V` `Q` `\\` `/` `'` `-`. Open letter keys: numerics, `{` `}` `` ` ``, F-keys, `=`, `~`. Future panels should seriously consider sharing a single panel-toggle key cycling through panels.)
 
 ## TICK LOG
 
@@ -64,3 +69,4 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - 2026-06-20 03:40 PT — 5/5 shipped: forage (329d38e), coop (59d5ed7), egg-recipes (be0c711), farm-dog (827ae22), greenhouse (f41d16f). 582/582 tests green (+65). Build 106.41 kB / 34.54 kB gz. New keybinds: Y=forage, N=coop, I=add chicken, J=dog redeem/pet, U=greenhouse.
 - 2026-06-20 07:24 PT — 5/5 shipped: crop-quality (dc6da66), tools (b100dd2), festivals (62eff02), mail (82d4375), chest (50443d9). 647/647 tests green (+65). Build 120.37 kB / 38.81 kB gz. New keybinds: ,=hoe upgrade, .=can upgrade, [=read letter, ]=open chest, X=place chest.
 - 2026-06-20 15:35 PT — 5/5 shipped: codex (5a09261), journal (78ea1af), achievements (6707f0f), money-log (b712a59), settings (ba82aa4). 697/697 tests green (+50). Build 142.86 kB / 44.53 kB gz. New keybinds: R=recipe codex, ;=crop journal, V=achievements, Q=money log, \\=settings. (Note: tick was a resume — 4 commits had landed locally pre-resume from an earlier interrupted run; this tick finished the settings slice + gate + push.)
+- 2026-06-20 18:08 PT — 5/5 shipped: winter (7589e6d), pickaxe (18f6028), quest-log (7d376af), hangouts (9b0e148), farm-cat (a57147b). 763/763 tests green (+66). Build 154.80 kB / 47.68 kB gz. New keybinds: /=pickaxe upgrade, '=quest log, -=adopt/pet cat. Also added Hot Cocoa to the cookbook; Recipe Collector achievement now references RECIPE_KEYS.length instead of a hardcoded 10.
