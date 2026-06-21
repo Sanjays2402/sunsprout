@@ -87,6 +87,8 @@ export interface SaveSnapshot {
     moneyLog?: Array<{ delta: number; reason: string; day: number }>;
     /** User settings: autoSave, nightTintScale, hudScale, reduceMotion. */
     settings?: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean };
+    /** Pickaxe tier — wood / copper / iron / gold / diamond. */
+    pickaxeTier?: string;
   };
   /** Day / hour clock. We round to the nearest in-game hour on load. */
   time: { day: number; hour: number; minute: number; season: 0 | 1 | 2 | 3 };
@@ -178,6 +180,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       settings: (p as Player & { settings?: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean } }).settings
         ? { ...(p as Player & { settings: { autoSave: boolean; nightTintScale: number; hudScale: number; reduceMotion: boolean } }).settings }
         : undefined,
+      pickaxeTier: (p as Player & { pickaxeTier?: string }).pickaxeTier,
     },
     time: {
       day: game.time.day,
@@ -273,6 +276,9 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       hudScale: s.hudScale,
       reduceMotion: s.reduceMotion,
     };
+  }
+  if (snap.player.pickaxeTier) {
+    (p as Player & { pickaxeTier?: string }).pickaxeTier = snap.player.pickaxeTier;
   }
   // Tiles.
   for (let y = 0; y < snap.world.height; y++) {

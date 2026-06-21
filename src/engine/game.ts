@@ -148,6 +148,13 @@ import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
 import {
+  pickaxeTier,
+  pickaxeTierLabel,
+  pickaxeUpgradeCost,
+  upgradePickaxe,
+  weightedGemPick,
+} from '../game/pickaxe-upgrades';
+import {
   cursorPosition,
   drawFishingBar,
   gradeBonus,
@@ -958,7 +965,12 @@ export class Game {
           const grade = gradeStrike(cursor);
           this.strikeLockedCursor = cursor;
           this.strikeGrade = grade;
-          const gem = this.pickaxe.strike();
+          const rolled = this.pickaxe.strike();
+          // Pickaxe-tier bias: if the strike landed and the player has
+          // an upgraded pickaxe, re-roll using the tier weights so the
+          // gem distribution actually responds to the upgrade. We keep
+          // the inner roll in place so the state-machine stays clean.
+          const gem = rolled ? weightedGemPick(p) : null;
           if (gem) {
             const def = GEMS[gem];
             p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
@@ -1030,6 +1042,23 @@ export class Game {
             this.setToast(`${toolLabel(tool, out.tier)} is already the best tier.`);
           } else if (out.kind === 'not-enough-gold') {
             this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          }
+        }
+      }
+      // /  Upgrade the pickaxe at Maple's. wood -> copper -> iron -> gold -> diamond.
+      if (this.input.justPressed.has('/')) {
+        if (!this.isNearShop()) {
+          this.setToast('Stand by Maple\u2019s shop to upgrade the pickaxe.');
+        } else {
+          const cost = pickaxeUpgradeCost(p);
+          const out = upgradePickaxe(p);
+          if (out.kind === 'upgraded') {
+            if (cost) logGold(p, -cost, `${pickaxeTierLabel(out.to)} upgrade`, this.time.day);
+            this.setToast(`Upgraded to ${pickaxeTierLabel(out.to)} (-${cost ?? 0}g).`);
+          } else if (out.kind === 'max-tier') {
+            this.setToast(`${pickaxeTierLabel(out.tier)} is already the best tier.`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g for the next pickaxe (have ${out.have}g).`);
           }
         }
       }
