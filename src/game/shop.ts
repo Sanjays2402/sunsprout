@@ -27,12 +27,18 @@ import { AUTO_RESTOCK_KEY } from './auto-restock';
 import { EXTRACTOR_INVENTORY_KEY } from './seed-extractor';
 import { sprinklerInventoryKey } from './sprinklers';
 import { CROPS } from './crops';
+import type { TimeOfDay } from './time';
+import { discountedPrice, isMarketDealToday } from './weekday-market';
 
 /** A purchasable row exposed to the UI. */
 export interface ShopRow {
   key: string;
   label: string;
   price: number;
+  /** Base catalog price BEFORE any deal-of-the-day discount. */
+  basePrice: number;
+  /** True when this row is today's discounted deal. */
+  isDeal: boolean;
   /** Player-facing category for the menu sectioning. */
   category: ShopCategory;
   /** A one-line description shown under the row. */
@@ -106,23 +112,30 @@ function flavorFor(key: string): string {
 /**
  * Build the ordered list of purchasable rows for the menu. Items the
  * player already owns and which are singletons are dropped. Items with
- * no buyPrice (sell-only rows like harvests) are excluded.
+ * no buyPrice (sell-only rows like harvests) are excluded. When
+ * `time` is provided the daily market discount is applied to the
+ * matching row's displayed price; the deal flag flows through so the
+ * UI can flag it visually.
  */
-export function buildShopRows(player: Player): ShopRow[] {
+export function buildShopRows(player: Player, time?: TimeOfDay): ShopRow[] {
   const rows: ShopRow[] = [];
   for (const item of SHOP_ITEMS) {
     if (item.buyPrice == null) continue;
     if (SINGLETON_KEYS.has(item.key) && (player.inventory[item.key] ?? 0) > 0) continue;
+    const base = item.buyPrice;
+    const isDeal = time ? isMarketDealToday(time, item.key) : false;
+    const price = time ? discountedPrice(time, item.key, base) : base;
     rows.push({
       key: item.key,
       label: item.label,
-      price: item.buyPrice,
+      price,
+      basePrice: base,
+      isDeal,
       category: categoryFor(item.key),
       flavor: flavorFor(item.key),
     });
   }
-  // Stable sort: by category order, then by price ascending. Keeps the
-  // newer-added rows from jumping around as economy.ts evolves.
+  // Stable sort: by category order, then by (effective) price ascending.
   const catOrder = new Map<ShopCategory, number>();
   SHOP_CATEGORIES.forEach((c, i) => catOrder.set(c, i));
   rows.sort((a, b) => {

@@ -1701,7 +1701,7 @@ export class Game {
         // shop and Pip isn't grabbing the press first. Cart already
         // returned above, so reaching here means we're free to open.
         if (this.isNearShop()) {
-          this.shopMenu.open(p);
+          this.shopMenu.open(p, this.time);
           return;
         }
         // Village quest board — interact when standing adjacent.

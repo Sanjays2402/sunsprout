@@ -113,6 +113,8 @@ describe('buyShopItem', () => {
       key: COOP_INVENTORY_KEY,
       label: 'Chicken Coop',
       price: 600,
+      basePrice: 600,
+      isDeal: false,
       category: 'kits',
       flavor: '',
     };

@@ -19,6 +19,8 @@ import {
   type ShopCategory,
   type ShopRow,
 } from '../game/shop';
+import type { TimeOfDay } from '../game/time';
+import { marketBannerLine } from '../game/weekday-market';
 
 const PANEL_W = 620;
 const PANEL_H = 420;
@@ -44,10 +46,13 @@ export class ShopMenu {
   private lockoutMs = 0;
   private flash = '';
   private flashFade = 0;
+  /** Live time reference so the daily deal banner updates if the day flips. */
+  private time: TimeOfDay | null = null;
 
-  open(player: Player): void {
+  open(player: Player, time?: TimeOfDay): void {
     this.opened = true;
-    this.rows = buildShopRows(player);
+    this.time = time ?? null;
+    this.rows = buildShopRows(player, this.time ?? undefined);
     this.category = this.firstNonEmptyCategory() ?? 'seeds';
     this.index = this.firstRowIndex(this.category);
     this.lockoutMs = 180;
@@ -148,7 +153,7 @@ export class ShopMenu {
     if (out.kind === 'bought') {
       this.setFlash(`Bought ${out.row.label} (-${out.row.price}g)`);
       // Recompute rows so a singleton purchase vanishes from the list.
-      const refreshed = buildShopRows(player);
+      const refreshed = buildShopRows(player, this.time ?? undefined);
       this.rows = refreshed;
       // Keep the player on the same category; pick a sensible row.
       const stillThere = refreshed.find((r) => r.key === sel.key);
@@ -220,6 +225,18 @@ export class ShopMenu {
     ctx.font = 'bold 12px ui-monospace, monospace';
     ctx.fillText(`${player.gold}g`, x + PANEL_W - 18, y + 18);
 
+    // Daily-deal banner — sits just under the hint strip, gold text.
+    if (this.time) {
+      const banner = marketBannerLine(this.time);
+      if (banner) {
+        ctx.font = 'bold 11px ui-monospace, monospace';
+        ctx.fillStyle = GOLD;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(banner, x + 18, y + 50);
+      }
+    }
+
     // Tab strip.
     const tabsTop = y + 58;
     const tabH = 22;
@@ -273,8 +290,27 @@ export class ShopMenu {
       ctx.textBaseline = 'top';
       ctx.fillText(item.label, rowX + 10, rowY + 8);
       ctx.textAlign = 'right';
-      ctx.fillStyle = affordable ? GOLD : DIM;
-      ctx.fillText(`${item.price}g`, rowX + rowW - 10, rowY + 8);
+      if (item.isDeal) {
+        // Strike through the base price next to the discounted one.
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = DIM;
+        const baseLabel = `${item.basePrice}g`;
+        const baseW = ctx.measureText(baseLabel).width;
+        const baseX = rowX + rowW - 10 - ctx.measureText(`${item.price}g`).width - 6 - baseW;
+        ctx.fillText(baseLabel, baseX + baseW, rowY + 10);
+        // Line through.
+        ctx.fillRect(baseX, rowY + 14, baseW, 1);
+        ctx.font = 'bold 13px ui-monospace, monospace';
+        ctx.fillStyle = affordable ? GOLD : DIM;
+        ctx.fillText(`${item.price}g`, rowX + rowW - 10, rowY + 8);
+        // "DEAL" tag pinned to the row's top-right corner.
+        ctx.font = 'bold 9px ui-monospace, monospace';
+        ctx.fillStyle = TITLE_COLOR;
+        ctx.fillText('DEAL', rowX + rowW - 10, rowY - 4);
+      } else {
+        ctx.fillStyle = affordable ? GOLD : DIM;
+        ctx.fillText(`${item.price}g`, rowX + rowW - 10, rowY + 8);
+      }
 
       ctx.font = '11px ui-monospace, monospace';
       ctx.fillStyle = affordable ? TEXT : DIM;
