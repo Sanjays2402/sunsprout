@@ -142,6 +142,7 @@ import { tickAchievements } from '../game/achievements';
 import { AchievementsPanel } from '../ui/achievements-panel';
 import { logGold } from '../game/money-log';
 import { MoneyLogPanel } from '../ui/money-log-panel';
+import { QuestLogPanel } from '../ui/quest-log-panel';
 import { getSettings } from '../game/settings';
 import { SettingsPanel } from '../ui/settings-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
@@ -209,6 +210,8 @@ export class Game {
   public achievements: AchievementsPanel = new AchievementsPanel();
   /** Money log panel — toggled with `Q`. */
   public moneyLogPanel: MoneyLogPanel = new MoneyLogPanel();
+  /** Quest log panel — toggled with `'`. */
+  public questLogPanel: QuestLogPanel = new QuestLogPanel();
   /** Settings panel — toggled with `\\`. */
   public settingsPanel: SettingsPanel = new SettingsPanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
@@ -532,6 +535,7 @@ export class Game {
     this.cropJournal.update(dtMs);
     this.achievements.update(dtMs);
     this.moneyLogPanel.update(dtMs);
+    this.questLogPanel.update(dtMs);
     this.settingsPanel.update(dtMs);
     if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
 
@@ -629,6 +633,19 @@ export class Game {
       this.moneyLogPanel.toggle();
     } else if (this.moneyLogPanel.isVisible() && this.moneyLogPanel.canAct() && this.input.justPressed.has('escape')) {
       this.moneyLogPanel.close();
+    }
+
+    // ': toggle the quest log panel.
+    if (this.input.justPressed.has("'")) {
+      this.questLogPanel.toggle();
+    } else if (this.questLogPanel.isVisible() && this.questLogPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.questLogPanel.close();
+      } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
+        this.questLogPanel.scrollDown(this.world.player);
+      } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
+        this.questLogPanel.scrollUp();
+      }
     }
 
     // \: toggle the settings panel.
@@ -1413,6 +1430,7 @@ export class Game {
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
