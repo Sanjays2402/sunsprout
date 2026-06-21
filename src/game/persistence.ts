@@ -39,6 +39,7 @@ import { getDecor, type DecorState } from './decor';
 import { getSpouseState, type SpouseState } from './spouse';
 import { getBoard, type BoardState } from './board';
 import { getExtractor, type ExtractorState } from './seed-extractor';
+import { getTournament, type TournamentState } from './tournament';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -110,6 +111,8 @@ export interface SaveSnapshot {
     board?: BoardState;
     /** Seed extractor — usage counter drives alternating yields. */
     extractor?: ExtractorState;
+    /** Friendship tournament — per (season,kind) entry record. */
+    tournament?: TournamentState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -234,6 +237,13 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       extractor: (p as Player & { extractor?: ExtractorState }).extractor
         ? { uses: getExtractor(p).uses }
+        : undefined,
+      tournament: (p as Player & { tournament?: TournamentState }).tournament
+        ? {
+            entries: Object.fromEntries(
+              Object.entries(getTournament(p).entries).map(([k, v]) => [k, { ...v }]),
+            ),
+          }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -381,6 +391,14 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.extractor) {
     const cur = getExtractor(p);
     cur.uses = snap.player.extractor.uses;
+  }
+  // Friendship tournament — restore the entries map so re-entry on a
+  // reloaded save still flags 'already-entered' for past contests.
+  if (snap.player.tournament) {
+    const cur = getTournament(p);
+    cur.entries = Object.fromEntries(
+      Object.entries(snap.player.tournament.entries).map(([k, v]) => [k, { ...v }]),
+    );
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

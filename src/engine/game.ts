@@ -212,6 +212,12 @@ import {
   hasExtractor,
   runExtract,
 } from '../game/seed-extractor';
+import {
+  alreadyEntered,
+  enterTournament,
+  tournamentDawnLine,
+  tournamentOpen,
+} from '../game/tournament';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -548,6 +554,8 @@ export class Game {
       // Pip's cart — surface a dawn toast on the day he arrives so the
       // player knows to head over to the village square.
       const pipArrived = cartVisitToday(this.time);
+      // Friendship tournament — announce at dawn on the contest day.
+      const tournamentLine = tournamentDawnLine(this.time);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
@@ -578,11 +586,13 @@ export class Game {
                         ? ` (${inviteToastLine(newInvites[0])})`
                         : newInvites.length > 1
                           ? ` (${newInvites.length} hangout invites pending)`
-                          : pipArrived
-                            ? ` (${cartArrivalLine()})`
-                            : spouseGift.kind === 'gifted'
-                              ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
-                              : '';
+                          : tournamentLine
+                            ? ` (${tournamentLine})`
+                            : pipArrived
+                              ? ` (${cartArrivalLine()})`
+                              : spouseGift.kind === 'gifted'
+                                ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
+                                : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -1512,6 +1522,27 @@ export class Game {
           let handled = false;
           for (const b of this.world.buildings) {
             if (b.kind === 'well' && front.tx === b.x && front.ty === b.y) {
+              // Friendship tournament — when it's running, the well's
+              // E-press routes into the contest instead of the standard
+              // sell-all. Wins drop ribbons + gold; "no prize" still
+              // records the entry so the player can audit the season.
+              if (tournamentOpen(this.time) && !alreadyEntered(p, this.time)) {
+                const tOut = enterTournament(p, this.time);
+                if (tOut.kind === 'won') {
+                  logGold(p, tOut.gold, `tournament: ${tOut.label}`, this.time.day);
+                  this.setToast(
+                    `${tOut.label}: ${tOut.tier.toUpperCase()} ribbon! +${tOut.gold}g (score ${tOut.score}).`,
+                  );
+                  handled = true;
+                  break;
+                } else if (tOut.kind === 'entered-no-prize') {
+                  this.setToast(
+                    `${tOut.label}: entered (score ${tOut.score}). Bring more next season.`,
+                  );
+                  handled = true;
+                  break;
+                }
+              }
               const festBonus = cropSellMultiplier(this.time);
               const earned = sellAllHarvest(p, festBonus);
               const gemGold = sellAllGems(p);
