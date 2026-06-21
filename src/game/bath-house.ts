@@ -7,6 +7,12 @@
 // BATH_DURATION_DAYS days. After the buff expires the max returns to
 // MAX_STAMINA so a save loaded mid-buff doesn't lock the bonus in.
 //
+// Winter discount: in Winter (season index 3) the soak costs 25% less
+// (BATH_FEE * BATH_WINTER_DISCOUNT). The cozy-life intent is to nudge
+// the player toward visiting the bath house exactly when the farm is
+// quietest — outdoor crops are frozen, gold pressure is low, and a
+// warm soak feels appropriate.
+//
 // Design intent: a gentle late-game money sink. Once the player is
 // pulling 1000g+ a day from the well it's natural to spend 200g on a
 // soak — and the +30 stamina for a few days lets a long mining run or
@@ -18,6 +24,7 @@
 
 import type { Player } from '../world/world';
 import type { StaminaState } from './stamina';
+import type { TimeOfDay } from './time';
 import { getStamina, MAX_STAMINA } from './stamina';
 
 /** Tile-space coordinates of the bath house. Sits NE of the plaza. */
@@ -28,6 +35,10 @@ export const BATH_INTERACT_RADIUS = 1;
 
 /** Gold cost of one soak. */
 export const BATH_FEE = 200;
+/** Multiplier on BATH_FEE during Winter. 0.75 = 25% off. */
+export const BATH_WINTER_DISCOUNT = 0.75;
+/** Season index that triggers the winter discount. */
+export const BATH_WINTER_SEASON = 3;
 /** Extra stamina cap granted while the buff is active. */
 export const BATH_BONUS = 30;
 /** How many in-game days the buff lasts AFTER the dawn it was bought. */
@@ -66,36 +77,59 @@ export function bathDaysLeft(player: Player, day: number): number {
   return exp - day + 1;
 }
 
+/**
+ * Returns the actual cost of one soak right now. Applies the Winter
+ * discount when `time.season === BATH_WINTER_SEASON`, otherwise the
+ * base fee. Floor the result so the gold deduction stays an integer.
+ */
+export function bathPriceFor(time: TimeOfDay): number {
+  if (time.season === BATH_WINTER_SEASON) {
+    return Math.floor(BATH_FEE * BATH_WINTER_DISCOUNT);
+  }
+  return BATH_FEE;
+}
+
+/** True when the player would currently get the Winter price. */
+export function isWinterDiscountActive(time: TimeOfDay): boolean {
+  return time.season === BATH_WINTER_SEASON;
+}
+
 /** Outcome of an attempted soak. */
 export type BathOutcome =
-  | { kind: 'soaked'; remainingGold: number; daysLeft: number; bonus: number }
+  | { kind: 'soaked'; remainingGold: number; daysLeft: number; bonus: number; pricePaid: number; discounted: boolean }
   | { kind: 'too-far' }
   | { kind: 'not-enough-gold'; need: number; have: number }
   | { kind: 'already-active'; daysLeft: number };
 
 /**
- * Try to take a soak. Spends BATH_FEE gold, refreshes the buff timer to
- * BATH_DURATION_DAYS, lifts the stamina cap by BATH_BONUS, and tops the
- * current pool by the same amount (so the player feels the boost
- * immediately rather than waiting for tomorrow's dawn refill).
+ * Try to take a soak. Spends `bathPriceFor(time)` gold, refreshes the
+ * buff timer to BATH_DURATION_DAYS, lifts the stamina cap by
+ * BATH_BONUS, and tops the current pool by the same amount (so the
+ * player feels the boost immediately rather than waiting for
+ * tomorrow's dawn refill).
  *
  * Refuses with 'already-active' when the buff is already running —
  * keeps the player from accidentally double-spending on the same day.
+ *
+ * If no `time` is provided the price defaults to BATH_FEE (preserves
+ * the existing test contracts).
  */
 export function takeBath(
   player: Player,
   px: number,
   py: number,
   day: number,
+  time?: TimeOfDay,
 ): BathOutcome {
   if (!nearBath(px, py)) return { kind: 'too-far' };
   if (bathActive(player, day)) {
     return { kind: 'already-active', daysLeft: bathDaysLeft(player, day) };
   }
-  if (player.gold < BATH_FEE) {
-    return { kind: 'not-enough-gold', need: BATH_FEE, have: player.gold };
+  const price = time ? bathPriceFor(time) : BATH_FEE;
+  if (player.gold < price) {
+    return { kind: 'not-enough-gold', need: price, have: player.gold };
   }
-  player.gold -= BATH_FEE;
+  player.gold -= price;
   // Apply the buff. Expiry sits on (today + duration - 1) so the soak
   // covers today AND the next (duration-1) days. Lift the cap, then
   // top the pool by the same amount so the player feels it now.
@@ -109,6 +143,8 @@ export function takeBath(
     remainingGold: player.gold,
     daysLeft: BATH_DURATION_DAYS,
     bonus: BATH_BONUS,
+    pricePaid: price,
+    discounted: time ? isWinterDiscountActive(time) : false,
   };
 }
 
@@ -133,7 +169,8 @@ export function maybeExpireBath(player: Player, day: number): boolean {
 /** Short HUD line for the toast surfaced after a fresh soak. */
 export function bathFlavorLine(out: Extract<BathOutcome, { kind: 'soaked' }>): string {
   const plural = out.daysLeft === 1 ? '' : 's';
-  return `Soaked at the bath house. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
+  const winterTag = out.discounted ? ' (winter rate)' : '';
+  return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
 }
 
 // ---------------------------------------------------------------------

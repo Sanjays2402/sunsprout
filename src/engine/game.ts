@@ -1895,9 +1895,10 @@ export class Game {
         }
         // Bath house — a soak lifts the stamina cap for a few days.
         if (nearBath(px, py)) {
-          const out = takeBath(p, px, py, this.time.day);
+          const out = takeBath(p, px, py, this.time.day, this.time);
           if (out.kind === 'soaked') {
-            logGold(p, -200, 'bath house: soak', this.time.day);
+            const tag = out.discounted ? 'bath house: soak (winter)' : 'bath house: soak';
+            logGold(p, -out.pricePaid, tag, this.time.day);
             this.setToast(bathFlavorLine(out));
           } else if (out.kind === 'already-active') {
             this.setToast(`Already soaked — buff lasts ${out.daysLeft} more day${out.daysLeft === 1 ? '' : 's'}.`);
