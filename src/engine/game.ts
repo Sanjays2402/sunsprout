@@ -195,6 +195,9 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { ShopMenu } from '../ui/shop-menu';
+import { BenchMenu } from '../ui/bench-menu';
+import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
+import { drawBenchSprite } from '../render/bench-sprite';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -283,6 +286,8 @@ export class Game {
   public cartMenu: CartMenu = new CartMenu();
   /** Maple's shop menu — opened with E when standing adjacent to the shop. */
   public shopMenu: ShopMenu = new ShopMenu();
+  /** Carpenter's bench menu — opened with E when standing next to the bench. */
+  public benchMenu: BenchMenu = new BenchMenu();
   /** Lore / bestiary panel — toggled with backtick. */
   public lorePanel: LorePanel = new LorePanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
@@ -656,6 +661,7 @@ export class Game {
     this.chestMenu.update(dtMs);
     this.cartMenu.update(dtMs);
     this.shopMenu.update(dtMs);
+    this.benchMenu.update(dtMs);
     this.lorePanel.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
@@ -707,7 +713,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1190,6 +1196,28 @@ export class Game {
           }
         }
       }
+    } else if (this.benchMenu.isVisible()) {
+      // Carpenter's bench input — same gating as the shop menu.
+      if (this.benchMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has('e')) {
+          this.benchMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.benchMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.benchMenu.selectNext();
+        } else if (i.has('enter') || i.has(' ')) {
+          const out = this.benchMenu.confirm(this.world.player);
+          if (out.kind === 'crafted') {
+            logGold(this.world.player, -out.recipe.gold, `bench: ${out.recipe.label}`, this.time.day);
+            this.setToast(`Crafted ${out.recipe.label}.`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          } else if (out.kind === 'not-enough-gems') {
+            this.setToast(`Need ${out.need}x ${out.gemKey} (have ${out.have}).`);
+          }
+        }
+      }
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
@@ -1480,6 +1508,13 @@ export class Game {
           this.cartMenu.open();
           return;
         }
+        // Carpenter's bench — same priority tier as cart; the bench
+        // sits a few tiles south of Maple's shop so it's a separate
+        // interactable target.
+        if (nearBench(px, py)) {
+          this.benchMenu.open();
+          return;
+        }
         // Maple's shop menu — opens when the player stands beside the
         // shop and Pip isn't grabbing the press first. Cart already
         // returned above, so reaching here means we're free to open.
@@ -1721,6 +1756,14 @@ export class Game {
       const { sx, sy } = this.camera.worldToScreen(wx, wy);
       drawCartSprite(this.ctx, sx, sy, TILE_SIZE);
     }
+    // Carpenter's bench — always visible in the village square so
+    // players can find it any time.
+    {
+      const wx = BENCH_X * TILE_SIZE + TILE_SIZE / 2;
+      const wy = BENCH_Y * TILE_SIZE + TILE_SIZE / 2;
+      const { sx, sy } = this.camera.worldToScreen(wx, wy);
+      drawBenchSprite(this.ctx, sx, sy, TILE_SIZE);
+    }
     // Village quest board — always visible just south of the well.
     {
       const wx = BOARD_X * TILE_SIZE + TILE_SIZE / 2;
@@ -1832,6 +1875,7 @@ export class Game {
     this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.benchMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
