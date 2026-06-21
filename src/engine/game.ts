@@ -253,6 +253,7 @@ import {
   pondStatusLine,
   pondTick,
 } from '../game/fish-pond';
+import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
 import {
@@ -1710,20 +1711,29 @@ export class Game {
           if (canTurnIn(p, this.time)) {
             const out = turnIn(p, this.time);
             if (out.kind === 'completed') {
-              logGold(p, out.goldEarned, `board: ${out.quest.label}`, this.time.day);
+              // Apply the reputation multiplier so the player receives
+              // the boosted payout. turnIn() already credited the base
+              // reward; we top up by the bonus delta + log both parts.
+              const rep = applyRepBonus(p, out.quest);
+              if (rep.bonus > 0) {
+                p.gold += rep.bonus;
+                logGold(p, rep.bonus, `board rep ${rep.tier.label} bonus`, this.time.day);
+              }
+              logGold(p, rep.baseGold, `board: ${out.quest.label}`, this.time.day);
               const tail =
                 out.quest.rewardItems && out.quest.rewardItems.length > 0
                   ? ` + ${out.quest.rewardItems
                       .map((r) => `${r.count} ${r.key.replace('_harvest', '')}`)
                       .join(', ')}`
                   : '';
-              this.setToast(`Board cleared: ${out.quest.label} +${out.goldEarned}g${tail}`);
+              const bonusTag = rep.bonus > 0 ? ` (+${rep.bonus}g ${rep.tier.label} bonus)` : '';
+              this.setToast(`Board cleared: ${out.quest.label} +${rep.boosted}g${tail}${bonusTag}`);
               return;
             }
           }
           const prog = boardProgress(p, this.time);
           this.setToast(
-            `Board: ${posted.label} (${prog.have}/${prog.need}). +${posted.rewardGold}g.`,
+            `Board: ${posted.label} (${prog.have}/${prog.need}). +${posted.rewardGold}g. ${repBannerLine(p)}`,
           );
           return;
         }
