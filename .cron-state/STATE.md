@@ -4,19 +4,22 @@
 
 ## STATUS
 
-**STATUS:** Tick #7 complete. 35 autoship features now on `feature/autoship`. This batch shipped farmhouse decor (wallpaper + floors at Pip's cart), NPC marriage move-in with daily gifts, a quest-of-the-week notice board south of the well, the seed extractor for crop->seed recycling, and a once-a-season friendship tournament. 910/910 tests green (+75 this tick); build 185.75 kB / 56.90 kB gz.
+**STATUS:** Tick #8 complete. 40 autoship features now on `main`. This batch shipped the Maple shop UI (closes the dev-console-only kit-buy gap), the carpenter's bench (mining-gem sink), the scarecrow placeable, fancy egg yields with a deluxe coop upgrade, and the owl post courier service (last open roadmap item). 981/981 tests green (+71 this batch); build 207.24 kB / 62.07 kB gz.
 
-Active branch: `feature/autoship`
-Default branch: `main` (NEVER push to it from cron)
+**IMPORTANT WORKFLOW CHANGE:** As of this tick, the prompt commits DIRECTLY to `main` and pushes to `origin/main`, NOT to `feature/autoship`. Previous ticks used `feature/autoship`; that branch was merged into main in commit 1ef1e5e and is no longer used. The quality gate (`npx tsc --noEmit && npm run build && npm test`) at end of batch is what protects main — never push red code.
+
+Active branch: `main`
+Default branch: `main` (push here every tick — contribution graph)
 Cron identity: `Cake (cron) <51058514+Sanjays2402@users.noreply.github.com>`
 
 ## OPERATING RULES (do not violate)
 
-1. Work on `feature/autoship` only. No merges to main. No PRs (`gh pr create` BANNED). No tags. No `gh release`.
-2. No emoji in any git artifact (commit messages, branch names, file contents touched by cron). Telegram delivery may use emoji.
-3. One feature slice = one commit. ~5 commits per tick.
-4. Gate ONCE per batch at the end (`npx tsc --noEmit`, `npm run build`, `npm test`). Push only if green.
-5. Quality is the floor. If only 3 features are genuinely solid, ship 3 and say so. Never pad.
+1. Work on `main`. Commit directly to main and push to origin/main every tick.
+2. No PRs (`gh pr create` BANNED). No tags. No `gh release`.
+3. No emoji in any git artifact (commit messages, branch names, file contents touched by cron). Telegram delivery may use emoji.
+4. One feature slice = one commit. ~5 commits per tick.
+5. Gate ONCE per batch at the end (`npx tsc --noEmit`, `npm run build`, `npm test`). Push only if green.
+6. Quality is the floor. If only 3 features are genuinely solid, ship 3 and say so. Never pad.
 
 ## ROADMAP (cozy-life essentials + depth)
 
@@ -57,16 +60,36 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [x] **Quest-of-the-week board** — village notice board south of the well posts one rotating fetch quest per season; E reads / turns in; nine catalogued tasks. (332b335)
 - [x] **Seed extractor** — Maple sells a 350g kit; L consumes one of the largest harvest stack and grants 1-2 seeds of the same crop (deterministic alternating yield). (f0fb391)
 - [x] **Friendship tournament** — day 6 of every season the village runs a contest at the well (flower show / fishing derby / harvest weigh-in / cook-off); bronze/silver/gold ribbons + gold prizes; one entry per season. (487425a)
-- [ ] **Carpenter's bench** — buyable; opens a craft menu that turns harvested wood + gems into new placeables (lantern variants, scarecrow, fence).
-- [ ] **Outdoor scarecrow** — placeable that grants the crops within a 3-tile radius a +1 quality nudge at harvest time.
-- [ ] **Animal yield variety** — chickens occasionally lay a "fancy egg" worth 3x; coop quality tier upgrade unlocks it.
-- [ ] **Owl post** — bird-courier sells a one-shot "send gift now" service so the player can gift NPCs without crossing the village.
+- [x] **Maple's Shop menu** — adjacent to the shop, E opens a tabbed (Seeds/Kits/Tickets/Misc) buy menu built from SHOP_ITEMS; singletons drop off the list once owned; closes the dev-console-only-buy gap that blocked half the kits. (0fcb284)
+- [x] **Carpenter's bench** — village fixture south-east of the well; E opens a craft menu; scarecrow / brass lantern / stone fence / coop deluxe upgrade recipes turn gold + mid-tier gems into placeables. (70e3e88)
+- [x] **Outdoor scarecrow** — crafted at the bench; { keybind plants on a grass tile next to your field; crops within Chebyshev 3 ripen one tier higher at harvest (normal->silver, silver->gold). (48806fb)
+- [x] **Animal yield variety (fancy eggs)** — chickens roll for a fancy egg each dawn at 8% basic / 18% deluxe; fancy eggs sell at 3x; `}` applies a Coop Deluxe Upgrade Kit (700g + 2 iron) crafted at the bench. (1c41787)
+- [x] **Owl post** — `~` near the farmhouse opens the owl menu; pay 40g to dispatch the village owl with your best gift for the chosen candidate; honors the per-day gift gate and never charges on a failed send. (e93a9b5)
+
+### Next ideas (refilled — pick the next 5 here)
+
+- [ ] **Bath house** — late-game village fixture; small fee for a stamina-cap bonus that decays after a few days.
+- [ ] **Fish pond at the farm** — placeable; stocks one fish species; daily yield + per-species quirks.
+- [ ] **Crop ribbon journal** — track the heaviest single-day harvest per crop; surface in the journal panel.
+- [ ] **Weekday market schedule** — village stalls open on specific days with rotating wares (one-off seeds, single-day discounts).
+- [ ] **Animal happiness** — pet your chickens / dog / cat daily; happiness adds to egg quality / dog tip / cat tip; persists.
+- [ ] **Seasonal storm event** — once a season a storm hits; outdoor crops lose a water-streak day; greenhouse safe.
+- [ ] **Town board reputation** — each successful board turn-in adds a rep point; cumulative milestones unlock new board quest tiers.
+- [ ] **NPC moveable schedules** — NPCs walk between two waypoints across the day; gives the village a heartbeat.
+- [ ] **Hatchery** — a fancy egg can be incubated 5 days into a new chicken; consumes the egg.
+- [ ] **Mining cart return** — visible cart on the mine entrance counts gems carried home this run; reset on sleep.
+- [ ] **Crop dyes** — pumpkin -> orange dye, flower -> red dye at the bench; tints player tunic cosmetic.
+- [ ] **Roving merchant rumor** — Pip drops a "new item next season" hint that becomes the next visit's headliner.
+- [ ] **Late-night fishing perk** — fishing between 22-04h biases toward rare fish (trout/pike).
+- [ ] **Stamina-tea cookbook** — three new tea recipes that combine forage + dish keys for tiered stamina restoration.
+- [ ] **Weather forecast accuracy upgrade** — buyable barometer (300g) at Pip's cart that reveals two days ahead instead of one.
+- [ ] **Festival cosmetic ribbon** — winning a friendship tournament awards a cosmetic ribbon visible on the player avatar.
 
 ## OPEN BLOCKERS
 
-(none, but two recurring observations:
- 1. KEY BINDINGS ARE EXTREMELY TIGHT. New singletons added this tick: `L` (seed extractor). Letter keys still free: most numerics, F-keys, `{` `}` `~` and a few odd chars. Future panels MUST share a single panel-toggle key cycling through panels.
- 2. NO SHOP UI EXISTS. SHOP_ITEMS in economy.ts is a catalog the codex can read, but there's no in-game way for the player to spend gold at Maple's beyond the upgrade hotkeys (,/.=/`/`). Every "Buy from Maple" toast currently points at a vaporware purchase path. Worth a dedicated tick to add a shop menu modal — without it, half the buyable items the game references (Coop Kit, Chest Kit, Greenhouse Kit, Auto-Restock Kit, Seed Extractor, Chickens, Bouquets, Dog/Cat tickets) can only be obtained via dev-console tweaks. Recommend Sanjay queue this as the next user-facing priority.)
+(none. Two recurring observations:
+ 1. KEY BINDINGS ARE EXTREMELY TIGHT. New singletons added this tick: `{` (scarecrow place), `}` (coop deluxe apply), `~` (owl post). The free chars left are basically `0` (digit-zero conflicts with hotbar), `2`, `3`, `4`, `6`, `7`, `8`, `9` (hotbar 1-9 already), `<`, `>`, `?`. Future panels MUST share a single panel-toggle key cycling through panels — every new singleton makes onboarding worse.
+ 2. PERSISTENCE FANCY EGGS / COOP TIER. PlacedCoop now optionally carries `fancyEggs` and `tier` fields. The existing persistence.ts snapshot uses `{ ...c }` spread on coops which preserves both fields transparently — but I didn't add a typed field to the CoopSnapshot interface. Older v1 saves restore tier=undefined / fancyEggs=undefined which read as 'basic' / 0 via the `?? 'basic'` and `?? 0` guards in coopTick + sellAllEggs. Worth a follow-up tick to formalize the CoopSnapshot schema, but functionally complete.)
 
 ## TICK LOG
 
@@ -78,3 +101,4 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - 2026-06-20 18:08 PT — 5/5 shipped: winter (7589e6d), pickaxe (18f6028), quest-log (7d376af), hangouts (9b0e148), farm-cat (a57147b). 763/763 tests green (+66). Build 154.80 kB / 47.68 kB gz. New keybinds: /=pickaxe upgrade, '=quest log, -=adopt/pet cat. Also added Hot Cocoa to the cookbook; Recipe Collector achievement now references RECIPE_KEYS.length instead of a hardcoded 10.
 - 2026-06-20 21:17 PT — 5/5 shipped: rod-upgrades (e36f20d), stamina (1897764), cart (991bbbc), auto-restock (c3331d4), lore (2d0a556). 835/835 tests green (+72). Build 171.78 kB / 52.10 kB gz. New keybinds: ==rod upgrade at Maple's, Z=sip best drink, `=lore panel. Cart parks at (16,9) on day 3 of every season 09-18h; E opens the menu. Auto-restock kit hooks into the dawn rollover and the plant verb; lore panel reads inventory live (no separate unlock state). Also extended fishing.ts Rod to accept per-cast bite-window + fish-picker overrides, kept fully backward-compatible.
 - 2026-06-20 23:48 PT — 5/5 shipped: decor (78d5e68), spouse (8527af9), board (332b335), seed-extractor (f0fb391), tournament (487425a). 910/910 tests green (+75). Build 185.75 kB / 56.90 kB gz. New keybind: L=seed extractor. New world fixtures: notice board sprite at (19,11); decor palette retints farmhouse only; tournament uses well E-press during day-6 14-18h. Spouse overrides NPC schedule and replaces dialogue with a private greeting. Persistence wired for all five (decor/spouse/board/extractor/tournament). Open issue surfaced: SHOP_ITEMS exists but no shop UI -- buyable items only landable via dev console; recommend a shop modal as the next priority tick.
+- 2026-06-21 03:12 PT — 5/5 shipped: shop (0fcb284), bench (70e3e88), scarecrow (48806fb), fancy-eggs (1c41787), owl-post (e93a9b5). 981/981 tests green (+71). Build 207.24 kB / 62.07 kB gz. WORKFLOW CHANGE: this tick commits directly to `main` (origin/main); previous ticks merged feature/autoship. New world fixtures: carpenter's bench at (22,9). New keybinds: { (scarecrow place), } (coop deluxe apply), ~ (owl post at farmhouse). Maple's shop modal closes the longstanding "buy from Maple" vaporware path -- all SHOP_ITEMS are now reachable in-game. Scarecrow boost runs INSIDE farming.harvest() so it stacks on the streak-derived quality without touching streak math. Fancy egg yield uses a deterministic per-(coop,day,chicken) hash so reload-scumming doesn't work; deluxe upgrade lifts the rate from 8% to 18%. Owl post fee (40g) only deducts on confirmed delivery so wasted presses are harmless.
