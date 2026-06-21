@@ -26,6 +26,7 @@ import type { Engagement } from './engagement';
 import type { Marriage } from './marriage';
 import type { Quest } from './quests';
 import { getSprinklers, type PlacedSprinkler } from './sprinklers';
+import { getScarecrows, type PlacedScarecrow } from './scarecrow';
 import { getForage, type PlacedForage } from './forage';
 import { getCoops, type PlacedCoop } from './coop';
 import { defaultDogState, getDog, type FarmDogState } from './farm-dog';
@@ -126,6 +127,7 @@ export interface SaveSnapshot {
     tiles: TileSnapshot[][];
     crops: CropSnapshot[];
     sprinklers: PlacedSprinkler[];
+    scarecrows?: PlacedScarecrow[];
     forage?: PlacedForage[];
     coops?: PlacedCoop[];
     dog?: FarmDogState;
@@ -264,6 +266,7 @@ export function serializeGame(game: Game): SaveSnapshot {
       tiles,
       crops,
       sprinklers: getSprinklers(game.world).map((s) => ({ ...s })),
+      scarecrows: getScarecrows(game.world).map((s) => ({ ...s })),
       forage: getForage(game.world).map((f) => ({ ...f })),
       coops: getCoops(game.world).map((c) => ({ ...c })),
       dog: { ...getDog(game.world) },
@@ -441,6 +444,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   sprList.length = 0;
   for (const s of snap.world.sprinklers ?? []) {
     sprList.push({ ...s });
+  }
+  // Scarecrows — forward-compat default for older saves.
+  const scarecrowList = getScarecrows(game.world);
+  scarecrowList.length = 0;
+  for (const s of snap.world.scarecrows ?? []) {
+    scarecrowList.push({ ...s });
   }
   // Forage — same forward-compat story; older v1 saves predate the
   // forage list and round-trip cleanly with an empty array.

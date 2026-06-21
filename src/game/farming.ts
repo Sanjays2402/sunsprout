@@ -13,6 +13,7 @@
 import type { World, Player, Crop as RenderCrop, Tile } from '../world/world';
 import { CROPS } from './crops';
 import { qualityFromStreak, harvestKey, type CropQuality } from './crop-quality';
+import { scarecrowBoost } from './scarecrow';
 
 /** Gameplay crop instance stored in `world.crops`. */
 export interface FarmCrop {
@@ -167,9 +168,13 @@ export function harvest(
     world.tiles[ty][tx] = { type: 'tilled', variant: tile.variant };
   }
   const quality = qualityFromStreak(c.waterStreak ?? 0, catalog.growthStages);
-  const key = harvestKey(c.crop, quality);
+  // Scarecrows in range nudge the resolved tier up by one (normal ->
+  // silver, silver -> gold; gold stays gold). Keeps the streak logic
+  // pristine while letting placeable scarecrows pay off at harvest.
+  const finalQuality = scarecrowBoost(world, tx, ty, quality);
+  const key = harvestKey(c.crop, finalQuality);
   player.inventory[key] = (player.inventory[key] ?? 0) + 1;
-  return quality;
+  return finalQuality;
 }
 
 /**

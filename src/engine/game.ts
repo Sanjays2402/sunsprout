@@ -198,6 +198,12 @@ import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
 import { drawBenchSprite } from '../render/bench-sprite';
+import {
+  SCARECROW_INVENTORY_KEY,
+  drawScarecrowSprite,
+  getScarecrows,
+  placeScarecrow,
+} from '../game/scarecrow';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -1067,6 +1073,22 @@ export class Game {
       }
     }
 
+    // {: plant a crafted scarecrow on the grass tile in front of you.
+    // The bracket key was free; we keep the matching `}` available for
+    // a future "pack up scarecrow" action.
+    if (this.input.justPressed.has('{')) {
+      const front = this.tileInFront();
+      const have = p.inventory[SCARECROW_INVENTORY_KEY] ?? 0;
+      if (have <= 0) {
+        this.setToast('Craft a Scarecrow at the bench first.');
+      } else if (placeScarecrow(this.world, front.tx, front.ty)) {
+        p.inventory[SCARECROW_INVENTORY_KEY] = have - 1;
+        this.setToast('Scarecrow planted. Nearby crops will harvest a tier higher.');
+      } else {
+        this.setToast('Need a clear grass tile in front of you.');
+      }
+    }
+
     // Dialogue dismiss
     if (this.sleepSummary.isVisible()) {
       // Sleep summary takes priority — it locks the world. Wait until it's
@@ -1763,6 +1785,13 @@ export class Game {
       const wy = BENCH_Y * TILE_SIZE + TILE_SIZE / 2;
       const { sx, sy } = this.camera.worldToScreen(wx, wy);
       drawBenchSprite(this.ctx, sx, sy, TILE_SIZE);
+    }
+    // Scarecrows — render every placed scarecrow over its grass tile.
+    for (const s of getScarecrows(this.world)) {
+      const wx = s.tx * TILE_SIZE + TILE_SIZE / 2;
+      const wy = s.ty * TILE_SIZE + TILE_SIZE / 2;
+      const { sx, sy } = this.camera.worldToScreen(wx, wy);
+      drawScarecrowSprite(this.ctx, sx, sy);
     }
     // Village quest board — always visible just south of the well.
     {
