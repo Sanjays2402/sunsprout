@@ -19,6 +19,8 @@
 import type { Player } from '../world/world';
 import { CROPS } from './crops';
 import { FISH, type FishKey } from './fish';
+import { FORAGE } from './forage';
+import { EGG_SELL_PRICE } from './coop';
 
 /** Identifier keys for every dish the player can produce. */
 export type DishKey =
@@ -26,7 +28,13 @@ export type DishKey =
   | 'pumpkin-soup'
   | 'fish-chowder'
   | 'veggie-medley'
-  | 'sunsprout-feast';
+  | 'sunsprout-feast'
+  | 'farm-omelet'
+  | 'pumpkin-custard'
+  | 'mushroom-skillet'
+  | 'berry-tart'
+  | 'herb-tea'
+  | 'hot-cocoa';
 
 /** One required ingredient line: an inventory key + how many to consume. */
 export interface Ingredient {
@@ -106,6 +114,66 @@ export const RECIPES: Record<DishKey, Recipe> = {
     ],
     sellPrice: 200, // raw: 128 → +72 markup
   },
+  // ---- Egg + forage tier (post-coop, post-forage) ----
+  'farm-omelet': {
+    key: 'farm-omelet',
+    name: 'Farm Omelet',
+    flavor: 'Two fresh eggs folded over a ripe tomato.',
+    ingredients: [
+      { key: 'egg', count: 2 },
+      { key: 'tomato_harvest', count: 1 },
+    ],
+    sellPrice: 80, // raw: 12*2 + 25 = 49 → +31 markup
+  },
+  'pumpkin-custard': {
+    key: 'pumpkin-custard',
+    name: 'Pumpkin Custard',
+    flavor: 'Slow-baked pumpkin with three sweet eggs.',
+    ingredients: [
+      { key: 'egg', count: 3 },
+      { key: 'pumpkin_harvest', count: 1 },
+    ],
+    sellPrice: 180, // raw: 12*3 + 80 = 116 → +64 markup
+  },
+  'mushroom-skillet': {
+    key: 'mushroom-skillet',
+    name: 'Mushroom Skillet',
+    flavor: 'Forest mushrooms sizzled with two farm-fresh eggs.',
+    ingredients: [
+      { key: 'egg', count: 2 },
+      { key: 'forage-mushroom', count: 2 },
+    ],
+    sellPrice: 75, // raw: 24 + 18 = 42 → +33 markup
+  },
+  'berry-tart': {
+    key: 'berry-tart',
+    name: 'Berry Tart',
+    flavor: 'Wild berries on a wheat-flour crust. Glossy red.',
+    ingredients: [
+      { key: 'forage-berry', count: 3 },
+      { key: 'wheat_harvest', count: 1 },
+      { key: 'egg', count: 1 },
+    ],
+    sellPrice: 65, // raw: 18 + 8 + 12 = 38 → +27 markup
+  },
+  'herb-tea': {
+    key: 'herb-tea',
+    name: 'Sage Tea',
+    flavor: 'Two sprigs steeped in well water. Quiet evenings.',
+    ingredients: [{ key: 'forage-herb', count: 2 }],
+    sellPrice: 22, // raw: 8 → +14 markup
+  },
+  // ---- Winter comfort tier ----
+  'hot-cocoa': {
+    key: 'hot-cocoa',
+    name: 'Hot Cocoa',
+    flavor: 'Two eggs whipped with milk and a wheat-flour crust. Winter staple.',
+    ingredients: [
+      { key: 'egg', count: 2 },
+      { key: 'wheat_harvest', count: 1 },
+    ],
+    sellPrice: 55, // raw: 12*2 + 8 = 32 -> +23 markup
+  },
 };
 
 /** All recipe keys in catalog order — useful for the future cooking menu. */
@@ -143,6 +211,11 @@ export function rawSellValue(key: string): number {
     const fishKey = key.slice('fish-'.length) as FishKey;
     return FISH[fishKey]?.sellPrice ?? 0;
   }
+  if (key.startsWith('forage-')) {
+    const kind = key.slice('forage-'.length) as keyof typeof FORAGE;
+    return FORAGE[kind]?.sellPrice ?? 0;
+  }
+  if (key === 'egg') return EGG_SELL_PRICE;
   return 0;
 }
 

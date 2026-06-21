@@ -20,6 +20,8 @@ import {
   type GiftResult,
   type GiftTaste,
 } from './hearts';
+import type { TimeOfDay } from './time';
+import { giftMultiplier } from './birthdays';
 
 /** Outcome of an auto-gift attempt — drives the toast string in game.ts. */
 export type GiftOutcome =
@@ -72,11 +74,15 @@ export function pickBestGift(
  * Attempt an auto-gift to a candidate. Decrements the chosen item from
  * the player's inventory on success. The caller is responsible for the
  * toast / dialogue feedback.
+ *
+ * Pass `time` to apply the birthday multiplier (8x on the candidate's
+ * birthday). When omitted, the gift carries no bonus.
  */
 export function attemptAutoGift(
   player: Player,
   npcId: string,
   day: number,
+  time?: TimeOfDay,
 ): GiftOutcome {
   if (!CANDIDATES[npcId]) return { kind: 'not-candidate' };
   if (!player.hearts) return { kind: 'not-candidate' };
@@ -87,7 +93,8 @@ export function attemptAutoGift(
   }
   const key = pickBestGift(player.inventory, npcId);
   if (!key) return { kind: 'no-items' };
-  const result = giveGift(player.hearts, npcId, key, day);
+  const mult = time ? giftMultiplier(npcId, time) : 1;
+  const result = giveGift(player.hearts, npcId, key, day, mult);
   if (!result.accepted) {
     // Shouldn't happen because we gated above, but stay safe.
     return { kind: 'already-today' };

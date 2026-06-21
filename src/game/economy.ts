@@ -12,6 +12,24 @@ import type { Player } from '../world/world';
 import { CROPS } from './crops';
 import { GEMS, GEM_KEYS, gemInventoryKey } from './gems';
 import { BOUQUET_KEY, BOUQUET_PRICE } from './hearts';
+import { SPRINKLERS, SPRINKLER_KEYS, sprinklerInventoryKey } from './sprinklers';
+import { FORAGE, FORAGE_KEYS, forageInventoryKey, sellAllForage } from './forage';
+import {
+  COOP_PRICE,
+  COOP_INVENTORY_KEY,
+  EGG_INVENTORY_KEY,
+  EGG_SELL_PRICE,
+  CHICKEN_PRICE,
+  sellAllEggs,
+} from './coop';
+import { DOG_PRICE, DOG_TICKET_KEY } from './farm-dog';
+import { CAT_PRICE, CAT_TICKET_KEY } from './farm-cat';
+import { GREENHOUSE_INVENTORY_KEY, GREENHOUSE_PRICE } from './greenhouse';
+import { CHEST_INVENTORY_KEY, CHEST_PRICE } from './chest';
+import { AUTO_RESTOCK_KEY, AUTO_RESTOCK_PRICE } from './auto-restock';
+import { EXTRACTOR_INVENTORY_KEY, EXTRACTOR_PRICE } from './seed-extractor';
+import { parseHarvestKey, QUALITY_MULTIPLIER } from './crop-quality';
+export { sellAllForage, sellAllEggs };
 
 /** A row in the village shop. Either a seed (buy) or a harvest (sell). */
 export interface ShopItem {
@@ -38,12 +56,107 @@ export const SHOP_ITEMS: ShopItem[] = (() => {
       buyPrice: null,
       sellPrice: crop.sellPrice,
     });
+    // Star tiers — same crop, premium prices. Listed so the shop UI
+    // and any quest-y "what does this sell for" lookup can find them.
+    items.push({
+      key: `${key}_harvest_silver`,
+      label: `${crop.name} (silver)`,
+      buyPrice: null,
+      sellPrice: Math.floor(crop.sellPrice * 1.5),
+    });
+    items.push({
+      key: `${key}_harvest_gold`,
+      label: `${crop.name} (gold)`,
+      buyPrice: null,
+      sellPrice: crop.sellPrice * 2,
+    });
   }
   // Courtship bouquet — buyable token of affection (v0.5.0).
   items.push({
     key: BOUQUET_KEY,
     label: 'Bouquet',
     buyPrice: BOUQUET_PRICE,
+    sellPrice: null,
+  });
+  // Sprinklers — placeable irrigation, automates morning watering.
+  for (const k of SPRINKLER_KEYS) {
+    const def = SPRINKLERS[k];
+    items.push({
+      key: sprinklerInventoryKey(k),
+      label: def.name,
+      buyPrice: def.buyPrice,
+      sellPrice: null,
+    });
+  }
+  // Forage — also surfaced in the shop so the player can sell-back at
+  // the catalog price when they don't want to walk to the well.
+  for (const k of FORAGE_KEYS) {
+    const def = FORAGE[k];
+    items.push({
+      key: forageInventoryKey(k),
+      label: def.name,
+      buyPrice: null,
+      sellPrice: def.sellPrice,
+    });
+  }
+  // Coop kit + chickens + eggs — animal economy.
+  items.push({
+    key: COOP_INVENTORY_KEY,
+    label: 'Chicken Coop',
+    buyPrice: COOP_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: 'chicken',
+    label: 'Chicken',
+    buyPrice: CHICKEN_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: EGG_INVENTORY_KEY,
+    label: 'Egg',
+    buyPrice: null,
+    sellPrice: EGG_SELL_PRICE,
+  });
+  // Farm dog ticket — redeem at the farmhouse via the J keybind.
+  items.push({
+    key: DOG_TICKET_KEY,
+    label: 'Farm Dog Ticket',
+    buyPrice: DOG_PRICE,
+    sellPrice: null,
+  });
+  // Kitten ticket — redeem at the farmhouse via the - keybind.
+  items.push({
+    key: CAT_TICKET_KEY,
+    label: 'Kitten Ticket',
+    buyPrice: CAT_PRICE,
+    sellPrice: null,
+  });
+  // Greenhouse kit — place onto a 3x3 grass footprint via the U keybind.
+  items.push({
+    key: GREENHOUSE_INVENTORY_KEY,
+    label: 'Greenhouse Kit',
+    buyPrice: GREENHOUSE_PRICE,
+    sellPrice: null,
+  });
+  // Chest kit — place an extra cellar chest with the X keybind.
+  items.push({
+    key: CHEST_INVENTORY_KEY,
+    label: 'Chest Kit',
+    buyPrice: CHEST_PRICE,
+    sellPrice: null,
+  });
+  // Auto-restock kit — Maple keeps your last-planted seed topped up at dawn.
+  items.push({
+    key: AUTO_RESTOCK_KEY,
+    label: 'Auto-Restock Kit',
+    buyPrice: AUTO_RESTOCK_PRICE,
+    sellPrice: null,
+  });
+  items.push({
+    key: EXTRACTOR_INVENTORY_KEY,
+    label: 'Seed Extractor',
+    buyPrice: EXTRACTOR_PRICE,
     sellPrice: null,
   });
   return items;
@@ -110,15 +223,23 @@ export function sellItem(
   return true;
 }
 
-/** Sells every unit of every `_harvest` item the player has. */
-export function sellAllHarvest(player: Player): number {
+/**
+ * Sells every unit of every harvest bucket the player has (normal,
+ * silver, and gold tiers). Each tier multiplies the base sell price
+ * per QUALITY_MULTIPLIER. An optional `priceMultiplier` (default 1)
+ * lets festival-day callers stack a global boost on top — Fall's
+ * Harvest Festival passes 1.5 to lift every crop. Returns the total
+ * gold earned.
+ */
+export function sellAllHarvest(player: Player, priceMultiplier: number = 1): number {
   let earned = 0;
   for (const key of Object.keys(player.inventory)) {
-    if (!key.endsWith('_harvest')) continue;
-    const cropKey = key.slice(0, -'_harvest'.length);
-    const price = CROPS[cropKey]?.sellPrice ?? 0;
+    const parsed = parseHarvestKey(key);
+    if (!parsed) continue;
+    const base = CROPS[parsed.cropKey]?.sellPrice ?? 0;
+    const mult = QUALITY_MULTIPLIER[parsed.quality];
     const have = player.inventory[key] ?? 0;
-    earned += have * price;
+    earned += Math.floor(have * base * mult * priceMultiplier);
     player.inventory[key] = 0;
   }
   player.gold += earned;

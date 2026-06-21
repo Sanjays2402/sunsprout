@@ -73,7 +73,14 @@ describe('farming', () => {
       advanceDay(w);
     }
     const before = p.inventory.wheat_harvest ?? 0;
-    expect(harvest(w, 19, 22, p)).toBe(true);
-    expect((p.inventory.wheat_harvest ?? 0)).toBe(before + 1);
+    const beforeStar = (p.inventory.wheat_harvest_silver ?? 0) + (p.inventory.wheat_harvest_gold ?? 0);
+    const quality = harvest(w, 19, 22, p);
+    expect(quality).not.toBeNull();
+    // Either the normal bucket OR a star bucket must have grown by 1.
+    const afterTotal =
+      (p.inventory.wheat_harvest ?? 0) +
+      (p.inventory.wheat_harvest_silver ?? 0) +
+      (p.inventory.wheat_harvest_gold ?? 0);
+    expect(afterTotal).toBe(before + beforeStar + 1);
   });
 });

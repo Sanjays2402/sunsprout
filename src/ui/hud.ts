@@ -35,14 +35,17 @@ function drawTopBar(
   player: Player,
   time: TimeOfDay,
   canvasW: number,
+  hudScale: number = 1.0,
 ): void {
-  const barH = 32;
+  const scale = Math.max(1, Math.min(2, hudScale));
+  const barH = Math.round(32 * scale);
   ctx.fillStyle = PANEL_BG;
   ctx.fillRect(0, 0, canvasW, barH);
   ctx.fillStyle = PANEL_BORDER;
   ctx.fillRect(0, barH, canvasW, 1);
 
-  ctx.font = 'bold 14px ui-monospace, "SF Mono", Menlo, monospace';
+  const fontPx = Math.round(14 * scale);
+  ctx.font = `bold ${fontPx}px ui-monospace, "SF Mono", Menlo, monospace`;
   ctx.textBaseline = 'middle';
 
   // Left: day + season
@@ -63,13 +66,14 @@ function drawTopBar(
   const tw = ctx.measureText(goldText).width;
   const coinX = Math.floor(goldX - tw - 16);
   const coinY = Math.floor(barH / 2);
+  const coinR = Math.round(7 * scale);
   ctx.fillStyle = COIN_OUTLINE;
   ctx.beginPath();
-  ctx.arc(coinX, coinY, 7, 0, Math.PI * 2);
+  ctx.arc(coinX, coinY, coinR, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = COIN_COLOR;
   ctx.beginPath();
-  ctx.arc(coinX, coinY, 5, 0, Math.PI * 2);
+  ctx.arc(coinX, coinY, Math.max(3, coinR - 2), 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = TEXT_COLOR;
   ctx.fillText(goldText, goldX, barH / 2);
@@ -165,29 +169,32 @@ function drawWateringCan(
 function drawQuestPanel(
   ctx: CanvasRenderingContext2D,
   player: Player,
+  hudScale: number = 1.0,
 ): void {
   const quests = (player.quests as Quest[]) || [];
   const open = quests.filter((q) => !q.complete);
   if (open.length === 0) return;
+  const scale = Math.max(1, Math.min(2, hudScale));
   const x = 12;
-  const y = 40;
-  const w = 230;
-  const h = 22 + open.length * 18;
+  const y = Math.round(40 * scale);
+  const w = Math.round(230 * scale);
+  const lineH = Math.round(18 * scale);
+  const h = Math.round(22 * scale) + open.length * lineH;
   ctx.fillStyle = PANEL_BG;
   ctx.fillRect(x, y, w, h);
   ctx.strokeStyle = PANEL_BORDER;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   ctx.fillStyle = ACCENT;
-  ctx.font = 'bold 12px ui-monospace, monospace';
+  ctx.font = `bold ${Math.round(12 * scale)}px ui-monospace, monospace`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('quests', x + 8, y + 5);
-  ctx.font = '11px ui-monospace, monospace';
+  ctx.fillText('quests', x + 8, y + Math.round(5 * scale));
+  ctx.font = `${Math.round(11 * scale)}px ui-monospace, monospace`;
   ctx.fillStyle = TEXT_COLOR;
   for (let i = 0; i < open.length; i++) {
     const q = open[i];
     const line = `${q.name}  (${q.progress}/${q.goal})`;
-    ctx.fillText(line, x + 8, y + 20 + i * 18);
+    ctx.fillText(line, x + 8, y + Math.round(20 * scale) + i * lineH);
   }
 }
 
@@ -198,11 +205,12 @@ export function drawHUD(
   time: TimeOfDay,
   canvasW: number,
   canvasH: number,
+  hudScale: number = 1.0,
 ): void {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  drawTopBar(ctx, player, time, canvasW);
+  drawTopBar(ctx, player, time, canvasW, hudScale);
   drawHotbar(ctx, player, canvasW, canvasH);
-  drawQuestPanel(ctx, player);
+  drawQuestPanel(ctx, player, hudScale);
   ctx.restore();
 }
