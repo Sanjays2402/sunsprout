@@ -268,6 +268,8 @@ import {
 import {
   COMPOST_BIN_INVENTORY_KEY,
   FERTILIZER_INVENTORY_KEY,
+  RARE_FERTILIZER_INVENTORY_KEY,
+  RARE_FERTILIZER_STREAK,
   adjacentCompost,
   applyFertilizer,
   canPlaceCompost,
@@ -684,10 +686,28 @@ export class Game {
       }
       // Compost bins — any batch whose finish day is past mints fertilizer
       // bags into the bag. A single toast carries the total so the
-      // morning doesn't spam multiple lines per bin.
-      const fertMinted = compostTick(this.world, this.world.player, this.time.day);
+      // morning doesn't spam multiple lines per bin. When a batch finished
+      // on the season's rare day the bags land in RARE_FERTILIZER_INVENTORY_KEY
+      // and the toast calls them out.
+      const rareBefore = this.world.player.inventory[RARE_FERTILIZER_INVENTORY_KEY] ?? 0;
+      const fertMinted = compostTick(
+        this.world,
+        this.world.player,
+        this.time.day,
+        this.time.season,
+      );
       if (fertMinted > 0) {
-        this.setToast(`Compost yielded ${fertMinted} fertilizer bag${fertMinted === 1 ? '' : 's'}.`);
+        const rareAfter = this.world.player.inventory[RARE_FERTILIZER_INVENTORY_KEY] ?? 0;
+        const rareDelta = rareAfter - rareBefore;
+        if (rareDelta > 0) {
+          this.setToast(
+            `Compost yielded ${fertMinted} fertilizer bag${fertMinted === 1 ? '' : 's'} — ${rareDelta} RARE (+${RARE_FERTILIZER_STREAK} streak each).`,
+          );
+        } else {
+          this.setToast(
+            `Compost yielded ${fertMinted} fertilizer bag${fertMinted === 1 ? '' : 's'}.`,
+          );
+        }
       }
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
@@ -1341,7 +1361,9 @@ export class Game {
       const py = Math.round(p.y);
       const bin = adjacentCompost(this.world, px, py);
       const crop = cropAt(this.world, front.tx, front.ty);
-      const hasFert = (p.inventory[FERTILIZER_INVENTORY_KEY] ?? 0) > 0;
+      const hasFert =
+        (p.inventory[FERTILIZER_INVENTORY_KEY] ?? 0) > 0 ||
+        (p.inventory[RARE_FERTILIZER_INVENTORY_KEY] ?? 0) > 0;
       if (bin) {
         const out = depositCrops(bin, p, this.time.day);
         if (out.kind === 'deposited') {
@@ -1356,7 +1378,8 @@ export class Game {
       } else if (crop && hasFert) {
         const out = applyFertilizer(this.world, p, front.tx, front.ty);
         if (out.kind === 'applied') {
-          this.setToast(`Fertilized — streak now ${out.newStreak}.`);
+          const tag = out.rare ? 'Rare fertilizer applied' : 'Fertilized';
+          this.setToast(`${tag} — streak now ${out.newStreak} (+${out.bonus}).`);
         }
       } else {
         const have = p.inventory[COMPOST_BIN_INVENTORY_KEY] ?? 0;

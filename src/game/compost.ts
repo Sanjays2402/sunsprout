@@ -44,6 +44,23 @@ export const COMPOST_MAX_BATCHES = 5;
 /** Streak bonus a fertilizer bag grants when applied. */
 export const FERTILIZER_STREAK = 2;
 
+/** Inventory key for a finished bag of RARE fertilizer ("week-of" bonus). */
+export const RARE_FERTILIZER_INVENTORY_KEY = 'fertilizer-rare';
+
+/** Streak bonus the rare fertilizer grants. */
+export const RARE_FERTILIZER_STREAK = 4;
+
+/**
+ * Per-season day the rare fertilizer bonus fires. Composting that
+ * finishes on this day mints rare bags instead of regular ones.
+ * Deterministic so the player can plan deposit timing around it.
+ *
+ * Range [1..6] avoids the season turnover (day 7) so the bonus never
+ * straddles seasons. Cached per-season to stay stable across reloads.
+ */
+export const RARE_FINISH_DAY_MIN = 1;
+export const RARE_FINISH_DAY_MAX = 6;
+
 /** Footprint is 1x1; placement matches sprinkler / chest convention. */
 
 /** One pending batch inside the bin. */
@@ -154,23 +171,33 @@ export function depositCrops(
  * less than `today` mints floor(crops/COMPOST_RATIO) fertilizer bags
  * into the player's inventory, then removes itself from the bin.
  *
+ * If the batch finished on the season's RARE day (rareFinishDay
+ * matches the batch's finishOnDay), bags are minted into the
+ * RARE_FERTILIZER_INVENTORY_KEY instead — those bags grant +4 streak
+ * when applied. `season` lets the caller pass the current season so
+ * the rare-day picker stays deterministic per-season.
+ *
  * Returns the total bags minted across every bin this morning so the
- * caller can post a single toast.
+ * caller can post a single toast. Use mintedRare() right after to
+ * split the toast wording when any rare bags were produced.
  */
 export function compostTick(
   world: World,
   player: { inventory: Record<string, number> },
   today: number,
+  season: number = 0,
 ): number {
   let minted = 0;
+  const rareDay = rareFinishDayFor(season);
   for (const bin of getComposts(world)) {
     const remaining: CompostBatch[] = [];
     for (const b of bin.batches) {
       if (b.finishOnDay < today) {
         const bags = Math.floor(b.crops / COMPOST_RATIO);
         if (bags > 0) {
-          player.inventory[FERTILIZER_INVENTORY_KEY] =
-            (player.inventory[FERTILIZER_INVENTORY_KEY] ?? 0) + bags;
+          const isRare = b.finishOnDay === rareDay;
+          const key = isRare ? RARE_FERTILIZER_INVENTORY_KEY : FERTILIZER_INVENTORY_KEY;
+          player.inventory[key] = (player.inventory[key] ?? 0) + bags;
           minted += bags;
         }
       } else {
@@ -182,16 +209,37 @@ export function compostTick(
   return minted;
 }
 
+/**
+ * Returns the day-of-season the rare fertilizer fires. Deterministic
+ * per season — same season always returns the same day in
+ * [RARE_FINISH_DAY_MIN, RARE_FINISH_DAY_MAX]. Pure function so the
+ * UI / HUD can preview it in a hint without coupling to compostTick.
+ */
+export function rareFinishDayFor(season: number): number {
+  // Cheap deterministic mix over the season index.
+  const h = ((season + 1) * 2654435761) ^ 0x9e3779b9;
+  const span = RARE_FINISH_DAY_MAX - RARE_FINISH_DAY_MIN + 1;
+  return RARE_FINISH_DAY_MIN + (Math.abs(h >>> 0) % span);
+}
+
+/** Pretty hint of the rare-fertilizer day for the season. */
+export function rareFinishDayLine(season: number): string {
+  const seasonName = ['Spring', 'Summer', 'Fall', 'Winter'][season % 4] ?? 'Spring';
+  return `${seasonName} compost: bags finishing on day ${rareFinishDayFor(season)} are RARE (+${RARE_FERTILIZER_STREAK} streak each).`;
+}
+
 /** Outcome of an apply attempt. */
 export type ApplyOutcome =
-  | { kind: 'applied'; cropKey: string; newStreak: number }
+  | { kind: 'applied'; cropKey: string; newStreak: number; bonus: number; rare: boolean }
   | { kind: 'no-fertilizer' }
   | { kind: 'no-crop' };
 
 /**
- * Apply one fertilizer bag to the crop at (tx,ty). Returns the new
- * waterStreak so the caller can surface it in a toast. Silently
- * leaves the streak alone if no crop is there.
+ * Apply one fertilizer bag to the crop at (tx,ty). Prefers rare bags
+ * first (they grant +4 streak instead of +2) so the player can stockpile
+ * regular bags for later without losing rare value. Returns the new
+ * waterStreak so the caller can surface it in a toast. Silently leaves
+ * the streak alone if no crop is there.
  */
 export function applyFertilizer(
   world: World,
@@ -199,18 +247,35 @@ export function applyFertilizer(
   tx: number,
   ty: number,
 ): ApplyOutcome {
-  const have = player.inventory[FERTILIZER_INVENTORY_KEY] ?? 0;
-  if (have <= 0) return { kind: 'no-fertilizer' };
+  const haveRare = player.inventory[RARE_FERTILIZER_INVENTORY_KEY] ?? 0;
+  const haveReg = player.inventory[FERTILIZER_INVENTORY_KEY] ?? 0;
+  if (haveRare <= 0 && haveReg <= 0) return { kind: 'no-fertilizer' };
   const c = cropAt(world, tx, ty);
   if (!c) return { kind: 'no-crop' };
   const farmCrop = c as unknown as FarmCrop;
-  player.inventory[FERTILIZER_INVENTORY_KEY] = have - 1;
-  farmCrop.waterStreak = (farmCrop.waterStreak ?? 0) + FERTILIZER_STREAK;
+  let bonus: number;
+  let rare: boolean;
+  if (haveRare > 0) {
+    player.inventory[RARE_FERTILIZER_INVENTORY_KEY] = haveRare - 1;
+    bonus = RARE_FERTILIZER_STREAK;
+    rare = true;
+  } else {
+    player.inventory[FERTILIZER_INVENTORY_KEY] = haveReg - 1;
+    bonus = FERTILIZER_STREAK;
+    rare = false;
+  }
+  farmCrop.waterStreak = (farmCrop.waterStreak ?? 0) + bonus;
   // The crop is now treated as freshly watered so the dryness counter
   // doesn't ruin the bumped streak overnight.
   farmCrop.daysSinceWater = 0;
   farmCrop.watered = true;
-  return { kind: 'applied', cropKey: farmCrop.crop, newStreak: farmCrop.waterStreak };
+  return {
+    kind: 'applied',
+    cropKey: farmCrop.crop,
+    newStreak: farmCrop.waterStreak,
+    bonus,
+    rare,
+  };
 }
 
 /** Total pending crops across all bins. Used for HUD glance. */

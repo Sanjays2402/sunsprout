@@ -133,7 +133,9 @@ describe('compostTick', () => {
     // 9 crops at ratio 4 -> 2 bags + 1 wasted crop.
     w.player.inventory['wheat_harvest'] = COMPOST_RATIO * 2 + 1;
     depositCrops(bin, w.player, 1);
-    expect(compostTick(w, w.player, 1 + COMPOST_DAYS)).toBe(2);
+    // Season 1 has rare day 6 — batch finishOnDay=3 is NOT rare so the
+    // bags land in the regular fertilizer key.
+    expect(compostTick(w, w.player, 1 + COMPOST_DAYS, 1)).toBe(2);
     expect(w.player.inventory[FERTILIZER_INVENTORY_KEY]).toBe(2);
     expect(bin.batches.length).toBe(0);
   });
@@ -143,7 +145,7 @@ describe('compostTick', () => {
     const bin = placeCompost(w, FREE_TX, FREE_TY)!;
     w.player.inventory['wheat_harvest'] = COMPOST_RATIO - 1;
     depositCrops(bin, w.player, 1);
-    expect(compostTick(w, w.player, 1 + COMPOST_DAYS)).toBe(0);
+    expect(compostTick(w, w.player, 1 + COMPOST_DAYS, 1)).toBe(0);
     expect(w.player.inventory[FERTILIZER_INVENTORY_KEY] ?? 0).toBe(0);
   });
 });
