@@ -124,6 +124,12 @@ import {
   winterFlavorLine,
 } from '../game/winter';
 import {
+  expireOldInvites,
+  fireHangoutIfPresent,
+  inviteToastLine,
+  rollDailyInvites,
+} from '../game/hangouts';
+import {
   CHEST_INVENTORY_KEY,
   adjacentChest,
   canPlaceChest,
@@ -471,6 +477,10 @@ export class Game {
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
       const newMail = deliverDailyMail(this.world.player, this.time.day);
+      // Hangout invites: clear expired ones, post new ones from any
+      // heart-4 candidate who isn't already on the schedule.
+      expireOldInvites(this.world.player, this.time);
+      const newInvites = rollDailyInvites(this.world.player, this.time);
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
@@ -487,7 +497,11 @@ export class Game {
                   ? ` (greenhouse pushed ${greenBumped} crops)`
                   : newMail > 0
                     ? ` (${newMail} new letter${newMail === 1 ? '' : 's'} arrived)`
-                    : '';
+                    : newInvites.length === 1
+                      ? ` (${inviteToastLine(newInvites[0])})`
+                      : newInvites.length > 1
+                        ? ` (${newInvites.length} hangout invites pending)`
+                        : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -525,6 +539,21 @@ export class Game {
 
     // Farm dog follow movement — soft chase the player when too far.
     updateDog(this.world, this.world.player, dtMs);
+
+    // Hangout: if the player is standing on / next to an open invite's
+    // meeting spot during its hour window, fire it. The function is
+    // idempotent — the invite is consumed on the first firing so this
+    // check is cheap to run every frame.
+    {
+      const px = Math.round(this.world.player.x);
+      const py = Math.round(this.world.player.y);
+      const hangout = fireHangoutIfPresent(this.world.player, px, py, this.time);
+      if (hangout.kind === 'fired') {
+        const name = CANDIDATES[hangout.invite.npcId]?.name ?? hangout.invite.npcId;
+        logGold(this.world.player, 120, `hangout: ${name}`, this.time.day);
+        this.setToast(`${hangout.invite.flavor} +120g, hearts now ${hangout.heartsAfter}.`);
+      }
+    }
 
     // Dialogue lockout countdown.
     this.dialogue.update(dtMs);
