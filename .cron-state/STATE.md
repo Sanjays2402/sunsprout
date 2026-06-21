@@ -4,7 +4,7 @@
 
 ## STATUS
 
-**STATUS:** Tick #9 complete. 45 autoship features now on `main`. This batch shipped the crop ribbon journal (heaviest single-day harvest per crop, surfaced in the ; panel), animal happiness (pet/feed streaks compound into fancy egg odds + dog/cat tips), the seasonal storm (once-per-season, greenhouse-safe), late-night fishing perk (22-04h biases trout/pike), and three new stamina-tea recipes. 1033/1033 tests green (+52 this batch); build 211.38 kB / 63.67 kB gz.
+**STATUS:** Tick #10 complete. 50 autoship features now on `main`. This batch shipped the bath house (NE-of-plaza fixture; +30 stamina cap for 3 days, 200g), farm fish pond (stock one species via `>`, daily yield, POND_MAX_PENDING cap), Maple's daily market discount (20% off one rotating SHOP_ITEMS row per (season,day), banner + strikethrough), board reputation tiers (Newcomer/Regular/Trusted/Pillar/Cornerstone with 1.0x..1.75x reward multipliers driven by completedCount), and NPC walking routes (cosine-eased pacing between two waypoints; every NPC now has at least one walking slot). 1111/1111 tests green (+78 this batch); build 218.94 kB / 66.23 kB gz.
 
 **IMPORTANT WORKFLOW CHANGE:** As of tick #8, the prompt commits DIRECTLY to `main` and pushes to `origin/main`, NOT to `feature/autoship`. The quality gate (`npx tsc --noEmit && npm run build && npm test`) at end of batch is what protects main — never push red code.
 
@@ -70,14 +70,14 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [x] **Seasonal storm event** — once-per-season deterministic storm on a day in [2..6]; outdoor crops lose a streak day, forage clears, greenhouse-protected crops are safe. (278d3b3)
 - [x] **Late-night fishing perk** — 22-04h casts apply a per-fish bias on top of rod-tier (minnow x0.4, trout x1.75, pike x2.25); compounds with gold-rod bias. (ccf8dc1)
 - [x] **Stamina-tea cookbook** — Berry Tonic / Mushroom Broth / Sunflower Elixir join the cookbook; all three slot into STAMINA_RESTORE so drinkBest tiers them above tea + cocoa. (9807913)
+- [x] **Bath house** — late-game fixture NE of the plaza at (30,7); E for a 200g soak that lifts the stamina cap by +30 for 3 days; tops the pool immediately + drops the cap back at dawn after expiry. (163549f)
+- [x] **Fish pond at the farm** — stock the carved 4x4 pond with the most-abundant fish in your bag via `>`; daily yield of the same species (minnow 2/day, others 1/day) caps at POND_MAX_PENDING=6. (3aa9bb7)
+- [x] **Weekday market discount** — deterministic per-(season,day) 20% off one rotating SHOP_ITEMS row; banner + DEAL tag + strikethrough base price in the shop menu. (b3e19eb)
+- [x] **Town board reputation** — completedCount drives five tiers (Newcomer/Regular/Trusted/Pillar/Cornerstone); reward multipliers 1.0x..1.75x; rep banner in the board hint, base + bonus logged separately. (8e956dc)
+- [x] **NPC moveable schedules** — each schedule slot can carry a walkTo waypoint; NPC eases between (x,y) and walkTo on a cosine wave (default 2h period). Every NPC now has at least one walking slot. (f659bac)
 
 ### Next ideas (refilled — pick the next 5 here)
 
-- [ ] **Bath house** — late-game village fixture; small fee for a stamina-cap bonus that decays after a few days.
-- [ ] **Fish pond at the farm** — placeable; stocks one fish species; daily yield + per-species quirks.
-- [ ] **Weekday market schedule** — village stalls open on specific days with rotating wares (one-off seeds, single-day discounts).
-- [ ] **Town board reputation** — each successful board turn-in adds a rep point; cumulative milestones unlock new board quest tiers.
-- [ ] **NPC moveable schedules** — NPCs walk between two waypoints across the day; gives the village a heartbeat.
 - [ ] **Hatchery** — a fancy egg can be incubated 5 days into a new chicken; consumes the egg.
 - [ ] **Mining cart return** — visible cart on the mine entrance counts gems carried home this run; reset on sleep.
 - [ ] **Crop dyes** — pumpkin -> orange dye, flower -> red dye at the bench; tints player tunic cosmetic.
@@ -88,14 +88,19 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [ ] **Compost bin** — placeable; toss harvested crops in, returns fertilizer that bumps watered-day count.
 - [ ] **Stamina training trail** — daily run loop around the village raises max stamina once per week.
 - [ ] **Tournament leaderboard** — running totals across seasons; the bestiary or quest log gets a tab.
-- [ ] **Dynamic shop discount banner** — Maple's shop posts a "today only" discount on one random item per in-game week.
+- [ ] **Dynamic shop discount banner refinements** — week-long deal on top of the daily; the daily already shipped but a roll-up across the week is a natural next layer.
+- [ ] **NPC chat barks** — short ambient one-liner the NPC says when the player walks past them on the route (using the new walking routes).
+- [ ] **Pond species rotation** — let the player change the stocked species by collecting all + restocking; surface this in the pond status line.
+- [ ] **Bath house discount** — bath house cost drops by 25% during winter, encouraging the player to soak when it's snowing.
+- [ ] **Storm shelter** — placeable that lets one specific crop survive the storm even without a greenhouse.
+- [ ] **Mail-order seed pack** — Maple's auto-restock could be extended to a "rare seed sub" that drops one Pip-tier seed once per season.
 
 ## OPEN BLOCKERS
 
 (none. Three recurring observations:
- 1. KEY BINDINGS ARE EXTREMELY TIGHT. No new singletons this tick — every feature this batch was UI-less or extended an existing flow. Remaining free chars: `0`, `2`, `3`, `4`, `6`, `7`, `8`, `9` (hotbar 1-9 already), `<`, `>`, `?`. Future panels MUST share a single panel-toggle key cycling through panels — every new singleton makes onboarding worse.
- 2. PERSISTENCE FANCY EGGS / COOP TIER. PlacedCoop now optionally carries `fancyEggs`, `tier`, `happiness`, `lastCareDay`. The persistence.ts snapshot uses `{ ...c }` spread on coops which preserves every field transparently. Worth a follow-up tick to formalize the CoopSnapshot schema, but functionally complete.
- 3. UNUSED IMPORT: src/engine/game.ts still imports `weightedFishPick` from rod-upgrades. Night-fishing now wraps that into `nightAwareFishPick`. Drop the dangling import on the next refactor pass.)
+ 1. KEY BINDINGS ARE EXTREMELY TIGHT. Only one new keybind this tick (`>` for the fish pond). Bath house + market discount + board rep + NPC routes all extended existing flows — no new keys. Remaining truly free keys are vanishingly small. A future panel-cycle key is essentially mandatory.
+ 2. SHOP MENU API SHIFT. ShopRow gained `basePrice` + `isDeal` fields; ShopMenu.open() now takes an optional `TimeOfDay` to power the daily deal. The single test file that constructs a ShopRow manually (tests/shop.test.ts) was updated. Future ShopRow consumers must include the new fields or rely on buildShopRows.
+ 3. NPC SCHEDULE SIGNATURE CHANGE. getCurrentAnchor(npc, hour) became getCurrentAnchor(npc, hour, minute?) with minute defaulted to 0 for backward compat. Internal calls in updateNPCs were updated. Any future caller depending on the static-anchor behaviour gets it free by omitting the minute arg.)
 
 ## TICK LOG
 
@@ -109,3 +114,4 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - 2026-06-20 23:48 PT — 5/5 shipped: decor (78d5e68), spouse (8527af9), board (332b335), seed-extractor (f0fb391), tournament (487425a). 910/910 tests green (+75). Build 185.75 kB / 56.90 kB gz. New keybind: L=seed extractor. New world fixtures: notice board sprite at (19,11); decor palette retints farmhouse only; tournament uses well E-press during day-6 14-18h. Spouse overrides NPC schedule and replaces dialogue with a private greeting. Persistence wired for all five (decor/spouse/board/extractor/tournament). Open issue surfaced: SHOP_ITEMS exists but no shop UI -- buyable items only landable via dev console; recommend a shop modal as the next priority tick.
 - 2026-06-21 03:12 PT — 5/5 shipped: shop (0fcb284), bench (70e3e88), scarecrow (48806fb), fancy-eggs (1c41787), owl-post (e93a9b5). 981/981 tests green (+71). Build 207.24 kB / 62.07 kB gz. WORKFLOW CHANGE: this tick commits directly to `main` (origin/main); previous ticks merged feature/autoship. New world fixtures: carpenter's bench at (22,9). New keybinds: { (scarecrow place), } (coop deluxe apply), ~ (owl post at farmhouse). Maple's shop modal closes the longstanding "buy from Maple" vaporware path -- all SHOP_ITEMS are now reachable in-game. Scarecrow boost runs INSIDE farming.harvest() so it stacks on the streak-derived quality without touching streak math. Fancy egg yield uses a deterministic per-(coop,day,chicken) hash so reload-scumming doesn't work; deluxe upgrade lifts the rate from 8% to 18%. Owl post fee (40g) only deducts on confirmed delivery so wasted presses are harmless.
 - 2026-06-21 06:15 PT — 5/5 shipped: crop-ribbon (11136b6), animal-happiness (4e9da70), storm (278d3b3), night-fishing (ccf8dc1), stamina-teas (9807913). 1033/1033 tests green (+52). Build 211.38 kB / 63.67 kB gz. NO NEW KEYBINDS THIS TICK — every feature extended an existing flow. Crop ribbon shipped through the ; panel using the time arg now threaded into recordHarvest(). Animal happiness lives in a new pure module animal-happiness.ts (coop happiness + petTipBonus); coopTick now wraps the tier rate through coopFancyRate. Storm fires AFTER greenhouseTick so the greenhouse is the literal shelter. Night-fishing layer multiplies on top of rod-tier bias so gold rod + 2am cast is the compounded sweet spot. Three new stamina teas slot into both RECIPES + STAMINA_RESTORE without per-recipe wiring (drinkBest already iterates the table).
+- 2026-06-21 09:16 PT — 5/5 shipped: bath-house (163549f), fish-pond (3aa9bb7), market-discount (b3e19eb), board-rep (8e956dc), npc-routes (f659bac). 1111/1111 tests green (+78). Build 218.94 kB / 66.23 kB gz. NEW KEYBIND: `>` (fish-pond stock/collect). New world fixtures: bath house at (30,7); the existing pond now interactable. SHOP API ADDITIONS: ShopRow gained `basePrice`+`isDeal`; ShopMenu.open() takes optional `time` for the daily deal banner — single legacy test updated. NPC SCHEDULE ADDITION: ScheduleSlot now supports optional `walkTo` + `periodHours`; getCurrentAnchor took an optional minute arg; every NPC has at least one walking slot. Bath house buff persists across reload via SaveSnapshot.player.bath; pond state persists via SaveSnapshot.world.pond. Board reputation is derived from existing BoardState.completedCount so no schema change. Market discount derives from the clock so no schema change either.
