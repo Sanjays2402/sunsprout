@@ -46,6 +46,7 @@ import { getBath, type BathState } from './bath-house';
 import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
 import { getComposts, type PlacedCompost } from './compost';
+import { getShelters, type PlacedShelter } from './storm-shelter';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -149,6 +150,8 @@ export interface SaveSnapshot {
     hatcheries?: PlacedHatchery[];
     /** Compost bins — placed bins with pending batches. */
     composts?: PlacedCompost[];
+    /** Storm shelters — placed lean-tos that absorb the next storm. */
+    shelters?: PlacedShelter[];
   };
 }
 
@@ -303,6 +306,7 @@ export function serializeGame(game: Game): SaveSnapshot {
         ...c,
         batches: c.batches.map((b) => ({ ...b })),
       })),
+      shelters: getShelters(game.world).map((s) => ({ ...s })),
     },
   };
 }
@@ -555,6 +559,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   compostList.length = 0;
   for (const c of snap.world.composts ?? []) {
     compostList.push({ ...c, batches: c.batches.map((b) => ({ ...b })) });
+  }
+  // Storm shelters — forward-compat default for older saves.
+  const shelterList = getShelters(game.world);
+  shelterList.length = 0;
+  for (const s of snap.world.shelters ?? []) {
+    shelterList.push({ ...s });
   }
   // Time — set day/season directly; reseed the internal elapsed counter.
   game.time.day = snap.time.day;

@@ -22,6 +22,7 @@ import type { Player } from '../world/world';
 import type { FarmCrop } from './farming';
 import { isInsideGreenhouse } from './greenhouse';
 import { getForage } from './forage';
+import { consumeShelteringShelters, isUnderShelter } from './storm-shelter';
 
 /** Per-season storm record stored on the Player. */
 export interface StormState {
@@ -33,6 +34,10 @@ export interface StormState {
     day: number;
     cropsHit: number;
     forageHit: number;
+    /** Number of crops that got protected by a storm shelter. */
+    cropsSheltered?: number;
+    /** Number of shelters consumed in the process. */
+    consumedShelters?: number;
   };
 }
 
@@ -86,7 +91,7 @@ export function stormScheduledDay(player: Player, season: number): number {
  * record; 'not-today' when the schedule says a different day.
  */
 export type StormOutcome =
-  | { kind: 'fired'; cropsHit: number; forageHit: number; day: number }
+  | { kind: 'fired'; cropsHit: number; forageHit: number; day: number; cropsSheltered: number; consumedShelters: number }
   | { kind: 'already' }
   | { kind: 'not-today' };
 
@@ -108,8 +113,18 @@ export function maybeFireStorm(
   if (day !== scheduled) return { kind: 'not-today' };
   // Fire.
   let cropsHit = 0;
+  let cropsSheltered = 0;
+  const shelteredTiles: Array<{ tx: number; ty: number }> = [];
   for (const c of world.crops as unknown as FarmCrop[]) {
     if (isInsideGreenhouse(world, c.tx, c.ty)) continue;
+    // Storm shelter covers (Chebyshev radius 1) crops — they keep
+    // their streak intact. Track the tile so we can consume the
+    // shelter after the loop runs.
+    if (isUnderShelter(world, c.tx, c.ty)) {
+      cropsSheltered += 1;
+      shelteredTiles.push({ tx: c.tx, ty: c.ty });
+      continue;
+    }
     // Drop one streak point + bump drought counter. Caps at 0.
     if ((c.waterStreak ?? 0) > 0) {
       c.waterStreak = (c.waterStreak ?? 0) - 1;
@@ -117,13 +132,15 @@ export function maybeFireStorm(
     c.daysSinceWater = Math.max(c.daysSinceWater ?? 0, 1);
     cropsHit += 1;
   }
+  // Consume every shelter that actually covered a crop.
+  const consumedShelters = consumeShelteringShelters(world, shelteredTiles);
   // Forage gets cleared — the storm blew it away.
   const forage = getForage(world);
   const forageHit = forage.length;
   forage.length = 0;
   state.hit[key] = day;
-  state.lastMemo = { season, day, cropsHit, forageHit };
-  return { kind: 'fired', cropsHit, forageHit, day };
+  state.lastMemo = { season, day, cropsHit, forageHit, cropsSheltered, consumedShelters };
+  return { kind: 'fired', cropsHit, forageHit, day, cropsSheltered, consumedShelters };
 }
 
 /** Pop the memo (returns + clears). Used by the day-summary overlay. */
@@ -146,11 +163,15 @@ export function stormDaysUntil(player: Player, season: number, day: number): num
 /** Short flavour line for the dawn toast. */
 export function stormFlavorLine(memo: NonNullable<StormState['lastMemo']>): string {
   const seasonName = ['Spring', 'Summer', 'Fall', 'Winter'][memo.season % 4] ?? 'Spring';
-  if (memo.cropsHit === 0 && memo.forageHit === 0) {
+  if (memo.cropsHit === 0 && memo.forageHit === 0 && !memo.cropsSheltered) {
     return `${seasonName} storm rolled through — nothing in the field to lose.`;
   }
   const cropPart = memo.cropsHit > 0 ? `${memo.cropsHit} crop${memo.cropsHit === 1 ? '' : 's'} lost a streak day` : '';
   const foragePart = memo.forageHit > 0 ? `${memo.forageHit} forage blown away` : '';
-  const tail = [cropPart, foragePart].filter(Boolean).join(', ');
+  const shelterPart =
+    memo.cropsSheltered && memo.cropsSheltered > 0
+      ? `${memo.cropsSheltered} crop${memo.cropsSheltered === 1 ? '' : 's'} kept dry under shelter${memo.consumedShelters && memo.consumedShelters > 1 ? 's' : ''}`
+      : '';
+  const tail = [cropPart, foragePart, shelterPart].filter(Boolean).join(', ');
   return `${seasonName} storm hit overnight — ${tail}.`;
 }

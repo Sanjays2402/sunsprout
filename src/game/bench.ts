@@ -77,6 +77,13 @@ export const BENCH_RECIPES: BenchRecipe[] = [
     gem: { key: 'copper', count: 2 },
     flavor: 'Place next to a coop. Incubates a fancy egg into a new chicken.',
   },
+  {
+    key: 'craft-shelter',
+    label: 'Storm Shelter',
+    gold: 400,
+    gem: { key: 'iron', count: 1 },
+    flavor: 'Place on grass. Keeps the 3x3 around it dry through the next storm.',
+  },
 ];
 
 /** True iff the player is within range to interact with the bench. */

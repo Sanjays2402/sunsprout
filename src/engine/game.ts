@@ -279,6 +279,13 @@ import {
   placeCompost,
 } from '../game/compost';
 import { drawBarks, tickBarks } from '../game/npc-barks';
+import {
+  STORM_SHELTER_INVENTORY_KEY,
+  canPlaceShelter,
+  drawShelterSprite,
+  getShelters,
+  placeShelter,
+} from '../game/storm-shelter';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
 import { LorePanel } from '../ui/lore-panel';
@@ -1365,6 +1372,23 @@ export class Game {
       }
     }
 
+    // 8: place a crafted storm shelter on the tile in front. Each one
+    // protects the 3x3 around it from the next storm, then is spent.
+    if (this.input.justPressed.has('8')) {
+      const front = this.tileInFront();
+      const have = p.inventory[STORM_SHELTER_INVENTORY_KEY] ?? 0;
+      if (have <= 0) {
+        this.setToast('Craft a Storm Shelter at the bench first.');
+      } else if (canPlaceShelter(this.world, front.tx, front.ty)) {
+        if (placeShelter(this.world, front.tx, front.ty)) {
+          p.inventory[STORM_SHELTER_INVENTORY_KEY] = have - 1;
+          this.setToast('Storm shelter placed. Crops within 1 tile stay dry next storm.');
+        }
+      } else {
+        this.setToast('Need a clear grass or tilled tile in front of you.');
+      }
+    }
+
     // Dialogue dismiss
     if (this.sleepSummary.isVisible()) {
       // Sleep summary takes priority — it locks the world. Wait until it's
@@ -2117,6 +2141,17 @@ export class Game {
         const wy = c.ty * TILE_SIZE + TILE_SIZE / 2;
         const { sx, sy } = this.camera.worldToScreen(wx, wy);
         drawCompostSprite(this.ctx, sx, sy, c, this.time.day, TILE_SIZE);
+      }
+    }
+    // Storm shelters — small lean-to sprites. Drawn over crops so the
+    // roof reads as covering them.
+    {
+      const list = getShelters(this.world);
+      for (const s of list) {
+        const wx = s.tx * TILE_SIZE + TILE_SIZE / 2;
+        const wy = s.ty * TILE_SIZE + TILE_SIZE / 2;
+        const { sx, sy } = this.camera.worldToScreen(wx, wy);
+        drawShelterSprite(this.ctx, sx, sy, TILE_SIZE);
       }
     }
     // Greenhouses — translucent glass frame over tilled soil tiles.

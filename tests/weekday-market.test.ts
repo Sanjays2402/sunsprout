@@ -77,11 +77,30 @@ describe('isMarketDealToday', () => {
 
 describe('discountedPrice', () => {
   it('cuts the price by MARKET_DISCOUNT_PCT for the featured key', () => {
-    const time = t(0, 1);
-    const key = marketTodayKey(time)!;
-    const row = SHOP_ITEMS.find((i) => i.key === key)!;
-    const base = row.buyPrice!;
-    const discounted = discountedPrice(time, key, base);
+    // Find any (season, day) whose featured key has buyPrice high enough
+    // that the discount math actually drops below base. The wheat seed
+    // at 2g floors to itself under 80%, so we need >=5g to guarantee
+    // a visible cut regardless of the rotation pick.
+    let time: TimeOfDay | null = null;
+    let key: string | null = null;
+    let base = 0;
+    outer: for (let s = 0; s < 4; s++) {
+      for (let d = 1; d <= 7; d++) {
+        const candidate = t(s as 0 | 1 | 2 | 3, d);
+        const candidateKey = marketTodayKey(candidate);
+        if (!candidateKey) continue;
+        const row = SHOP_ITEMS.find((i) => i.key === candidateKey);
+        if (row && row.buyPrice != null && row.buyPrice >= 5) {
+          time = candidate;
+          key = candidateKey;
+          base = row.buyPrice;
+          break outer;
+        }
+      }
+    }
+    expect(time).not.toBeNull();
+    expect(key).not.toBeNull();
+    const discounted = discountedPrice(time!, key!, base);
     expect(discounted).toBe(Math.max(1, Math.ceil(base * MARKET_DISCOUNT_MULT)));
     expect(discounted).toBeLessThan(base);
   });
