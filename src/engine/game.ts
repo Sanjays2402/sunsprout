@@ -231,6 +231,12 @@ import {
   tournamentDawnLine,
   tournamentOpen,
 } from '../game/tournament';
+import {
+  bumpCoopHappinessCollect,
+  bumpCoopHappinessFeed,
+  decayCoopHappiness,
+  petTipBonus,
+} from '../game/animal-happiness';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -551,12 +557,27 @@ export class Game {
       advanceDay(this.world);
       // Chickens drop their daily eggs into their coop's cache.
       const eggs = coopTick(this.world, this.time.day);
+      // Decay coop happiness a touch each morning so it has to be
+      // earned daily rather than locked in forever.
+      decayCoopHappiness(getCoops(this.world));
       // Farm dog's morale payout for yesterday's pet (if any).
       const dogPaid = dogTick(this.world, this.world.player, this.time);
-      if (dogPaid > 0) logGold(this.world.player, dogPaid, 'farm dog streak', this.time.day);
+      const dogBonus = petTipBonus(getDog(this.world));
+      if (dogPaid > 0 && dogBonus > 0) {
+        this.world.player.gold += dogBonus;
+        logGold(this.world.player, dogPaid + dogBonus, `farm dog streak (+${dogBonus} bond)`, this.time.day);
+      } else if (dogPaid > 0) {
+        logGold(this.world.player, dogPaid, 'farm dog streak', this.time.day);
+      }
       // Farm cat's morale payout for yesterday's pet (if any).
       const catPaid = catTick(this.world, this.world.player, this.time);
-      if (catPaid > 0) logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
+      const catBonus = petTipBonus(getCat(this.world));
+      if (catPaid > 0 && catBonus > 0) {
+        this.world.player.gold += catBonus;
+        logGold(this.world.player, catPaid + catBonus, `farm cat streak (+${catBonus} bond)`, this.time.day);
+      } else if (catPaid > 0) {
+        logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
+      }
       // Stamina refill — top the pool back to max once per new day.
       refillStamina(this.world.player, this.time.day);
       // Auto-restock kit — re-buy the last seed up to target so the
@@ -1681,12 +1702,16 @@ export class Game {
           const detail = collectEggsDetailed(coop, p);
           const collected = detail.plain + detail.fancy;
           if (collected > 0) {
+            const happy = bumpCoopHappinessCollect(coop, this.time.day);
             const fancyTail = detail.fancy > 0 ? ` (incl. ${detail.fancy} fancy)` : '';
-            this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}${fancyTail}.`);
+            const mood = happy >= 80 ? ' Chickens are thriving.' : '';
+            this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}${fancyTail}.${mood}`);
           } else if (coop.chickens === 0) {
             this.setToast('No chickens yet — buy one and press I.');
           } else {
-            this.setToast('Eggs come in the morning.');
+            // Idle coop — feed the chickens for a smaller happiness bump.
+            const happy = bumpCoopHappinessFeed(coop, this.time.day);
+            this.setToast(`Fed the chickens. Coop happiness ${happy}/100.`);
           }
         } else {
           // Standing in front of the well? Sell all harvest as quick economy.

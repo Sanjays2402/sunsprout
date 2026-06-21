@@ -19,6 +19,7 @@
 // drawCoopSprite + drawChickenSprite helper paint the procedural art.
 
 import type { World } from '../world/world';
+import { coopFancyRate } from './animal-happiness';
 
 /** Inventory key for a collected (standard) egg. */
 export const EGG_INVENTORY_KEY = 'egg';
@@ -77,6 +78,14 @@ export interface PlacedCoop {
   fancyEggs?: number;
   /** Quality tier — drives the fancy-egg roll rate. Default 'basic'. */
   tier?: CoopTier;
+  /**
+   * Coop happiness 0..100. Petting / feeding / collecting eggs bumps
+   * it; a one-point daily decay pulls it back down. Adds up to +6
+   * percentage points to the fancy-egg roll when maxed.
+   */
+  happiness?: number;
+  /** Day index of the last successful care bump. -1 / undefined = never. */
+  lastCareDay?: number;
 }
 
 export interface WorldWithCoops {
@@ -194,12 +203,17 @@ export function addChicken(coop: PlacedCoop): boolean {
  * The fancy roll is deterministic per (coop position, day, chicken
  * index) so the same in-game day always produces the same outcome —
  * the player can't reload-scum it.
+ *
+ * Happiness factors into the rate via animal-happiness.coopFancyRate
+ * — a thriving coop bumps fancy odds by up to +6 percentage points
+ * on top of the tier base, lazily-loaded so older saves still work.
  */
 export function coopTick(world: World, day: number = 0): number {
   let produced = 0;
   for (const c of getCoops(world)) {
     const tier: CoopTier = c.tier ?? 'basic';
-    const rate = FANCY_EGG_RATE[tier];
+    const baseRate = FANCY_EGG_RATE[tier];
+    const rate = coopFancyRate(c, baseRate);
     let fancy = 0;
     for (let i = 0; i < c.chickens; i++) {
       // Hash (tx, ty, day, i) into a [0,1) roll.
