@@ -12,6 +12,7 @@
 
 import type { NPC, World } from '../world/world';
 import type { TimeOfDay } from './time';
+import { spouseAnchor } from './spouse';
 
 /** A schedule slot: between `from` and `to` the NPC drifts toward (x,y). */
 export interface ScheduleSlot {
@@ -189,11 +190,22 @@ export function getCurrentAnchor(
  * Eases each NPC toward its current schedule anchor. NPCs don't do real
  * path-finding — they just nudge a tiny fraction of a tile per tick toward
  * the target, which is plenty for ambient village motion.
+ *
+ * Special-case: if the player is married to this NPC, the spouse anchor
+ * (south of the farmhouse during day, inside at night) takes priority
+ * over the public schedule — they've moved in.
  */
 export function updateNPCs(world: World, time: TimeOfDay, dtMs: number): void {
   const speed = 0.0008; // tiles per ms when far from anchor
+  const spouseId = world.player?.marriage?.npcId;
+  const spouse = spouseId ? spouseAnchor(world, time) : null;
   for (const npc of world.npcs) {
-    const anchor = getCurrentAnchor(npc, time.hour);
+    let anchor: { x: number; y: number } | null;
+    if (spouse && spouseId === npc.id) {
+      anchor = { x: spouse.x, y: spouse.y };
+    } else {
+      anchor = getCurrentAnchor(npc, time.hour);
+    }
     if (!anchor) continue;
     const dx = anchor.x - npc.x;
     const dy = anchor.y - npc.y;

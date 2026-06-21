@@ -196,6 +196,7 @@ import {
 import { CartMenu } from '../ui/cart-menu';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
+import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -524,6 +525,11 @@ export class Game {
       if (restockOut.kind === 'restocked') {
         logGold(this.world.player, -restockOut.gold, `auto-restock ${restockOut.cropKey}`, this.time.day);
       }
+      // Spouse — drop the day's gift into the bag once the player is married.
+      const spouseGift = dawnSpouseGift(this.world.player, this.time.day);
+      if (spouseGift.kind === 'gifted' && spouseGift.gold && spouseGift.gold > 0) {
+        logGold(this.world.player, spouseGift.gold, `spouse: ${spouseGift.npcName}`, this.time.day);
+      }
       // Pip's cart — surface a dawn toast on the day he arrives so the
       // player knows to head over to the village square.
       const pipArrived = cartVisitToday(this.time);
@@ -559,7 +565,9 @@ export class Game {
                           ? ` (${newInvites.length} hangout invites pending)`
                           : pipArrived
                             ? ` (${cartArrivalLine()})`
-                            : '';
+                            : spouseGift.kind === 'gifted'
+                              ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
+                              : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -1403,7 +1411,13 @@ export class Game {
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
           const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
-          this.dialogue.open(npc.name, getRole(npc), getDialogue(npc, this.time.day, h));
+          // Spouse line takes priority over the public dialogue pool —
+          // marriage unlocks a private morning greeting.
+          const spouseLine =
+            p.marriage?.npcId === npc.id ? spouseGreeting(p, this.time.day) : null;
+          const line = spouseLine ?? getDialogue(npc, this.time.day, h);
+          const role = p.marriage?.npcId === npc.id ? 'Your Spouse' : getRole(npc);
+          this.dialogue.open(npc.name, role, line);
           this.checkQuests({ kind: 'talk', npcId: npc.id });
           if (p.hearts && creditTalk(p.hearts, npc.id, this.time.day)) {
             // Tiny ambient feedback — only on the day's first chat.
