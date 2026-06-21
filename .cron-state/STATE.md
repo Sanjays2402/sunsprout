@@ -4,9 +4,9 @@
 
 ## STATUS
 
-**STATUS:** Tick #8 complete. 40 autoship features now on `main`. This batch shipped the Maple shop UI (closes the dev-console-only kit-buy gap), the carpenter's bench (mining-gem sink), the scarecrow placeable, fancy egg yields with a deluxe coop upgrade, and the owl post courier service (last open roadmap item). 981/981 tests green (+71 this batch); build 207.24 kB / 62.07 kB gz.
+**STATUS:** Tick #9 complete. 45 autoship features now on `main`. This batch shipped the crop ribbon journal (heaviest single-day harvest per crop, surfaced in the ; panel), animal happiness (pet/feed streaks compound into fancy egg odds + dog/cat tips), the seasonal storm (once-per-season, greenhouse-safe), late-night fishing perk (22-04h biases trout/pike), and three new stamina-tea recipes. 1033/1033 tests green (+52 this batch); build 211.38 kB / 63.67 kB gz.
 
-**IMPORTANT WORKFLOW CHANGE:** As of this tick, the prompt commits DIRECTLY to `main` and pushes to `origin/main`, NOT to `feature/autoship`. Previous ticks used `feature/autoship`; that branch was merged into main in commit 1ef1e5e and is no longer used. The quality gate (`npx tsc --noEmit && npm run build && npm test`) at end of batch is what protects main — never push red code.
+**IMPORTANT WORKFLOW CHANGE:** As of tick #8, the prompt commits DIRECTLY to `main` and pushes to `origin/main`, NOT to `feature/autoship`. The quality gate (`npx tsc --noEmit && npm run build && npm test`) at end of batch is what protects main — never push red code.
 
 Active branch: `main`
 Default branch: `main` (push here every tick — contribution graph)
@@ -65,31 +65,37 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - [x] **Outdoor scarecrow** — crafted at the bench; { keybind plants on a grass tile next to your field; crops within Chebyshev 3 ripen one tier higher at harvest (normal->silver, silver->gold). (48806fb)
 - [x] **Animal yield variety (fancy eggs)** — chickens roll for a fancy egg each dawn at 8% basic / 18% deluxe; fancy eggs sell at 3x; `}` applies a Coop Deluxe Upgrade Kit (700g + 2 iron) crafted at the bench. (1c41787)
 - [x] **Owl post** — `~` near the farmhouse opens the owl menu; pay 40g to dispatch the village owl with your best gift for the chosen candidate; honors the per-day gift gate and never charges on a failed send. (e93a9b5)
+- [x] **Crop ribbon journal** — track the heaviest single-day harvest per crop; surfaced under the streak row in the ; panel with season tag (e.g. "ribbon: 4 in a day - Fall d4"). (11136b6)
+- [x] **Animal happiness** — coops carry 0..100 happiness (collect +5 / feed +3, decays 1/day, caps once-per-day); adds up to +6pp to the fancy-egg roll. Dog + cat petStreak gets a compounding flat tip (+1/+2/+3 at 8/12/14). (4e9da70)
+- [x] **Seasonal storm event** — once-per-season deterministic storm on a day in [2..6]; outdoor crops lose a streak day, forage clears, greenhouse-protected crops are safe. (278d3b3)
+- [x] **Late-night fishing perk** — 22-04h casts apply a per-fish bias on top of rod-tier (minnow x0.4, trout x1.75, pike x2.25); compounds with gold-rod bias. (ccf8dc1)
+- [x] **Stamina-tea cookbook** — Berry Tonic / Mushroom Broth / Sunflower Elixir join the cookbook; all three slot into STAMINA_RESTORE so drinkBest tiers them above tea + cocoa. (9807913)
 
 ### Next ideas (refilled — pick the next 5 here)
 
 - [ ] **Bath house** — late-game village fixture; small fee for a stamina-cap bonus that decays after a few days.
 - [ ] **Fish pond at the farm** — placeable; stocks one fish species; daily yield + per-species quirks.
-- [ ] **Crop ribbon journal** — track the heaviest single-day harvest per crop; surface in the journal panel.
 - [ ] **Weekday market schedule** — village stalls open on specific days with rotating wares (one-off seeds, single-day discounts).
-- [ ] **Animal happiness** — pet your chickens / dog / cat daily; happiness adds to egg quality / dog tip / cat tip; persists.
-- [ ] **Seasonal storm event** — once a season a storm hits; outdoor crops lose a water-streak day; greenhouse safe.
 - [ ] **Town board reputation** — each successful board turn-in adds a rep point; cumulative milestones unlock new board quest tiers.
 - [ ] **NPC moveable schedules** — NPCs walk between two waypoints across the day; gives the village a heartbeat.
 - [ ] **Hatchery** — a fancy egg can be incubated 5 days into a new chicken; consumes the egg.
 - [ ] **Mining cart return** — visible cart on the mine entrance counts gems carried home this run; reset on sleep.
 - [ ] **Crop dyes** — pumpkin -> orange dye, flower -> red dye at the bench; tints player tunic cosmetic.
 - [ ] **Roving merchant rumor** — Pip drops a "new item next season" hint that becomes the next visit's headliner.
-- [ ] **Late-night fishing perk** — fishing between 22-04h biases toward rare fish (trout/pike).
-- [ ] **Stamina-tea cookbook** — three new tea recipes that combine forage + dish keys for tiered stamina restoration.
 - [ ] **Weather forecast accuracy upgrade** — buyable barometer (300g) at Pip's cart that reveals two days ahead instead of one.
 - [ ] **Festival cosmetic ribbon** — winning a friendship tournament awards a cosmetic ribbon visible on the player avatar.
+- [ ] **Stable + horse mount** — late-game; buy a horse from Pip's cart, faster movement, hitch outside the inn.
+- [ ] **Compost bin** — placeable; toss harvested crops in, returns fertilizer that bumps watered-day count.
+- [ ] **Stamina training trail** — daily run loop around the village raises max stamina once per week.
+- [ ] **Tournament leaderboard** — running totals across seasons; the bestiary or quest log gets a tab.
+- [ ] **Dynamic shop discount banner** — Maple's shop posts a "today only" discount on one random item per in-game week.
 
 ## OPEN BLOCKERS
 
-(none. Two recurring observations:
- 1. KEY BINDINGS ARE EXTREMELY TIGHT. New singletons added this tick: `{` (scarecrow place), `}` (coop deluxe apply), `~` (owl post). The free chars left are basically `0` (digit-zero conflicts with hotbar), `2`, `3`, `4`, `6`, `7`, `8`, `9` (hotbar 1-9 already), `<`, `>`, `?`. Future panels MUST share a single panel-toggle key cycling through panels — every new singleton makes onboarding worse.
- 2. PERSISTENCE FANCY EGGS / COOP TIER. PlacedCoop now optionally carries `fancyEggs` and `tier` fields. The existing persistence.ts snapshot uses `{ ...c }` spread on coops which preserves both fields transparently — but I didn't add a typed field to the CoopSnapshot interface. Older v1 saves restore tier=undefined / fancyEggs=undefined which read as 'basic' / 0 via the `?? 'basic'` and `?? 0` guards in coopTick + sellAllEggs. Worth a follow-up tick to formalize the CoopSnapshot schema, but functionally complete.)
+(none. Three recurring observations:
+ 1. KEY BINDINGS ARE EXTREMELY TIGHT. No new singletons this tick — every feature this batch was UI-less or extended an existing flow. Remaining free chars: `0`, `2`, `3`, `4`, `6`, `7`, `8`, `9` (hotbar 1-9 already), `<`, `>`, `?`. Future panels MUST share a single panel-toggle key cycling through panels — every new singleton makes onboarding worse.
+ 2. PERSISTENCE FANCY EGGS / COOP TIER. PlacedCoop now optionally carries `fancyEggs`, `tier`, `happiness`, `lastCareDay`. The persistence.ts snapshot uses `{ ...c }` spread on coops which preserves every field transparently. Worth a follow-up tick to formalize the CoopSnapshot schema, but functionally complete.
+ 3. UNUSED IMPORT: src/engine/game.ts still imports `weightedFishPick` from rod-upgrades. Night-fishing now wraps that into `nightAwareFishPick`. Drop the dangling import on the next refactor pass.)
 
 ## TICK LOG
 
@@ -102,3 +108,4 @@ Each row is a real user-facing capability — logic module + tests + UI/wiring. 
 - 2026-06-20 21:17 PT — 5/5 shipped: rod-upgrades (e36f20d), stamina (1897764), cart (991bbbc), auto-restock (c3331d4), lore (2d0a556). 835/835 tests green (+72). Build 171.78 kB / 52.10 kB gz. New keybinds: ==rod upgrade at Maple's, Z=sip best drink, `=lore panel. Cart parks at (16,9) on day 3 of every season 09-18h; E opens the menu. Auto-restock kit hooks into the dawn rollover and the plant verb; lore panel reads inventory live (no separate unlock state). Also extended fishing.ts Rod to accept per-cast bite-window + fish-picker overrides, kept fully backward-compatible.
 - 2026-06-20 23:48 PT — 5/5 shipped: decor (78d5e68), spouse (8527af9), board (332b335), seed-extractor (f0fb391), tournament (487425a). 910/910 tests green (+75). Build 185.75 kB / 56.90 kB gz. New keybind: L=seed extractor. New world fixtures: notice board sprite at (19,11); decor palette retints farmhouse only; tournament uses well E-press during day-6 14-18h. Spouse overrides NPC schedule and replaces dialogue with a private greeting. Persistence wired for all five (decor/spouse/board/extractor/tournament). Open issue surfaced: SHOP_ITEMS exists but no shop UI -- buyable items only landable via dev console; recommend a shop modal as the next priority tick.
 - 2026-06-21 03:12 PT — 5/5 shipped: shop (0fcb284), bench (70e3e88), scarecrow (48806fb), fancy-eggs (1c41787), owl-post (e93a9b5). 981/981 tests green (+71). Build 207.24 kB / 62.07 kB gz. WORKFLOW CHANGE: this tick commits directly to `main` (origin/main); previous ticks merged feature/autoship. New world fixtures: carpenter's bench at (22,9). New keybinds: { (scarecrow place), } (coop deluxe apply), ~ (owl post at farmhouse). Maple's shop modal closes the longstanding "buy from Maple" vaporware path -- all SHOP_ITEMS are now reachable in-game. Scarecrow boost runs INSIDE farming.harvest() so it stacks on the streak-derived quality without touching streak math. Fancy egg yield uses a deterministic per-(coop,day,chicken) hash so reload-scumming doesn't work; deluxe upgrade lifts the rate from 8% to 18%. Owl post fee (40g) only deducts on confirmed delivery so wasted presses are harmless.
+- 2026-06-21 06:15 PT — 5/5 shipped: crop-ribbon (11136b6), animal-happiness (4e9da70), storm (278d3b3), night-fishing (ccf8dc1), stamina-teas (9807913). 1033/1033 tests green (+52). Build 211.38 kB / 63.67 kB gz. NO NEW KEYBINDS THIS TICK — every feature extended an existing flow. Crop ribbon shipped through the ; panel using the time arg now threaded into recordHarvest(). Animal happiness lives in a new pure module animal-happiness.ts (coop happiness + petTipBonus); coopTick now wraps the tier rate through coopFancyRate. Storm fires AFTER greenhouseTick so the greenhouse is the literal shelter. Night-fishing layer multiplies on top of rod-tier bias so gold rod + 2am cast is the compounded sweet spot. Three new stamina teas slot into both RECIPES + STAMINA_RESTORE without per-recipe wiring (drinkBest already iterates the table).
