@@ -194,6 +194,7 @@ import {
   nearCart,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
+import { ShopMenu } from '../ui/shop-menu';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -280,6 +281,8 @@ export class Game {
   public settingsPanel: SettingsPanel = new SettingsPanel();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
   public cartMenu: CartMenu = new CartMenu();
+  /** Maple's shop menu — opened with E when standing adjacent to the shop. */
+  public shopMenu: ShopMenu = new ShopMenu();
   /** Lore / bestiary panel — toggled with backtick. */
   public lorePanel: LorePanel = new LorePanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
@@ -652,6 +655,7 @@ export class Game {
     this.sleepSummary.update(dtMs);
     this.chestMenu.update(dtMs);
     this.cartMenu.update(dtMs);
+    this.shopMenu.update(dtMs);
     this.lorePanel.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
@@ -703,7 +707,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1160,6 +1164,32 @@ export class Game {
           }
         }
       }
+    } else if (this.shopMenu.isVisible()) {
+      // Shop menu input — only when fully open (lockout cleared).
+      if (this.shopMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has('e')) {
+          this.shopMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.shopMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.shopMenu.selectNext();
+        } else if (i.has('tab') || i.has('arrowright') || i.has('d')) {
+          this.shopMenu.nextCategory();
+        } else if (i.has('arrowleft') || i.has('a')) {
+          this.shopMenu.prevCategory();
+        } else if (i.has('enter') || i.has(' ')) {
+          const out = this.shopMenu.confirm(this.world.player);
+          if (out.kind === 'bought') {
+            logGold(this.world.player, -out.row.price, `shop: ${out.row.label}`, this.time.day);
+            this.setToast(`Bought ${out.row.label}. (${out.remainingGold}g left)`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          } else if (out.kind === 'already-owned') {
+            this.setToast(`You already own ${out.row.label}.`);
+          }
+        }
+      }
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
@@ -1448,6 +1478,13 @@ export class Game {
         const py = Math.round(p.y);
         if (nearCart(px, py) && cartOpen(this.time)) {
           this.cartMenu.open();
+          return;
+        }
+        // Maple's shop menu — opens when the player stands beside the
+        // shop and Pip isn't grabbing the press first. Cart already
+        // returned above, so reaching here means we're free to open.
+        if (this.isNearShop()) {
+          this.shopMenu.open(p);
           return;
         }
         // Village quest board — interact when standing adjacent.
@@ -1794,6 +1831,7 @@ export class Game {
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
