@@ -186,6 +186,16 @@ import {
 } from '../game/stamina';
 import { drawStaminaBar } from '../ui/stamina-bar';
 import {
+  CART_X,
+  CART_Y,
+  cartArrivalLine,
+  cartOpen,
+  cartVisitToday,
+  nearCart,
+} from '../game/cart';
+import { CartMenu } from '../ui/cart-menu';
+import { drawCartSprite } from '../render/cart-sprite';
+import {
   cursorPosition,
   drawFishingBar,
   gradeBonus,
@@ -244,6 +254,8 @@ export class Game {
   public questLogPanel: QuestLogPanel = new QuestLogPanel();
   /** Settings panel — toggled with `\\`. */
   public settingsPanel: SettingsPanel = new SettingsPanel();
+  /** Pip's travelling cart menu — opened with E when next to the cart. */
+  public cartMenu: CartMenu = new CartMenu();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -502,6 +514,9 @@ export class Game {
       if (catPaid > 0) logGold(this.world.player, catPaid, 'farm cat streak', this.time.day);
       // Stamina refill — top the pool back to max once per new day.
       refillStamina(this.world.player, this.time.day);
+      // Pip's cart — surface a dawn toast on the day he arrives so the
+      // player knows to head over to the village square.
+      const pipArrived = cartVisitToday(this.time);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Deliver any new letters earned by yesterday's heart gains.
@@ -532,7 +547,9 @@ export class Game {
                         ? ` (${inviteToastLine(newInvites[0])})`
                         : newInvites.length > 1
                           ? ` (${newInvites.length} hangout invites pending)`
-                          : '';
+                          : pipArrived
+                            ? ` (${cartArrivalLine()})`
+                            : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -591,6 +608,7 @@ export class Game {
     this.cookingMenu.update(dtMs);
     this.sleepSummary.update(dtMs);
     this.chestMenu.update(dtMs);
+    this.cartMenu.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
     this.achievements.update(dtMs);
@@ -641,7 +659,7 @@ export class Game {
     }
 
     // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1034,6 +1052,34 @@ export class Game {
           }
         }
       }
+    } else if (this.cartMenu.isVisible()) {
+      // Cart menu input — only when fully open (lockout cleared).
+      if (this.cartMenu.canAct()) {
+        const i = this.input.justPressed;
+        if (i.has('escape') || i.has('e')) {
+          this.cartMenu.close();
+        } else if (i.has('arrowup') || i.has('w')) {
+          this.cartMenu.selectPrev();
+        } else if (i.has('arrowdown') || i.has('s')) {
+          this.cartMenu.selectNext();
+        } else if (i.has('enter') || i.has(' ')) {
+          const px = Math.round(this.world.player.x);
+          const py = Math.round(this.world.player.y);
+          const out = this.cartMenu.confirm(this.world.player, px, py, this.time);
+          if (out.kind === 'bought') {
+            logGold(this.world.player, -out.item.buyPrice, `cart: ${out.item.label}`, this.time.day);
+            this.setToast(`Bought ${out.item.label}. (${out.remainingGold}g left)`);
+          } else if (out.kind === 'not-enough-gold') {
+            this.setToast(`Need ${out.need}g (have ${out.have}g).`);
+          } else if (out.kind === 'closed') {
+            this.setToast("Pip's already packed up for the day.");
+            this.cartMenu.close();
+          } else if (out.kind === 'too-far') {
+            this.setToast('Stand by the cart.');
+            this.cartMenu.close();
+          }
+        }
+      }
     } else if (!this.dialogue.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
@@ -1315,6 +1361,14 @@ export class Game {
         }
       }
       if (this.input.justPressed.has('e')) {
+        // Pip's cart takes priority over NPC/harvest when the player
+        // stands right next to it during open hours.
+        const px = Math.round(p.x);
+        const py = Math.round(p.y);
+        if (nearCart(px, py) && cartOpen(this.time)) {
+          this.cartMenu.open();
+          return;
+        }
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
           const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
@@ -1490,6 +1544,15 @@ export class Game {
         drawChestSprite(this.ctx, sx, sy);
       }
     }
+    // Pip's travelling cart — visible only during the visit-day open
+    // hours. Rendered above chests so the awning sits clean over the
+    // plaza tiles.
+    if (cartOpen(this.time)) {
+      const wx = CART_X * TILE_SIZE + TILE_SIZE / 2;
+      const wy = CART_Y * TILE_SIZE + TILE_SIZE / 2;
+      const { sx, sy } = this.camera.worldToScreen(wx, wy);
+      drawCartSprite(this.ctx, sx, sy, TILE_SIZE);
+    }
     // Farm dog — drawn after coops so it appears in front of them.
     {
       const dog = getDog(this.world);
@@ -1591,6 +1654,7 @@ export class Game {
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
+    this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
