@@ -34,7 +34,10 @@ export type DishKey =
   | 'mushroom-skillet'
   | 'berry-tart'
   | 'herb-tea'
-  | 'hot-cocoa';
+  | 'hot-cocoa'
+  | 'berry-tonic'
+  | 'mushroom-broth'
+  | 'sunflower-elixir';
 
 /** One required ingredient line: an inventory key + how many to consume. */
 export interface Ingredient {
@@ -173,6 +176,38 @@ export const RECIPES: Record<DishKey, Recipe> = {
       { key: 'wheat_harvest', count: 1 },
     ],
     sellPrice: 55, // raw: 12*2 + 8 = 32 -> +23 markup
+  },
+  // ---- Stamina tea tier (restore-only drinks for the energy pool) ----
+  'berry-tonic': {
+    key: 'berry-tonic',
+    name: 'Berry Tonic',
+    flavor: 'Wild berries steeped with one sprig of sage. Sharp and bright.',
+    ingredients: [
+      { key: 'forage-berry', count: 3 },
+      { key: 'forage-herb', count: 1 },
+    ],
+    sellPrice: 38, // raw: 6*3 + 4 = 22 -> +16 markup
+  },
+  'mushroom-broth': {
+    key: 'mushroom-broth',
+    name: 'Mushroom Broth',
+    flavor: 'Three mushrooms simmered with a half tomato. Earthy + warming.',
+    ingredients: [
+      { key: 'forage-mushroom', count: 3 },
+      { key: 'tomato_harvest', count: 1 },
+    ],
+    sellPrice: 70, // raw: 9*3 + 25 = 52 -> +18 markup
+  },
+  'sunflower-elixir': {
+    key: 'sunflower-elixir',
+    name: 'Sunflower Elixir',
+    flavor: 'A flower, a pumpkin, an egg. The strongest pour at the bar.',
+    ingredients: [
+      { key: 'flower_harvest', count: 2 },
+      { key: 'pumpkin_harvest', count: 1 },
+      { key: 'egg', count: 1 },
+    ],
+    sellPrice: 175, // raw: 30 + 80 + 12 = 122 -> +53 markup
   },
 };
 

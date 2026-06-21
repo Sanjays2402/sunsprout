@@ -52,6 +52,9 @@ export const STAMINA_COST = {
 export const STAMINA_RESTORE: Record<string, number> = {
   'dish-herb-tea': 20,
   'dish-hot-cocoa': 35,
+  'dish-berry-tonic': 25,
+  'dish-mushroom-broth': 30,
+  'dish-sunflower-elixir': 60,
 };
 
 /** Default state — full pool. */
