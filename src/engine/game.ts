@@ -196,6 +196,7 @@ import {
 import { CartMenu } from '../ui/cart-menu';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
+import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
   drawFishingBar,
@@ -257,6 +258,8 @@ export class Game {
   public settingsPanel: SettingsPanel = new SettingsPanel();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
   public cartMenu: CartMenu = new CartMenu();
+  /** Lore / bestiary panel — toggled with backtick. */
+  public lorePanel: LorePanel = new LorePanel();
   /** Fishing rod state machine. F casts/reels; tile-in-front must be water. */
   public rod: Rod = new Rod();
   /** Pickaxe state machine. M swings/strikes; tile-in-front must be stone. */
@@ -616,6 +619,7 @@ export class Game {
     this.sleepSummary.update(dtMs);
     this.chestMenu.update(dtMs);
     this.cartMenu.update(dtMs);
+    this.lorePanel.update(dtMs);
     this.recipeCodex.update(dtMs);
     this.cropJournal.update(dtMs);
     this.achievements.update(dtMs);
@@ -730,6 +734,23 @@ export class Game {
         this.questLogPanel.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
         this.questLogPanel.scrollUp();
+      }
+    }
+
+    // `: toggle the lore / bestiary panel.
+    if (this.input.justPressed.has('`')) {
+      this.lorePanel.toggle();
+    } else if (this.lorePanel.isVisible() && this.lorePanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.lorePanel.close();
+      } else if (this.input.justPressed.has('arrowright') || this.input.justPressed.has('d')) {
+        this.lorePanel.nextTab();
+      } else if (this.input.justPressed.has('arrowleft') || this.input.justPressed.has('a')) {
+        this.lorePanel.prevTab();
+      } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
+        this.lorePanel.scrollDown(this.world.player);
+      } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
+        this.lorePanel.scrollUp();
       }
     }
 
@@ -1658,6 +1679,7 @@ export class Game {
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
