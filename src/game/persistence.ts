@@ -37,6 +37,7 @@ import { defaultStaminaState, getStamina, type StaminaState } from './stamina';
 import { getRestock, type AutoRestockState } from './auto-restock';
 import { getDecor, type DecorState } from './decor';
 import { getSpouseState, type SpouseState } from './spouse';
+import { getBoard, type BoardState } from './board';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -104,6 +105,8 @@ export interface SaveSnapshot {
     decor?: DecorState;
     /** Spouse memo — when the morning gift was last delivered. */
     spouse?: SpouseState;
+    /** Village quest board — active quest + completed count + recent. */
+    board?: BoardState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -216,6 +219,15 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       spouse: (p as Player & { spouse?: SpouseState }).spouse
         ? { lastGiftDay: getSpouseState(p).lastGiftDay }
+        : undefined,
+      board: (p as Player & { board?: BoardState }).board
+        ? {
+            activeId: getBoard(p).activeId,
+            postedSeason: getBoard(p).postedSeason,
+            postedDay: getBoard(p).postedDay,
+            completedCount: getBoard(p).completedCount,
+            recent: [...getBoard(p).recent],
+          }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -348,6 +360,15 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.spouse) {
     const cur = getSpouseState(p);
     cur.lastGiftDay = snap.player.spouse.lastGiftDay;
+  }
+  // Quest board — restore the active week + history counters.
+  if (snap.player.board) {
+    const cur = getBoard(p);
+    cur.activeId = snap.player.board.activeId;
+    cur.postedSeason = snap.player.board.postedSeason;
+    cur.postedDay = snap.player.board.postedDay;
+    cur.completedCount = snap.player.board.completedCount;
+    cur.recent = [...snap.player.board.recent];
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

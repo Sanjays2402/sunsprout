@@ -197,6 +197,16 @@ import { CartMenu } from '../ui/cart-menu';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
+import {
+  BOARD_X,
+  BOARD_Y,
+  boardProgress,
+  canTurnIn,
+  drawBoardSprite,
+  nearBoard,
+  refreshBoard,
+  turnIn,
+} from '../game/board';
 import { LorePanel } from '../ui/lore-panel';
 import {
   cursorPosition,
@@ -1408,6 +1418,29 @@ export class Game {
           this.cartMenu.open();
           return;
         }
+        // Village quest board — interact when standing adjacent.
+        if (nearBoard(px, py)) {
+          const posted = refreshBoard(p, this.time);
+          if (canTurnIn(p, this.time)) {
+            const out = turnIn(p, this.time);
+            if (out.kind === 'completed') {
+              logGold(p, out.goldEarned, `board: ${out.quest.label}`, this.time.day);
+              const tail =
+                out.quest.rewardItems && out.quest.rewardItems.length > 0
+                  ? ` + ${out.quest.rewardItems
+                      .map((r) => `${r.count} ${r.key.replace('_harvest', '')}`)
+                      .join(', ')}`
+                  : '';
+              this.setToast(`Board cleared: ${out.quest.label} +${out.goldEarned}g${tail}`);
+              return;
+            }
+          }
+          const prog = boardProgress(p, this.time);
+          this.setToast(
+            `Board: ${posted.label} (${prog.have}/${prog.need}). +${posted.rewardGold}g.`,
+          );
+          return;
+        }
         const npc = npcInFrontOf(this.world, front.tx, front.ty);
         if (npc) {
           const h = p.hearts ? getHearts(p.hearts, npc.id) : 0;
@@ -1597,6 +1630,13 @@ export class Game {
       const wy = CART_Y * TILE_SIZE + TILE_SIZE / 2;
       const { sx, sy } = this.camera.worldToScreen(wx, wy);
       drawCartSprite(this.ctx, sx, sy, TILE_SIZE);
+    }
+    // Village quest board — always visible just south of the well.
+    {
+      const wx = BOARD_X * TILE_SIZE + TILE_SIZE / 2;
+      const wy = BOARD_Y * TILE_SIZE + TILE_SIZE / 2;
+      const { sx, sy } = this.camera.worldToScreen(wx, wy);
+      drawBoardSprite(this.ctx, sx, sy);
     }
     // Farm dog — drawn after coops so it appears in front of them.
     {
