@@ -20,7 +20,7 @@ import type { Player } from '../world/world';
 import { CROPS } from './crops';
 import { FISH, type FishKey } from './fish';
 import { FORAGE } from './forage';
-import { EGG_SELL_PRICE } from './coop';
+import { EGG_SELL_PRICE, BREEDER_EGG_INVENTORY_KEY, FANCY_EGG_SELL_PRICE } from './coop';
 
 /** Identifier keys for every dish the player can produce. */
 export type DishKey =
@@ -310,10 +310,142 @@ export function sellAllDishes(player: Player): number {
   for (const recipeKey of RECIPE_KEYS) {
     const key = dishInventoryKey(recipeKey);
     const have = player.inventory[key] ?? 0;
-    if (have <= 0) continue;
-    earned += have * RECIPES[recipeKey].sellPrice;
-    player.inventory[key] = 0;
+    if (have > 0) {
+      earned += have * RECIPES[recipeKey].sellPrice;
+      player.inventory[key] = 0;
+    }
+    // The premium variant lives in a parallel key per recipe — walk
+    // it separately so a stock of premium dishes (with no regular
+    // dishes for the same recipe) still gets sold.
+    const premKey = premiumDishInventoryKey(recipeKey);
+    const havePrem = player.inventory[premKey] ?? 0;
+    if (havePrem > 0) {
+      earned += havePrem * premiumSellPrice(recipeKey);
+      player.inventory[premKey] = 0;
+    }
   }
   player.gold += earned;
   return earned;
 }
+
+// ---------------------------------------------------------------------
+// Premium cooking — breeder eggs can stand in for a regular egg in any
+// egg-bearing recipe, producing a premium variant that sells for
+// PREMIUM_SELL_MULTIPLIER × the base dish.
+//
+// Mechanics:
+//   - one breeder egg replaces exactly ONE regular egg requirement in
+//     the recipe; the rest of the ingredients still get consumed.
+//   - the premium dish lives at `dish-<key>-premium` so it doesn't
+//     collide with the regular variant; existing fixtures that read
+//     `dish-<key>` aren't affected.
+//   - cookPremium refuses on recipes that don't list an egg ingredient
+//     so the player can't accidentally "premiumise" a Sage Tea.
+//
+// Why this design instead of a parallel recipe table: breeder eggs
+// hadn't found a meaningful cooking outlet beyond the cart trade-in.
+// Carrying a Brass-Barometer-tier per-recipe parallel catalog would
+// have doubled the codex; reusing the existing recipe with a single-
+// ingredient swap keeps the cookbook compact and gives heritage
+// breeding a fancier reason to exist.
+// ---------------------------------------------------------------------
+
+/**
+ * Sell-price multiplier for a premium dish. Conservative — the
+ * breeder egg already costs more to produce than a regular fancy egg,
+ * so the markup tops out at 1.5× to keep the cook-and-sell loop
+ * grounded.
+ */
+export const PREMIUM_SELL_MULTIPLIER = 1.5;
+
+/**
+ * Inventory key under which a premium dish is stored. The trailing
+ * `-premium` suffix keeps it disjoint from the regular dish key.
+ */
+export function premiumDishInventoryKey(key: DishKey): string {
+  return `dish-${key}-premium`;
+}
+
+/** Premium sell-price for `key` — round-half-up of base * multiplier. */
+export function premiumSellPrice(key: DishKey): number {
+  return Math.round(RECIPES[key].sellPrice * PREMIUM_SELL_MULTIPLIER);
+}
+
+/**
+ * True iff `recipe` carries at least one regular-egg ingredient. We
+ * use the `egg` key as the substitution target because breeder eggs
+ * are themselves a fancier kind of egg.
+ */
+export function recipeHasEgg(recipe: Recipe): boolean {
+  return recipe.ingredients.some((ing) => ing.key === 'egg' && ing.count >= 1);
+}
+
+/** True iff the player can cook the premium variant of `recipeKey`. */
+export function canCookPremium(player: Player, recipeKey: DishKey): boolean {
+  const recipe = RECIPES[recipeKey];
+  if (!recipe || !recipeHasEgg(recipe)) return false;
+  const haveBreeder = player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0;
+  if (haveBreeder <= 0) return false;
+  for (const ing of recipe.ingredients) {
+    if (ing.key === 'egg') {
+      // Need one breeder egg + (count-1) regular eggs.
+      const haveReg = player.inventory.egg ?? 0;
+      if (haveReg < ing.count - 1) return false;
+    } else {
+      if ((player.inventory[ing.key] ?? 0) < ing.count) return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Cook the premium variant of `recipeKey`. Consumes 1 breeder egg +
+ * (egg.count - 1) regular eggs + every other ingredient at full count,
+ * then increments `dish-<recipeKey>-premium`. Returns false (no
+ * mutation) when the recipe doesn't list an egg, the player lacks a
+ * breeder egg, or any other ingredient is missing.
+ */
+export function cookPremium(player: Player, recipeKey: DishKey): boolean {
+  const recipe = RECIPES[recipeKey];
+  if (!recipe) return false;
+  if (!recipeHasEgg(recipe)) return false;
+  if (!canCookPremium(player, recipeKey)) return false;
+  for (const ing of recipe.ingredients) {
+    if (ing.key === 'egg') {
+      player.inventory[BREEDER_EGG_INVENTORY_KEY] =
+        (player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0) - 1;
+      player.inventory.egg = (player.inventory.egg ?? 0) - (ing.count - 1);
+    } else {
+      player.inventory[ing.key] = (player.inventory[ing.key] ?? 0) - ing.count;
+    }
+  }
+  const premKey = premiumDishInventoryKey(recipeKey);
+  player.inventory[premKey] = (player.inventory[premKey] ?? 0) + 1;
+  return true;
+}
+
+/** Total gold value of every premium dish in the inventory. */
+export function premiumDishesValue(player: Player): number {
+  let total = 0;
+  for (const recipeKey of RECIPE_KEYS) {
+    const have = player.inventory[premiumDishInventoryKey(recipeKey)] ?? 0;
+    total += have * premiumSellPrice(recipeKey);
+  }
+  return total;
+}
+
+/**
+ * Pretty markup line for the codex panel — "Premium: +Ng if you cook
+ * with a breeder egg". Returns the empty string for recipes that
+ * don't accept the swap. Pure formatter so the codex panel can stitch
+ * it under the regular ingredient line.
+ */
+export function premiumCookLine(recipeKey: DishKey): string {
+  const recipe = RECIPES[recipeKey];
+  if (!recipe || !recipeHasEgg(recipe)) return '';
+  const delta = premiumSellPrice(recipeKey) - recipe.sellPrice;
+  return `Premium (breeder egg swap): ${premiumSellPrice(recipeKey)}g (+${delta}g)`;
+}
+
+/** Constant re-export so test fixtures pulling from cooking.ts can find it. */
+export { FANCY_EGG_SELL_PRICE };
