@@ -94,12 +94,26 @@ export function startingHearts(): HeartsState {
 export const BOUQUET_KEY = 'bouquet';
 export const BOUQUET_PRICE = 200;
 
+/**
+ * Perfumed Soap — universal "loved" cosmetic minted by the bath house
+ * loyalty card every SOAP_PER_SOAKS soaks. Mirroring the bouquet rule
+ * keeps the soap from being dead inventory: any candidate accepts it,
+ * the per-day gift gate still applies, and the loved tier (+80 pts)
+ * scales with the birthday multiplier just like the bouquet.
+ *
+ * Keep the literal string in sync with PERFUMED_SOAP_INVENTORY_KEY in
+ * ./bath-house — duplicated here to avoid a circular import.
+ */
+export const PERFUMED_SOAP_GIFT_KEY = 'perfumed-soap';
+
 /** Classify how the candidate feels about a given inventory key. */
 export function tasteOf(npcId: string, itemKey: string): GiftTaste {
   const def = CANDIDATES[npcId];
   if (!def) return 'neutral';
-  // The bouquet is universally loved — it's the village courtship token.
+  // The bouquet + perfumed soap are universally loved — both are
+  // village courtship/luxury tokens that every candidate accepts.
   if (itemKey === BOUQUET_KEY) return 'loved';
+  if (itemKey === PERFUMED_SOAP_GIFT_KEY) return 'loved';
   if (def.loved.includes(itemKey)) return 'loved';
   if (def.liked.includes(itemKey)) return 'liked';
   if (def.disliked.includes(itemKey)) return 'disliked';

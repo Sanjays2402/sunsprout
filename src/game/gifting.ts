@@ -15,7 +15,9 @@
 
 import type { Player } from '../world/world';
 import {
+  BOUQUET_KEY,
   CANDIDATES,
+  PERFUMED_SOAP_GIFT_KEY,
   giveGift,
   type GiftResult,
   type GiftTaste,
@@ -42,6 +44,11 @@ const TASTE_RANK: Record<GiftTaste, number> = {
  * Finds the best giftable inventory key for the given candidate. Returns
  * null if the player has nothing acceptable (we never auto-gift items
  * the candidate dislikes). Pure — does not mutate.
+ *
+ * Two universal "loved" tokens — BOUQUET_KEY and PERFUMED_SOAP_GIFT_KEY —
+ * are recognised across every candidate so callers don't have to push
+ * them into every CANDIDATES.loved list. Anything else falls back to
+ * the per-candidate taste tables.
  */
 export function pickBestGift(
   inventory: Record<string, number>,
@@ -56,7 +63,8 @@ export function pickBestGift(
     // Skip non-giftable utility items.
     if (key === 'watering-can') continue;
     let taste: GiftTaste;
-    if (def.loved.includes(key)) taste = 'loved';
+    if (key === BOUQUET_KEY || key === PERFUMED_SOAP_GIFT_KEY) taste = 'loved';
+    else if (def.loved.includes(key)) taste = 'loved';
     else if (def.liked.includes(key)) taste = 'liked';
     else if (def.disliked.includes(key)) continue; // never auto-gift disliked
     else taste = 'neutral';
