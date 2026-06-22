@@ -170,8 +170,11 @@ import { gemInventoryKey } from '../game/gems';
 import {
   getMineHaul,
   haulYesterdayLine,
+  haulCount,
   recordMined,
   resetMineHaul,
+  crossedMilestone,
+  milestoneToastLine,
 } from '../game/mining-haul';
 import {
   pickaxeTier,
@@ -1877,15 +1880,26 @@ export class Game {
             // can replay "yesterday's haul" the next morning after
             // sleep. Tally resets via resetMineHaul() in the sleep
             // branch.
+            const haulPre = haulCount(getMineHaul(p));
             recordMined(p, gem);
+            const haulPost = haulCount(getMineHaul(p));
+            // Mid-run milestone callout — if the bump crossed 3, 6,
+            // or 10 gems this run, append a celebratory tail to the
+            // strike toast so the player feels the run building.
+            // Pure cross-detection so re-mining at the same threshold
+            // (after sleep) re-fires the callout cleanly.
+            const tier = crossedMilestone(haulPre, haulPost);
+            const milestoneTail = tier !== null
+              ? `  -  ${milestoneToastLine(getMineHaul(p), tier)}`
+              : '';
             this.checkQuests({ kind: 'mine', gemKey: gem });
             const bonus = strikeBonus(grade);
             if (bonus > 0) {
               p.gold += bonus;
               logGold(p, bonus, `mining ${def.name}`, this.time.day);
-              this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g`);
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g${milestoneTail}`);
             } else {
-              this.setToast(`${strikeLabel(grade)} +1 ${def.name}`);
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name}${milestoneTail}`);
             }
           }
         } else if (this.pickaxe.state === 'idle') {

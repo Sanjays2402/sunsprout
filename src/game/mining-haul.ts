@@ -192,3 +192,62 @@ export function haulStatusLine(state: MineHaulState): string {
   }
   return `Today's haul: ${parts.join(', ')} (worth ${gold}g).`;
 }
+
+// ---------------------------------------------------------------------
+// Mid-run milestone callouts — when the player crosses an interesting
+// total gem count this run, surface a fleeting toast so the player
+// gets celebratory feedback without having to walk back to the dawn
+// recap. Pure helpers; the engine layer reads previous-count and
+// current-count and asks `crossedMilestone(prev, next)` for the
+// matching tier, then surfaces a toast.
+//
+// Why tiered rather than a generic "every 5 gems": the gem economy
+// rewards rare gems much more than copper. The tiers are tuned around
+// the median per-gem sell price so 3 / 6 / 10 maps to "starting to
+// score", "solid morning", "outright fat run". The toast uses
+// haulStatusLine() so the player sees the SPECIFIC composition that
+// just crossed the bar.
+// ---------------------------------------------------------------------
+
+/** Tier thresholds — counts (not gold). Stable order, smallest first. */
+export const MINING_RUN_MILESTONES = [3, 6, 10] as const;
+export type MiningRunMilestone = (typeof MINING_RUN_MILESTONES)[number];
+
+/** Per-tier label injected into the toast. */
+const MILESTONE_LABEL: Record<MiningRunMilestone, string> = {
+  3: 'Solid start',
+  6: 'Run going strong',
+  10: 'Fat haul',
+};
+
+/**
+ * True iff (prev, next) brackets one of MINING_RUN_MILESTONES — i.e.
+ * the player has just crossed a milestone count this strike. Returns
+ * the crossed tier or null. When multiple tiers are crossed in a
+ * single bump (impossible with the existing +1-per-strike loop but
+ * defended for safety), returns the HIGHEST crossed tier.
+ *
+ * Pure — doesn't read state, doesn't bump counts.
+ */
+export function crossedMilestone(prev: number, next: number): MiningRunMilestone | null {
+  let hit: MiningRunMilestone | null = null;
+  for (const tier of MINING_RUN_MILESTONES) {
+    if (prev < tier && next >= tier) hit = tier;
+  }
+  return hit;
+}
+
+/**
+ * Pretty toast for a milestone cross. Pairs the label with the
+ * current haul status line so the player sees both "Run going
+ * strong!" and "today's haul: 4 copper, 2 ruby (worth 218g)" in
+ * one message. Returns the empty string when no milestone crossed.
+ */
+export function milestoneToastLine(
+  state: MineHaulState,
+  milestone: MiningRunMilestone | null,
+): string {
+  if (milestone === null) return '';
+  const status = haulStatusLine(state);
+  return `${MILESTONE_LABEL[milestone]}! ${status}`;
+}
