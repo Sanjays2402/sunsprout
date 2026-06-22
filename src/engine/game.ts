@@ -153,7 +153,7 @@ import {
 } from '../game/chest';
 import { ChestMenu } from '../ui/chest-menu';
 import { RECIPES } from '../game/cooking';
-import { recordCook } from '../game/cooking-history';
+import { recordCook, recordPremiumCook } from '../game/cooking-history';
 import { RecipeCodex } from '../ui/recipe-codex';
 import { recordHarvest, recordSown } from '../game/crop-journal';
 import { CropJournalPanel } from '../ui/crop-journal-panel';
@@ -1567,18 +1567,43 @@ export class Game {
         } else if (i.has('arrowdown') || i.has('s')) {
           this.cookingMenu.selectNext();
         } else if (i.has('enter') || i.has(' ')) {
-          const outcome = this.cookingMenu.confirm(this.world.player);
+          // Shift+Enter (or Shift+Space) fires the stamina-tea double-batch
+          // path: 2x ingredients -> 3 dishes. Falls back to single cook for
+          // every other case so the keypress is never wasted.
+          const shiftHeld = this.input.isPressed('shift');
+          const mode = shiftHeld ? 'double' : 'single';
+          const outcome = this.cookingMenu.confirm(this.world.player, mode);
           if (outcome.kind === 'cooked') {
             recordCook(this.world.player, outcome.recipe);
-            this.setToast(`Cooked ${outcome.name}!`);
+            // The single-yield path mints exactly one dish per record;
+            // double-batch mints DOUBLE_BATCH_DISH_YIELD=3 — bump the
+            // cook history three times so the achievement / "10 dishes"
+            // milestones see the full cook count, mirroring how the
+            // player feels the bowl filling.
+            for (let n = 1; n < outcome.yield; n++) {
+              recordCook(this.world.player, outcome.recipe);
+            }
+            const label =
+              outcome.mode === 'double'
+                ? `Double-batched ${outcome.name}! (+${outcome.yield})`
+                : `Cooked ${outcome.name}!`;
+            this.setToast(label);
             this.checkQuests({ kind: 'cook', dishKey: outcome.recipe });
+          } else if (outcome.kind === 'not-eligible-double') {
+            this.setToast(`${outcome.name} can't double-batch — only stamina teas.`);
           } else if (outcome.kind === 'missing') {
             const recipe = RECIPES[outcome.recipe];
+            const mult = outcome.mode === 'double' ? 2 : 1;
             const need = recipe.ingredients
-              .map((ing) => `${ing.count}× ${ing.key.replace('_harvest', '').replace('fish-', '')}`)
+              .map((ing) => `${ing.count * mult}× ${ing.key.replace('_harvest', '').replace('fish-', '')}`)
               .join(', ');
             this.setToast(`Need ${need}.`);
           }
+          // recordPremiumCook is reserved for the future inn-cooking flow;
+          // expose the import here so the bookkeeping helper stays close
+          // to its sibling recordCook. (Premium swap is still surfaced
+          // via canCookPremium / cookPremium on cooking.ts.)
+          void recordPremiumCook;
         }
       }
     } else if (this.chestMenu.isVisible()) {

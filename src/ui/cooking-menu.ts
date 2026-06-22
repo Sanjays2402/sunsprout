@@ -14,9 +14,13 @@ import {
   RECIPES,
   RECIPE_KEYS,
   canCook,
+  canCookDoubleBatch,
   cook,
+  cookDoubleBatch,
   dishInventoryKey,
+  doubleBatchLine,
   ingredientsValue,
+  isStaminaTea,
   type DishKey,
 } from '../game/cooking';
 
@@ -33,10 +37,14 @@ const DIM = 'rgba(245, 233, 212, 0.45)';
 const GOLD = '#F0C24A';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 
+/** Cook mode — regular single-yield or stamina-tea double-batch. */
+export type CookMode = 'single' | 'double';
+
 /** Result of an attempted cook from the menu. */
 export type CookOutcome =
-  | { kind: 'cooked'; recipe: DishKey; name: string }
-  | { kind: 'missing'; recipe: DishKey; name: string }
+  | { kind: 'cooked'; recipe: DishKey; name: string; mode: CookMode; yield: number }
+  | { kind: 'missing'; recipe: DishKey; name: string; mode: CookMode }
+  | { kind: 'not-eligible-double'; recipe: DishKey; name: string }
   | { kind: 'noop' };
 
 /**
@@ -96,19 +104,42 @@ export class CookingMenu {
   }
 
   /**
-   * Attempts to cook the currently-selected recipe. Returns a tagged
-   * outcome so the game layer can show the right toast (or stay quiet
-   * if the menu wasn't actually open).
+   * Attempts to cook the currently-selected recipe. Defaults to the
+   * regular single-yield path; pass mode='double' to fire the
+   * stamina-tea double-batch (consumes 2x ingredients, mints 3 dishes).
+   * Returns a tagged outcome so the game layer can show the right toast
+   * (or stay quiet if the menu wasn't actually open).
    */
-  confirm(player: Player): CookOutcome {
+  confirm(player: Player, mode: CookMode = 'single'): CookOutcome {
     if (!this.opened) return { kind: 'noop' };
     const key = this.selectedKey();
     const recipe = RECIPES[key];
+    if (mode === 'double') {
+      // The double-batch path only applies to stamina teas — refuse
+      // up front so the game layer can route a clearer toast than
+      // "missing ingredients" when the player tries to batch e.g.
+      // hearty stew.
+      if (!isStaminaTea(key)) {
+        return { kind: 'not-eligible-double', recipe: key, name: recipe.name };
+      }
+      if (!canCookDoubleBatch(player, key)) {
+        return { kind: 'missing', recipe: key, name: recipe.name, mode };
+      }
+      cookDoubleBatch(player, key);
+      return {
+        kind: 'cooked',
+        recipe: key,
+        name: recipe.name,
+        mode,
+        yield: 3, // DOUBLE_BATCH_DISH_YIELD — kept inline so the menu
+                  // doesn't import the constant for a single literal.
+      };
+    }
     if (!canCook(player, key)) {
-      return { kind: 'missing', recipe: key, name: recipe.name };
+      return { kind: 'missing', recipe: key, name: recipe.name, mode };
     }
     cook(player, key);
-    return { kind: 'cooked', recipe: key, name: recipe.name };
+    return { kind: 'cooked', recipe: key, name: recipe.name, mode, yield: 1 };
   }
 
   // -------------------------------------------------------------------
@@ -206,16 +237,31 @@ export class CookingMenu {
         ctx.font = '10px ui-monospace, monospace';
         ctx.fillStyle = HINT;
         ctx.textAlign = 'center';
-        ctx.fillText(`+${markup}g over raw`, rowX + rowW / 2, rowY + rowH - 12);
+        // Tea recipes get the double-batch hint here instead of the
+        // "+Ng over raw" markup line — both communicate the same
+        // "what does the highlighted recipe offer beyond a normal cook"
+        // sentiment and the batch line is more actionable for teas.
+        const doubleHint = doubleBatchLine(key);
+        if (doubleHint.length > 0) {
+          ctx.fillText(doubleHint, rowX + rowW / 2, rowY + rowH - 12);
+        } else {
+          ctx.fillText(`+${markup}g over raw`, rowX + rowW / 2, rowY + rowH - 12);
+        }
       }
     }
 
-    // Footer hints.
+    // Footer hints — surface the Shift+Enter batch path when the
+    // currently-selected recipe is a stamina tea.
+    const selectedKey = this.selectedKey();
+    const batchEligible = isStaminaTea(selectedKey);
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillStyle = HINT;
     ctx.textAlign = 'center';
+    const footer = batchEligible
+      ? '↑/↓ choose · Enter cook · Shift+Enter double-batch · C / Esc close'
+      : '↑/↓ to choose · Enter to cook · C / Esc to close';
     ctx.fillText(
-      '↑/↓ to choose · Enter to cook · C / Esc to close',
+      footer,
       x + PANEL_W / 2,
       y + PANEL_H - 22,
     );
