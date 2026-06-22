@@ -94,10 +94,38 @@ export interface PlacedCoop {
    * snapshot via the coops blob.
    */
   heritage?: boolean[];
+  /**
+   * Breeder eggs sitting in the coop, waiting to be collected. Mints
+   * only when the coop has >= HERITAGE_BREEDER_MIN_HERITAGE heritage
+   * chickens AND a deterministic per-day roll passes. A breeder egg
+   * routes into BREEDER_EGG_INVENTORY_KEY on collect and hatches as
+   * a guaranteed heritage chick.
+   */
+  breederEggs?: number;
 }
 
 /** Per-chicken fancy-rate bump granted to a heritage chicken (additive). */
 export const HERITAGE_FANCY_BONUS = 0.15;
+
+/**
+ * Probability that a coop with TWO OR MORE heritage chickens routes
+ * one of its fancy eggs that morning into the BREEDER egg cache
+ * instead. Deterministic per (coop position, day) so reload-scumming
+ * is harmless.
+ *
+ * Tuned at 40% — when a coop is breeder-eligible, ~40% of dawns add
+ * one breeder egg. A breeder egg loaded into the hatchery hatches a
+ * guaranteed heritage chick (vs the regular 18% roll). Combined with
+ * the per-chicken fancy roll, a pair of heritage chickens generates
+ * roughly one breeder egg per week of in-game time.
+ */
+export const HERITAGE_BREEDER_RATE = 0.4;
+
+/** Inventory key for an unhatched BREEDER fancy egg. */
+export const BREEDER_EGG_INVENTORY_KEY = 'egg-breeder';
+
+/** Heritage chickens required in a single coop to enable the breeder roll. */
+export const HERITAGE_BREEDER_MIN_HERITAGE = 2;
 
 export interface WorldWithCoops {
   coops?: PlacedCoop[];
@@ -254,21 +282,51 @@ export function coopTick(world: World, day: number = 0): number {
     const baseRate = FANCY_EGG_RATE[tier];
     const rate = coopFancyRate(c, baseRate);
     let fancy = 0;
+    let fancyFromHeritage = 0;
     for (let i = 0; i < c.chickens; i++) {
       // Per-chicken rate — heritage chickens get a flat +HERITAGE_FANCY_BONUS.
-      const perChickenRate = isHeritageChicken(c, i)
+      const isHeritage = isHeritageChicken(c, i);
+      const perChickenRate = isHeritage
         ? Math.min(1, rate + HERITAGE_FANCY_BONUS)
         : rate;
       // Hash (tx, ty, day, i) into a [0,1) roll.
       const r = pseudoRoll(c.tx, c.ty, day, i);
-      if (r < perChickenRate) fancy += 1;
+      if (r < perChickenRate) {
+        fancy += 1;
+        if (isHeritage) fancyFromHeritage += 1;
+      }
     }
-    const plain = c.chickens - fancy;
-    c.eggs += plain;
+    // Breeder pass — eligible only when this coop has at least
+    // HERITAGE_BREEDER_MIN_HERITAGE heritage chickens AND today's
+    // batch already produced at least one fancy egg from a heritage
+    // hen. Promotes one fancy egg to breeder. Roll uses a distinct
+    // multiplier from pseudoRoll so the two streams don't correlate.
+    let breeder = 0;
+    if (heritageCount(c) >= HERITAGE_BREEDER_MIN_HERITAGE && fancyFromHeritage > 0) {
+      const br = breederRoll(c.tx, c.ty, day);
+      if (br < HERITAGE_BREEDER_RATE) {
+        breeder = 1;
+        fancy = Math.max(0, fancy - 1);
+      }
+    }
+    const plain = c.chickens - fancy - breeder;
+    c.eggs += Math.max(0, plain);
     c.fancyEggs = (c.fancyEggs ?? 0) + fancy;
+    c.breederEggs = (c.breederEggs ?? 0) + breeder;
     produced += c.chickens;
   }
   return produced;
+}
+
+/** Distinct deterministic roll for the breeder gate. */
+export function breederRoll(tx: number, ty: number, day: number): number {
+  // Hash multipliers picked to be distinct from pseudoRoll() above so
+  // breeder + per-chicken streams stay uncorrelated.
+  let h = (tx | 0) * 1597334677 + (ty | 0) * 2147483647;
+  h = (h ^ (h >>> 13)) * 668265263;
+  h = (h ^ ((day | 0) * 374761393));
+  h ^= h >>> 16;
+  return (h >>> 0) / 4294967296;
 }
 
 /** Tiny deterministic 32-bit avalanche over (tx, ty, day, idx) -> [0,1). */
@@ -283,9 +341,8 @@ function pseudoRoll(tx: number, ty: number, day: number, idx: number): number {
 }
 
 /**
- * Collect every egg in `coop` (standard + fancy) into the player's
- * inventory. Returns a breakdown { total, plain, fancy } so the toast
- * can tell the player when a fancy one landed.
+ * Collect every egg in `coop` (standard + fancy + breeder) into the
+ * player's inventory. Returns the total collected.
  */
 export function collectEggs(
   coop: PlacedCoop,
@@ -293,9 +350,11 @@ export function collectEggs(
 ): number {
   const plain = coop.eggs;
   const fancy = coop.fancyEggs ?? 0;
-  if (plain <= 0 && fancy <= 0) return 0;
+  const breeder = coop.breederEggs ?? 0;
+  if (plain <= 0 && fancy <= 0 && breeder <= 0) return 0;
   coop.eggs = 0;
   coop.fancyEggs = 0;
+  coop.breederEggs = 0;
   if (plain > 0) {
     player.inventory[EGG_INVENTORY_KEY] = (player.inventory[EGG_INVENTORY_KEY] ?? 0) + plain;
   }
@@ -303,18 +362,24 @@ export function collectEggs(
     player.inventory[FANCY_EGG_INVENTORY_KEY] =
       (player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0) + fancy;
   }
-  return plain + fancy;
+  if (breeder > 0) {
+    player.inventory[BREEDER_EGG_INVENTORY_KEY] =
+      (player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0) + breeder;
+  }
+  return plain + fancy + breeder;
 }
 
 /** Detailed collection result used by the toast layer. */
 export function collectEggsDetailed(
   coop: PlacedCoop,
   player: { inventory: Record<string, number> },
-): { plain: number; fancy: number } {
+): { plain: number; fancy: number; breeder: number } {
   const plain = coop.eggs;
   const fancy = coop.fancyEggs ?? 0;
+  const breeder = coop.breederEggs ?? 0;
   coop.eggs = 0;
   coop.fancyEggs = 0;
+  coop.breederEggs = 0;
   if (plain > 0) {
     player.inventory[EGG_INVENTORY_KEY] = (player.inventory[EGG_INVENTORY_KEY] ?? 0) + plain;
   }
@@ -322,7 +387,11 @@ export function collectEggsDetailed(
     player.inventory[FANCY_EGG_INVENTORY_KEY] =
       (player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0) + fancy;
   }
-  return { plain, fancy };
+  if (breeder > 0) {
+    player.inventory[BREEDER_EGG_INVENTORY_KEY] =
+      (player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0) + breeder;
+  }
+  return { plain, fancy, breeder };
 }
 
 /** Upgrade a coop's tier. Returns true on success (tier actually changed). */

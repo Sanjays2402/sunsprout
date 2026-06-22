@@ -24,7 +24,7 @@
 // the renderer). The Game wires the placement hook + the per-day tick.
 
 import type { World, Tile } from '../world/world';
-import { addChicken, getCoops, MAX_CHICKENS_PER_COOP, type PlacedCoop } from './coop';
+import { addChicken, getCoops, MAX_CHICKENS_PER_COOP, BREEDER_EGG_INVENTORY_KEY, type PlacedCoop } from './coop';
 
 /** Crafted-kit inventory key (unplaced hatchery). */
 export const HATCHERY_INVENTORY_KEY = 'craft-hatchery';
@@ -152,6 +152,11 @@ export type LoadOutcome =
  * hatchery already has an incubating egg, 'pending' when a hatched
  * chicken hasn't been moved out yet, 'no-egg' when the bag is empty.
  *
+ * Prefers a BREEDER egg from the bag when one is present — breeder
+ * eggs always hatch heritage (incubatingHeritage = true), bypassing
+ * the regular HERITAGE_HATCH_RATE roll. Falls back to a regular fancy
+ * egg + the deterministic per-(tx,ty,day) heritage roll otherwise.
+ *
  * Snapshots the heritage roll for THIS egg at load time — the same
  * (hatchery position, today) always rolls the same heritage flag so
  * reload-scumming is harmless.
@@ -167,9 +172,16 @@ export function loadEgg(
   if (hatchery.hatchOnDay >= today) {
     return { kind: 'busy', daysLeft: hatchery.hatchOnDay - today + 1 };
   }
-  const have = player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0;
-  if (have <= 0) return { kind: 'no-egg' };
-  player.inventory[FANCY_EGG_INVENTORY_KEY] = have - 1;
+  const haveBreeder = player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0;
+  const haveFancy = player.inventory[FANCY_EGG_INVENTORY_KEY] ?? 0;
+  if (haveBreeder > 0) {
+    player.inventory[BREEDER_EGG_INVENTORY_KEY] = haveBreeder - 1;
+    hatchery.hatchOnDay = today + HATCH_DAYS - 1;
+    hatchery.incubatingHeritage = true;
+    return { kind: 'loaded', hatchOnDay: hatchery.hatchOnDay };
+  }
+  if (haveFancy <= 0) return { kind: 'no-egg' };
+  player.inventory[FANCY_EGG_INVENTORY_KEY] = haveFancy - 1;
   hatchery.hatchOnDay = today + HATCH_DAYS - 1;
   hatchery.incubatingHeritage = rollHeritage(hatchery.tx, hatchery.ty, today);
   return { kind: 'loaded', hatchOnDay: hatchery.hatchOnDay };

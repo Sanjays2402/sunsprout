@@ -2023,10 +2023,13 @@ export class Game {
             adjacentCoop(this.world, front.tx, front.ty) ??
             adjacentCoop(this.world, Math.round(p.x), Math.round(p.y))!;
           const detail = collectEggsDetailed(coop, p);
-          const collected = detail.plain + detail.fancy;
+          const collected = detail.plain + detail.fancy + detail.breeder;
           if (collected > 0) {
             const happy = bumpCoopHappinessCollect(coop, this.time.day);
-            const fancyTail = detail.fancy > 0 ? ` (incl. ${detail.fancy} fancy)` : '';
+            const tails: string[] = [];
+            if (detail.fancy > 0) tails.push(`${detail.fancy} fancy`);
+            if (detail.breeder > 0) tails.push(`${detail.breeder} BREEDER`);
+            const fancyTail = tails.length > 0 ? ` (incl. ${tails.join(' + ')})` : '';
             const mood = happy >= 80 ? ' Chickens are thriving.' : '';
             this.setToast(`Collected ${collected} egg${collected === 1 ? '' : 's'}${fancyTail}.${mood}`);
           } else if (coop.chickens === 0) {

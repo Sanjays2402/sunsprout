@@ -114,7 +114,7 @@ describe('collectEggsDetailed', () => {
     coop.eggs = 3;
     coop.fancyEggs = 2;
     const detail = collectEggsDetailed(coop, w.player);
-    expect(detail).toEqual({ plain: 3, fancy: 2 });
+    expect(detail).toEqual({ plain: 3, fancy: 2, breeder: 0 });
     expect(coop.eggs).toBe(0);
     expect(coop.fancyEggs).toBe(0);
     expect(w.player.inventory[EGG_INVENTORY_KEY]).toBe(3);
