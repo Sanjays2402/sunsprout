@@ -152,3 +152,17 @@ export function totalPremiumDishesCooked(player: Player): number {
   for (const k of RECIPE_KEYS) n += premiumCookedCount(player, k);
   return n;
 }
+
+/**
+ * Lifetime premium-dish milestone for the "Breeder's Bowl" achievement.
+ * 25 is calibrated so the badge represents a real commitment to the
+ * breeder-egg loop (heritage chickens hatched → bred → cooked) rather
+ * than a token "ever cooked one" check. A run that ships 25 premium
+ * dishes has demonstrably worked the heritage chain.
+ */
+export const BREEDERS_BOWL_MILESTONE = 25;
+
+/** True iff the player has cooked BREEDERS_BOWL_MILESTONE+ premium dishes. */
+export function breedersBowlMilestoneReached(player: Player): boolean {
+  return totalPremiumDishesCooked(player) >= BREEDERS_BOWL_MILESTONE;
+}

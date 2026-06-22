@@ -16,7 +16,12 @@ import type { Player, World } from '../world/world';
 import type { TimeOfDay } from './time';
 import { CANDIDATES, getHearts } from './hearts';
 import { GEM_KEYS, gemInventoryKey } from './gems';
-import { totalDishesCooked, recipesCooked } from './cooking-history';
+import {
+  totalDishesCooked,
+  recipesCooked,
+  breedersBowlMilestoneReached,
+  BREEDERS_BOWL_MILESTONE,
+} from './cooking-history';
 import { RECIPE_KEYS } from './cooking';
 import { buildJournal } from './crop-journal';
 import { unreadCount } from './mail';
@@ -53,7 +58,8 @@ export type AchievementId =
   | 'menagerie'
   | 'farm-decorator'
   | 'cave-veteran'
-  | 'compost-master';
+  | 'compost-master'
+  | 'breeders-bowl';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -202,6 +208,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Recycle ${COMPOST_MASTER_MILESTONE_GOLD}g back from fertilizer bags.`,
     done: `Pulped ${COMPOST_MASTER_MILESTONE_GOLD}+ gold from fertilizer bags.`,
     check: (p) => compostMasterMilestoneReached(p),
+  },
+  {
+    id: 'breeders-bowl',
+    name: "Breeder's Bowl",
+    hint: `Cook ${BREEDERS_BOWL_MILESTONE} premium (breeder-egg) dishes.`,
+    done: `Plated ${BREEDERS_BOWL_MILESTONE}+ premium dishes from breeder eggs.`,
+    check: (p) => breedersBowlMilestoneReached(p),
   },
 ];
 
