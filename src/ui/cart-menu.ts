@@ -9,7 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
 import { ownsDecor } from '../game/decor';
-import { isCurrentHeadlinerKey, rumorFooterLine, rumorHistorySummary, rumorRebateAmount } from '../game/cart-rumor';
+import { isCurrentHeadlinerKey, rumorFooterLine, rumorHistorySummary, rumorRebateAmount, rumorStreakLine } from '../game/cart-rumor';
 
 const PANEL_W = 560;
 const PANEL_H = 380;
@@ -199,6 +199,15 @@ export class CartMenu {
       if (summary) {
         ctx.fillStyle = HINT;
         ctx.fillText(summary, x + PANEL_W / 2, y + PANEL_H - 36);
+      }
+      // Streak chip — surfaces "streak: 4 bought (-15g on headliners)"
+      // when the player has bought one or more in a row. Empty at
+      // streak=0 so a fresh save / clean break doesn't add a row.
+      const streak = rumorStreakLine(player);
+      if (streak) {
+        ctx.fillStyle = TITLE_COLOR;
+        ctx.fillText(streak, x + PANEL_W / 2, y + PANEL_H - 64);
+        ctx.fillStyle = HINT;
       }
     }
     ctx.fillText('↑/↓ to choose · Enter to buy · Esc to leave', x + PANEL_W / 2, y + PANEL_H - 22);

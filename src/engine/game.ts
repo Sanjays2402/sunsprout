@@ -207,7 +207,7 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
-import { recordRumorBuy, recordRumorVisit, rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine } from '../game/cart-rumor';
+import { recordRumorBuy, recordRumorVisit, rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine, buyRumorStreakDiscount } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
@@ -1667,6 +1667,23 @@ export class Game {
                 logGold(this.world.player, rebate, `cart: rumor rebate (${out.item.label})`, this.time.day);
                 rebateLine = ` Pip nods — rebate +${rebate}g for grabbing the headliner.`;
                 postBuyGold = out.remainingGold + rebate;
+              }
+              // Rumor STREAK discount — three headliners in a row stack
+              // a 5g/step refund (capped at 15g). Read the streak BEFORE
+              // recordRumorBuy stamps this one so it reflects the
+              // PRIOR run of bought headliners, not the one we're about
+              // to record. Refunded as gold post-buy, mirroring rebate.
+              const streakDisc = buyRumorStreakDiscount(
+                this.world.player,
+                this.time.season,
+                out.item.key,
+                out.item.buyPrice,
+              );
+              if (streakDisc > 0) {
+                this.world.player.gold += streakDisc;
+                logGold(this.world.player, streakDisc, `cart: rumor streak (${out.item.label})`, this.time.day);
+                rebateLine += ` Streak refund +${streakDisc}g.`;
+                postBuyGold += streakDisc;
               }
               // Stamp the rumor-history entry as bought. The history
               // entry was created on cart-menu open via

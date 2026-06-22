@@ -33,7 +33,6 @@ import {
 import { BAROMETER_INVENTORY_KEY, BAROMETER_PRICE } from './barometer';
 import { BREEDER_EGG_INVENTORY_KEY, FANCY_EGG_SELL_PRICE } from './coop';
 import { POND_MAX_PENDING_RIM, POND_RIM_INVENTORY_KEY, POND_RIM_PRICE } from './fish-pond';
-
 /** Synthetic CART_CATALOG key for the spa-pass refill row. Not stored
  *  in the player's inventory — purchasing it credits punches directly
  *  via SPA_PASS_PUNCHES on the spa-pass pool. */

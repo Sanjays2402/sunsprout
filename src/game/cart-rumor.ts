@@ -263,3 +263,105 @@ export function rumorHistorySummary(player: object): string {
   for (const e of entries) if (e.bought) bought += 1;
   return `Headliners: ${bought}/${entries.length} bought.`;
 }
+
+// ---------------------------------------------------------------------
+// Rumor streak — buying three headliners in a row stacks a per-buy
+// discount on the next headliner Pip teases. Rewards the player for
+// actually paying attention to the rumor instead of skimming past it.
+//
+// The streak is derived purely from rumorHistory.entries[] — no extra
+// persistence shape. Cycle:
+//   - rumorStreakCount(player) walks back from the end while bought
+//     stays true; stops at the first skip / start of history.
+//   - rumorStreakDiscount(buyPrice, streak) returns the gold to
+//     subtract from THIS visit's headliner buy. Tuned to be visible
+//     without eclipsing the 5% rumor rebate.
+//   - buyRumorStreakDiscount(player, season, buyPrice) is the one-call
+//     entry point for the cart-buy hook: returns 0 when the row isn't
+//     this season's headliner or the streak is below the floor.
+// ---------------------------------------------------------------------
+
+/** Streak floor — discount only applies once the player has bought
+ * RUMOR_STREAK_MIN headliners in a row. */
+export const RUMOR_STREAK_MIN = 3;
+
+/** Per-streak-step gold discount cap — two steps of 5g each (10g cap).
+ * Calibrated against RUMOR_HISTORY_CAP=4: the streak can never exceed
+ * 4 trailing bought entries, so 2 steps over the floor of 3 lands the
+ * cap right at the history limit. Past the cap the player still keeps
+ * the streak (and the existing 5% rebate from rumor-rebate), but the
+ * stacking discount doesn't grow infinitely. */
+export const RUMOR_STREAK_DISCOUNT_STEP = 5;
+export const RUMOR_STREAK_MAX_STEPS = 2;
+
+/**
+ * Number of trailing bought=true entries on the player's rumor
+ * history. Returns 0 when the latest entry is a skip OR the history
+ * is empty. Pure read.
+ */
+export function rumorStreakCount(player: object): number {
+  const entries = getRumorHistory(player).entries;
+  let n = 0;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    if (!entries[i].bought) break;
+    n += 1;
+  }
+  return n;
+}
+
+/**
+ * Gold discount to subtract from a headliner buy at this streak
+ * count. Returns 0 below RUMOR_STREAK_MIN; otherwise scales
+ * 5g/streak step over the floor, capped at RUMOR_STREAK_MAX_STEPS
+ * steps so the discount tops out at 15g.
+ *
+ * The discount also never exceeds buyPrice (a 5g item should never
+ * cost a negative amount), and never goes below 0.
+ */
+export function rumorStreakDiscount(buyPrice: number, streak: number): number {
+  if (streak < RUMOR_STREAK_MIN) return 0;
+  const stepsOver = Math.min(streak - RUMOR_STREAK_MIN + 1, RUMOR_STREAK_MAX_STEPS);
+  const raw = stepsOver * RUMOR_STREAK_DISCOUNT_STEP;
+  return Math.max(0, Math.min(raw, buyPrice));
+}
+
+/**
+ * Computes the streak discount THIS visit's headliner is eligible
+ * for. Returns 0 when the player isn't buying the headliner OR the
+ * streak is below the floor.
+ *
+ * The streak count read here is the count BEFORE the current buy
+ * is recorded — recordRumorBuy fires AFTER the buy path, so a buy
+ * that *crosses* the floor will see the post-cross discount on the
+ * NEXT headliner, not this one. That matches the "earned by three
+ * in a row, applied to the next" framing in the rumor-streak label.
+ */
+export function buyRumorStreakDiscount(
+  player: object,
+  season: number,
+  itemKey: string,
+  buyPrice: number,
+): number {
+  if (!isCurrentHeadlinerKey(season, itemKey)) return 0;
+  const streak = rumorStreakCount(player);
+  return rumorStreakDiscount(buyPrice, streak);
+}
+
+/**
+ * Pretty footer chip — "streak: 4 bought (-15g on headliners)" or
+ * "streak: 2 bought (1 to unlock)" for the cart-menu rumor footer.
+ * Returns the empty string at streak=0 so a never-bought save stays
+ * uncluttered.
+ */
+export function rumorStreakLine(player: object): string {
+  const streak = rumorStreakCount(player);
+  if (streak === 0) return '';
+  if (streak < RUMOR_STREAK_MIN) {
+    const need = RUMOR_STREAK_MIN - streak;
+    return `streak: ${streak} bought (${need} to unlock).`;
+  }
+  // streak >= floor → compute the discount on a 100g reference price
+  // (any nonzero buyPrice clears the cap math the same way).
+  const disc = rumorStreakDiscount(100, streak);
+  return `streak: ${streak} bought (-${disc}g on headliners).`;
+}
