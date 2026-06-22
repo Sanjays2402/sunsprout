@@ -9,7 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
 import { ownsDecor } from '../game/decor';
-import { rumorFooterLine } from '../game/cart-rumor';
+import { isCurrentHeadlinerKey, rumorFooterLine, rumorRebateAmount } from '../game/cart-rumor';
 
 const PANEL_W = 560;
 const PANEL_H = 380;
@@ -126,6 +126,7 @@ export class CartMenu {
     // Rows.
     const rowH = 50;
     const rowsTop = y + 64;
+    const season = time ? time.season : -1;
     for (let i = 0; i < CART_CATALOG.length; i++) {
       const item = CART_CATALOG[i];
       const have = player.gold >= item.buyPrice;
@@ -164,6 +165,18 @@ export class CartMenu {
         ctx.fillStyle = TITLE_COLOR;
         ctx.textAlign = 'right';
         ctx.fillText(`x${owned}`, rowX + rowW - 10, rowY + 30);
+      }
+
+      // Rumor headliner tag — small "TEASED -Ng" chip on the row Pip
+      // pre-announced last visit. Only when we know the season AND
+      // the row isn't already saturated with an owned chip.
+      if (season >= 0 && isCurrentHeadlinerKey(season, item.key)) {
+        const rebate = rumorRebateAmount(item.buyPrice);
+        ctx.font = 'bold 10px ui-monospace, monospace';
+        ctx.fillStyle = TITLE_COLOR;
+        ctx.textAlign = 'right';
+        const tagY = owned > 0 ? rowY + 18 : rowY + 30;
+        ctx.fillText(`TEASED -${rebate}g`, rowX + rowW - 10, tagY);
       }
     }
 

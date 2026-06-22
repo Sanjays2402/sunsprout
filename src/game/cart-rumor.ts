@@ -60,6 +60,38 @@ export function rumorItemForSeason(season: number): CartItem | null {
 }
 
 /**
+ * The headliner Pip teased on the PREVIOUS visit — i.e. the one he
+ * promised to "lead with" this season. Used by the gold-back perk:
+ * buying THIS row at the cart pays a 5% rebate because the player
+ * showed up for what Pip pre-announced.
+ *
+ * `season + 3` is congruent to `season - 1` mod 4, which feeds the
+ * same `(season + 1) % 4` term used by rumorItemForSeason — keeps
+ * the wraparound math single-sourced.
+ */
+export function currentSeasonHeadliner(season: number): CartItem | null {
+  return rumorItemForSeason(season + 3);
+}
+
+/** True iff `itemKey` matches the headliner Pip teased last visit. */
+export function isCurrentHeadlinerKey(season: number, itemKey: string): boolean {
+  const headliner = currentSeasonHeadliner(season);
+  return headliner !== null && headliner.key === itemKey;
+}
+
+/**
+ * Percentage of the buy price refunded when the player buys the
+ * headliner. 5% is enough to feel like a reward for paying attention,
+ * not enough to make the headliner the only sensible buy each season.
+ */
+export const RUMOR_REBATE_PCT = 0.05;
+
+/** Gold rebate (rounded down) for a buy of `buyPrice` on the headliner. */
+export function rumorRebateAmount(buyPrice: number): number {
+  return Math.floor(buyPrice * RUMOR_REBATE_PCT);
+}
+
+/**
  * Returns the headliner label Pip wants to tease this visit. Returns
  * an empty string when there's no eligible row.
  */

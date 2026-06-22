@@ -199,7 +199,7 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine } from '../game/barometer';
-import { rumorToastLine } from '../game/cart-rumor';
+import { rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
@@ -1533,7 +1533,21 @@ export class Game {
             const baroLine = out.item.key === BAROMETER_INVENTORY_KEY
               ? ` ${barometerBoughtLine()}`
               : '';
-            this.setToast(`Bought ${out.item.label}. (${out.remainingGold}g left)${baroLine}`);
+            // Rumor rebate: 5% gold-back when the player buys the
+            // headliner Pip teased last visit. Paid AFTER the buy so
+            // the regular cost shows in the toast.
+            let rebateLine = '';
+            let postBuyGold = out.remainingGold;
+            if (isCurrentHeadlinerKey(this.time.season, out.item.key)) {
+              const rebate = rumorRebateAmount(out.item.buyPrice);
+              if (rebate > 0) {
+                this.world.player.gold += rebate;
+                logGold(this.world.player, rebate, `cart: rumor rebate (${out.item.label})`, this.time.day);
+                rebateLine = ` Pip nods — rebate +${rebate}g for grabbing the headliner.`;
+                postBuyGold = out.remainingGold + rebate;
+              }
+            }
+            this.setToast(`Bought ${out.item.label}. (${postBuyGold}g left)${baroLine}${rebateLine}`);
           } else if (out.kind === 'already-owned') {
             this.setToast(`You already own ${out.item.label}.`);
           } else if (out.kind === 'not-enough-gold') {
