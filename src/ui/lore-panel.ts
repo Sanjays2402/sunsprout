@@ -8,10 +8,14 @@ import type { Player } from '../world/world';
 import {
   LORE_CATEGORIES,
   type LoreCategory,
+  applyRumorFilter,
   buildLoreRows,
   loreCompletion,
   loreProgress,
   loreTabFooter,
+  nextRumorFilter,
+  rumorFilterLabel,
+  type RumorFilter,
 } from '../game/lore';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
@@ -35,11 +39,14 @@ export class LorePanel {
   private lockoutMs = 0;
   private tab: LoreCategory = LORE_CATEGORIES[0];
   private scroll = 0;
+  /** Three-way Rumors-tab filter. Resets to 'all' on open. */
+  private rumorFilter: RumorFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
     this.scroll = 0;
+    this.rumorFilter = 'all';
   }
 
   close(): void {
@@ -90,9 +97,28 @@ export class LorePanel {
     this.scroll = Math.max(0, this.scroll - 1);
   }
 
-  /** Active-tab rows from the lore catalogue. */
+  /**
+   * Cycle the rumors-tab filter (all -> bought -> skipped -> all).
+   * No-op on tabs that aren't Rumors so the keypress doesn't fight
+   * for shared keys on other tabs. Resets scroll to 0 so the new
+   * filtered list starts at the top.
+   */
+  cycleRumorFilter(): void {
+    if (!this.opened) return;
+    if (this.tab !== 'Rumors') return;
+    this.rumorFilter = nextRumorFilter(this.rumorFilter);
+    this.scroll = 0;
+  }
+
+  /** Read-only filter accessor — used by tests / footer rendering. */
+  currentRumorFilter(): RumorFilter {
+    return this.rumorFilter;
+  }
+
+  /** Active-tab rows from the lore catalogue, post-filter. */
   private rowsForTab(player: Player) {
-    return buildLoreRows(player).filter((r) => r.category === this.tab);
+    const all = buildLoreRows(player).filter((r) => r.category === this.tab);
+    return applyRumorFilter(all, this.rumorFilter);
   }
 
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
@@ -175,15 +201,29 @@ export class LorePanel {
     }
 
     // Per-tab footer line — currently surfaces a lifetime mining recap
-    // on the Gems tab; other tabs return an empty string and skip the
-    // draw. Sits just above the scroll indicator + bottom hint so it
-    // doesn't compete with the row strip.
+    // on the Gems tab and a filter chip on the Rumors tab. Other tabs
+    // return an empty string and skip the draw. Sits just above the
+    // scroll indicator + bottom hint so it doesn't compete with the
+    // row strip.
     const tabFooter = loreTabFooter(player, this.tab);
     if (tabFooter.length > 0) {
       ctx.fillStyle = ROW_PIP_ON;
       ctx.font = 'bold 10px ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(tabFooter, x + PANEL_W / 2, y + h - 44);
+    }
+    // Rumors-tab filter chip — only meaningful on the Rumors tab; the
+    // chip surfaces even on 'all' so the player has a visible reminder
+    // that the filter cycle exists.
+    if (this.tab === 'Rumors') {
+      ctx.fillStyle = ROW_PIP_ON;
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(
+        `filter: ${rumorFilterLabel(this.rumorFilter)}  (f to cycle)`,
+        x + PANEL_W / 2,
+        y + h - 44,
+      );
     }
 
     // Scroll indicator if list overflows.
@@ -199,7 +239,10 @@ export class LorePanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('` / Esc to close - a/d switch tabs - w/s scroll', x + PANEL_W / 2, y + h - 14);
+    const closeHint = this.tab === 'Rumors'
+      ? '` / Esc to close - a/d switch tabs - w/s scroll - f cycle filter'
+      : '` / Esc to close - a/d switch tabs - w/s scroll';
+    ctx.fillText(closeHint, x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 }

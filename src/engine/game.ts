@@ -1021,6 +1021,10 @@ export class Game {
         this.lorePanel.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
         this.lorePanel.scrollUp();
+      } else if (this.input.justPressed.has('f')) {
+        // Rumors-tab filter cycle (all -> bought -> skipped). No-op on
+        // other tabs — see LorePanel.cycleRumorFilter.
+        this.lorePanel.cycleRumorFilter();
       }
     }
 
@@ -1789,8 +1793,11 @@ export class Game {
         }
       }
       // F: fishing — reel during a bite, lock-in timing during reel,
-      // otherwise try to cast into water.
-      if (this.input.justPressed.has('f')) {
+      // otherwise try to cast into water. Suppressed when the lore
+      // panel is open and active, because the panel uses `f` to
+      // cycle the Rumors tab filter and we don't want a stray cast
+      // to fire underneath the panel.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible()) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {

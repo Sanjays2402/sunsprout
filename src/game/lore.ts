@@ -245,3 +245,56 @@ export function loreTabFooter(player: Player, category: LoreCategory): string {
   const goldStr = gold.toLocaleString('en-US');
   return `career: ${count} gem${count === 1 ? '' : 's'} / ${goldStr}g`;
 }
+
+// ---------------------------------------------------------------------
+// Rumor history filter — three-way cycle on the Rumors tab. Sits on the
+// lore panel controller (per-instance, not persisted) so reopening the
+// panel resets to "all". Pure helper here so the panel UI can stay
+// thin and the test suite can pin the filter behavior independently.
+// ---------------------------------------------------------------------
+
+/** Filter modes for the Rumors lore tab. */
+export const RUMOR_FILTERS = ['all', 'bought', 'skipped'] as const;
+export type RumorFilter = (typeof RUMOR_FILTERS)[number];
+
+/** Cycle filter: all -> bought -> skipped -> all -> ... */
+export function nextRumorFilter(filter: RumorFilter): RumorFilter {
+  const idx = RUMOR_FILTERS.indexOf(filter);
+  return RUMOR_FILTERS[(idx + 1) % RUMOR_FILTERS.length];
+}
+
+/**
+ * Apply the rumor filter to a list of lore rows. Non-rumor rows pass
+ * through unchanged; rumor rows are filtered by the entry's bought
+ * stamp (the lore-row description encodes "bought" / "skipped").
+ *
+ * Pulled out as a pure helper so the panel UI can call it after
+ * buildLoreRows() without having to re-derive the bought state from
+ * the description string.
+ */
+export function applyRumorFilter(
+  rows: LoreRow[],
+  filter: RumorFilter,
+): LoreRow[] {
+  if (filter === 'all') return rows;
+  return rows.filter((r) => {
+    if (r.category !== 'Rumors') return true;
+    // rumor entries set count=1 when bought, 0 when skipped (see
+    // buildLoreRows above). This keeps the filter math single-sourced
+    // through the same field the panel already renders.
+    const bought = (r.count ?? 0) > 0;
+    return filter === 'bought' ? bought : !bought;
+  });
+}
+
+/**
+ * Pretty label for the current filter — used in the panel chrome
+ * ("filter: bought") and the close-hint footer.
+ */
+export function rumorFilterLabel(filter: RumorFilter): string {
+  switch (filter) {
+    case 'all':     return 'all';
+    case 'bought':  return 'bought only';
+    case 'skipped': return 'skipped only';
+  }
+}
