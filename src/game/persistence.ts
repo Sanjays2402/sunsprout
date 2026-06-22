@@ -49,6 +49,7 @@ import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
 import { getComposts, getCompostLedger, type PlacedCompost, type CompostLedgerState } from './compost';
 import { getShelters, type PlacedShelter } from './storm-shelter';
+import { getOwlStamps, type OwlStampBook } from './owl-post';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
 export const SAVE_KEY = 'sunsprout.save.v1';
@@ -136,6 +137,8 @@ export interface SaveSnapshot {
     rumorHistory?: RumorHistoryState;
     /** Compost ledger — lifetime recycled gold + bags applied. */
     compostLedger?: CompostLedgerState;
+    /** Owl post stamp book — lifetime per-NPC owl dispatches. */
+    owlStamps?: OwlStampBook;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -321,6 +324,11 @@ export function serializeGame(game: Game): SaveSnapshot {
         ? {
             lifetimeRecycledGold: getCompostLedger(p).lifetimeRecycledGold,
             lifetimeBagsApplied: getCompostLedger(p).lifetimeBagsApplied,
+          }
+        : undefined,
+      owlStamps: (p as Player & { owlStamps?: OwlStampBook }).owlStamps
+        ? {
+            counts: { ...getOwlStamps(p).counts },
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -546,6 +554,10 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     const cur = getCompostLedger(p);
     cur.lifetimeRecycledGold = snap.player.compostLedger.lifetimeRecycledGold;
     cur.lifetimeBagsApplied = snap.player.compostLedger.lifetimeBagsApplied;
+  }
+  if (snap.player.owlStamps) {
+    const cur = getOwlStamps(p);
+    cur.counts = { ...snap.player.owlStamps.counts };
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

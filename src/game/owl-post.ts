@@ -72,5 +72,74 @@ export function dispatchOwl(
   // gift.kind === 'gifted' — only NOW do we charge the fee, so a wasted
   // press (already-today / no-items) doesn't drain the player's purse.
   player.gold -= OWL_POST_FEE;
+  // Stamp the lifetime owl-post tally so the lore Folk tab can
+  // surface "owl posts: N" per recipient and the player can audit
+  // their long-distance friendship across the save.
+  recordOwlStamp(player, npcId);
   return { kind: 'sent', npcId, npcName: def.name, gift };
+}
+
+// ---------------------------------------------------------------------
+// Owl post stamp book — lifetime per-NPC tally of owl deliveries the
+// player has ever dispatched. Lives on a tiny lazy field
+// (player.owlStamps) so we don't widen SaveSnapshot.player at the top
+// level (the persistence whitelist already passes objects through).
+// Surfaced in the lore Folk tab description so the player gets a
+// passive "you've sent N owls to Maple" without needing a dedicated
+// panel.
+//
+// Why a per-NPC map instead of a single counter: the player will care
+// about WHICH friendships are owl-driven vs. in-person — Maple lives
+// in town, so 0 owls there is normal; a recluse like Pip's brother
+// living north of the bridge benefits more from the owl. Per-NPC
+// totals make that texture visible at a glance.
+// ---------------------------------------------------------------------
+
+/** Per-NPC lifetime count of owl posts dispatched. */
+export interface OwlStampBook {
+  /** Map of npcId → lifetime owl-posts sent. Missing = 0. */
+  counts: Record<string, number>;
+}
+
+/** Lazy reader on Player. */
+export function getOwlStamps(player: object): OwlStampBook {
+  const p = player as { owlStamps?: OwlStampBook };
+  if (!p.owlStamps) p.owlStamps = { counts: {} };
+  return p.owlStamps;
+}
+
+/**
+ * Bump the owl-stamp tally for `npcId`. Returns the new total. Called
+ * inside dispatchOwl only when the gift actually landed (i.e. the fee
+ * was charged), so failed dispatches don't stamp.
+ */
+export function recordOwlStamp(player: object, npcId: string): number {
+  const book = getOwlStamps(player);
+  book.counts[npcId] = (book.counts[npcId] ?? 0) + 1;
+  return book.counts[npcId];
+}
+
+/** Owl post count for one NPC. Missing = 0. */
+export function owlStampsFor(player: object, npcId: string): number {
+  return getOwlStamps(player).counts[npcId] ?? 0;
+}
+
+/** Total owl posts dispatched across every recipient. */
+export function totalOwlStamps(player: object): number {
+  let n = 0;
+  for (const v of Object.values(getOwlStamps(player).counts)) n += v;
+  return n;
+}
+
+/**
+ * Pretty per-NPC line for the lore Folk tab. Returns the empty string
+ * when the player has never sent an owl to this NPC so the Folk row
+ * description stays compact for in-person friendships.
+ *
+ * Wording: "Owl posts: 4."
+ */
+export function owlStampLine(player: object, npcId: string): string {
+  const n = owlStampsFor(player, npcId);
+  if (n === 0) return '';
+  return `Owl posts: ${n}.`;
 }

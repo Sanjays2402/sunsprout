@@ -25,6 +25,7 @@ import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
 import { getMineHaul, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
+import { owlStampsFor } from './owl-post';
 
 /** Category labels — listed in panel display order. */
 export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk', 'Rumors'] as const;
@@ -146,12 +147,18 @@ export function buildLoreRows(player: Player): LoreRow[] {
         .slice(0, 2)
         .map((k) => k.replace('_harvest', '').replace('fish-', ''))
         .join(', ');
+      // Lifetime owl-post stamps — appended to the description when
+      // the player has dispatched at least one owl to this NPC. Pure
+      // tail; absent when count=0 so close-in-person friends don't
+      // get a "Owl posts: 0." noise tag.
+      const owlCount = owlStampsFor(player, id);
+      const owlTail = owlCount > 0 ? ` Owl posts: ${owlCount}.` : '';
       out.push({
         category: 'Folk',
         id,
         name: def.name,
         discovered: seen,
-        description: `Hearts ${hearts}/10. Loves ${lovesPretty}.`,
+        description: `Hearts ${hearts}/10. Loves ${lovesPretty}.${owlTail}`,
         teaser: teaserFor('Folk'),
         count: hearts,
       });
