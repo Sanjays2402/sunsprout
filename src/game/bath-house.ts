@@ -86,10 +86,28 @@ export function redeemSpaPass(player: Player): number {
   return state.punchesLeft;
 }
 
+/** Inventory key for the bath house's loyalty cosmetic. Quantity counts gifted soaps. */
+export const PERFUMED_SOAP_INVENTORY_KEY = 'perfumed-soap';
+
+/** How many soaks earn one Perfumed Soap. */
+export const SOAP_PER_SOAKS = 10;
+
 /** Per-player bath-house bookkeeping. */
 export interface BathState {
   /** Day index the buff EXPIRES on (>= today means buff is active). */
   expiresOnDay: number;
+  /**
+   * Lifetime count of soaks taken at the bath house. Counts BOTH
+   * gold-paid and spa-pass-paid soaks. Drives the loyalty cosmetic:
+   * every SOAP_PER_SOAKS soaks gifts one Perfumed Soap into the bag.
+   */
+  totalSoaks?: number;
+  /**
+   * Lifetime count of Perfumed Soaps that the loyalty tier has gifted
+   * the player. Used to avoid double-gifting on a reload that pushed
+   * `totalSoaks` forward via persistence.
+   */
+  soapsGifted?: number;
 }
 
 /** Lazy reader on the Player. */
@@ -147,6 +165,10 @@ export type BathOutcome =
       discounted: boolean;
       paidWithPass: boolean;
       passesLeft: number;
+      /** Lifetime soak count AFTER this soak. */
+      totalSoaks: number;
+      /** New Perfumed Soaps gifted this soak (0 or 1). */
+      soapsEarned: number;
     }
   | { kind: 'too-far' }
   | { kind: 'not-enough-gold'; need: number; have: number }
@@ -204,6 +226,18 @@ export function takeBath(
   // top the pool by the same amount so the player feels it now.
   const state = getBath(player);
   state.expiresOnDay = day + BATH_DURATION_DAYS - 1;
+  // Loyalty bookkeeping — bump lifetime soaks, gift Perfumed Soap on
+  // every SOAP_PER_SOAKS milestone the player hasn't already crossed.
+  state.totalSoaks = (state.totalSoaks ?? 0) + 1;
+  const expectedSoaps = Math.floor(state.totalSoaks / SOAP_PER_SOAKS);
+  const alreadyGifted = state.soapsGifted ?? 0;
+  let soapsEarned = 0;
+  if (expectedSoaps > alreadyGifted) {
+    soapsEarned = expectedSoaps - alreadyGifted;
+    state.soapsGifted = expectedSoaps;
+    player.inventory[PERFUMED_SOAP_INVENTORY_KEY] =
+      (player.inventory[PERFUMED_SOAP_INVENTORY_KEY] ?? 0) + soapsEarned;
+  }
   const s = getStamina(player);
   s.max = MAX_STAMINA + BATH_BONUS;
   s.current = Math.min(s.max, s.current + BATH_BONUS);
@@ -216,6 +250,8 @@ export function takeBath(
     discounted: time ? isWinterDiscountActive(time) : false,
     paidWithPass: useSpaPass,
     passesLeft: passState.punchesLeft,
+    totalSoaks: state.totalSoaks,
+    soapsEarned,
   };
 }
 
@@ -240,11 +276,23 @@ export function maybeExpireBath(player: Player, day: number): boolean {
 /** Short HUD line for the toast surfaced after a fresh soak. */
 export function bathFlavorLine(out: Extract<BathOutcome, { kind: 'soaked' }>): string {
   const plural = out.daysLeft === 1 ? '' : 's';
+  const loyaltyTail = out.soapsEarned > 0
+    ? ` Bath house gifts you a Perfumed Soap for ${out.totalSoaks} lifetime soaks.`
+    : '';
   if (out.paidWithPass) {
-    return `Soaked at the bath house (spa pass, ${out.passesLeft} punch${out.passesLeft === 1 ? '' : 'es'} left). +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
+    return `Soaked at the bath house (spa pass, ${out.passesLeft} punch${out.passesLeft === 1 ? '' : 'es'} left). +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}`;
   }
   const winterTag = out.discounted ? ' (winter rate)' : '';
-  return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.`;
+  return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}`;
+}
+
+/** Pretty progress line for HUD inspection at the bath house entrance. */
+export function bathLoyaltyLine(player: Player): string {
+  const state = getBath(player);
+  const soaks = state.totalSoaks ?? 0;
+  const toNext = SOAP_PER_SOAKS - (soaks % SOAP_PER_SOAKS);
+  const soaps = state.soapsGifted ?? 0;
+  return `Bath house log: ${soaks} soak${soaks === 1 ? '' : 's'}, ${soaps} Perfumed Soap${soaps === 1 ? '' : 's'} earned. ${toNext} until the next one.`;
 }
 
 // ---------------------------------------------------------------------

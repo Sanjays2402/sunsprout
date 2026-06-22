@@ -152,6 +152,8 @@ describe('bathFlavorLine', () => {
       discounted: false,
       paidWithPass: false,
       passesLeft: 0,
+      totalSoaks: 1,
+      soapsEarned: 0,
     });
     expect(line).toMatch(/Soaked/);
     expect(line).toMatch(new RegExp(`${BATH_BONUS}`));

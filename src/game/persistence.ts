@@ -274,7 +274,11 @@ export function serializeGame(game: Game): SaveSnapshot {
           }
         : undefined,
       bath: (p as Player & { bath?: BathState }).bath
-        ? { expiresOnDay: getBath(p).expiresOnDay }
+        ? {
+            expiresOnDay: getBath(p).expiresOnDay,
+            totalSoaks: getBath(p).totalSoaks,
+            soapsGifted: getBath(p).soapsGifted,
+          }
         : undefined,
       spaPass: (p as Player & { spaPass?: SpaPassState }).spaPass
         ? { punchesLeft: getSpaPass(p).punchesLeft }
@@ -450,10 +454,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     cur.lastMemo = snap.player.storm.lastMemo ? { ...snap.player.storm.lastMemo } : undefined;
   }
   // Bath house — preserve buff expiry so a reload mid-soak still
-  // honours the stamina-cap lift.
+  // honours the stamina-cap lift. Also restore lifetime soak count +
+  // gifted-soap count so the loyalty path doesn't reset on reload.
   if (snap.player.bath) {
     const cur = getBath(p);
     cur.expiresOnDay = snap.player.bath.expiresOnDay;
+    if (snap.player.bath.totalSoaks !== undefined) cur.totalSoaks = snap.player.bath.totalSoaks;
+    if (snap.player.bath.soapsGifted !== undefined) cur.soapsGifted = snap.player.bath.soapsGifted;
   }
   // Spa pass — restore punches so the player doesn't lose paid-for
   // soaks when the page reloads mid-season.
