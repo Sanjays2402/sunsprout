@@ -197,6 +197,7 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine } from '../game/barometer';
+import { rumorToastLine } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
@@ -746,7 +747,7 @@ export class Game {
                           : tournamentLine
                             ? ` (${tournamentLine})`
                             : pipArrived
-                              ? ` (${cartArrivalLine()})`
+                              ? ` (${cartArrivalLine()} ${rumorToastLine(this.time.season)})`
                               : spouseGift.kind === 'gifted'
                                 ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
                                 : pondAdded > 0
@@ -2371,7 +2372,7 @@ export class Game {
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
-    this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height, this.time);
     this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.benchMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.owlMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);

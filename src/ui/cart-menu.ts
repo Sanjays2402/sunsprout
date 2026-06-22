@@ -9,6 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
 import { ownsDecor } from '../game/decor';
+import { rumorFooterLine } from '../game/cart-rumor';
 
 const PANEL_W = 560;
 const PANEL_H = 380;
@@ -80,7 +81,13 @@ export class CartMenu {
   }
 
   /** Renders the menu over the world. No-op when closed. */
-  draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    player: Player,
+    canvasW: number,
+    canvasH: number,
+    time?: TimeOfDay,
+  ): void {
     if (!this.opened) return;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - PANEL_H) / 2);
@@ -164,6 +171,14 @@ export class CartMenu {
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillStyle = HINT;
     ctx.textAlign = 'center';
+    if (time) {
+      const rumor = rumorFooterLine(time.season);
+      if (rumor) {
+        ctx.fillStyle = TITLE_COLOR;
+        ctx.fillText(rumor, x + PANEL_W / 2, y + PANEL_H - 36);
+        ctx.fillStyle = HINT;
+      }
+    }
     ctx.fillText('↑/↓ to choose · Enter to buy · Esc to leave', x + PANEL_W / 2, y + PANEL_H - 22);
 
     ctx.restore();
