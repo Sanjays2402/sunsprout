@@ -17,6 +17,7 @@ import {
   totalHarvest,
   type CropJournalEntry,
 } from '../game/crop-journal';
+import { compostLedgerLine } from '../game/compost';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
 const PANEL_BORDER = '#4a3b6e';
@@ -74,7 +75,9 @@ export class CropJournalPanel {
     void canvasW;
     const entries = buildJournal(player);
     const festivals = nextFestivals(time, 2);
-    const h = 44 + entries.length * ROW_H + (festivals.length > 0 ? 38 : 12);
+    const ledgerLine = compostLedgerLine(player);
+    const ledgerExtra = ledgerLine.length > 0 ? 16 : 0;
+    const h = 44 + entries.length * ROW_H + (festivals.length > 0 ? 38 : 12) + ledgerExtra;
     // Top-left overlay — replaces the quest panel while open (same chrome
     // pattern as the recipe codex overlays the hearts panel on the right).
     const x = 12;
@@ -189,6 +192,17 @@ export class CropJournalPanel {
       ctx.font = '10px ui-monospace, monospace';
       ctx.fillStyle = TEXT_COLOR;
       ctx.fillText(festivals.join('  -  '), x + 12, fy + 12);
+    }
+
+    // Compost ledger line — sits just above the close hint when the
+    // player has ever applied a fertilizer bag. Pulled from the pure
+    // compostLedgerLine() formatter so the panel doesn't grow a
+    // ledger-state dependency directly.
+    if (ledgerLine.length > 0) {
+      ctx.fillStyle = GREEN;
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(ledgerLine, x + PANEL_W / 2, y + h - 30);
     }
 
     ctx.fillStyle = HINT;

@@ -47,7 +47,7 @@ import { getMineHaul, type MineHaulState } from './mining-haul';
 import { getRumorHistory, type RumorHistoryState } from './cart-rumor';
 import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
-import { getComposts, type PlacedCompost } from './compost';
+import { getComposts, getCompostLedger, type PlacedCompost, type CompostLedgerState } from './compost';
 import { getShelters, type PlacedShelter } from './storm-shelter';
 
 /** Localstorage key. Versioned so a manual `localStorage.clear()` is reversible-ish. */
@@ -134,6 +134,8 @@ export interface SaveSnapshot {
     mineHaul?: MineHaulState;
     /** Rumor history — last RUMOR_HISTORY_CAP headliners + bought flags. */
     rumorHistory?: RumorHistoryState;
+    /** Compost ledger — lifetime recycled gold + bags applied. */
+    compostLedger?: CompostLedgerState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -313,6 +315,12 @@ export function serializeGame(game: Game): SaveSnapshot {
       rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
         ? {
             entries: getRumorHistory(p).entries.map((e) => ({ ...e })),
+          }
+        : undefined,
+      compostLedger: (p as Player & { compostLedger?: CompostLedgerState }).compostLedger
+        ? {
+            lifetimeRecycledGold: getCompostLedger(p).lifetimeRecycledGold,
+            lifetimeBagsApplied: getCompostLedger(p).lifetimeBagsApplied,
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -533,6 +541,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.rumorHistory) {
     const cur = getRumorHistory(p);
     cur.entries = snap.player.rumorHistory.entries.map((e) => ({ ...e }));
+  }
+  if (snap.player.compostLedger) {
+    const cur = getCompostLedger(p);
+    cur.lifetimeRecycledGold = snap.player.compostLedger.lifetimeRecycledGold;
+    cur.lifetimeBagsApplied = snap.player.compostLedger.lifetimeBagsApplied;
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

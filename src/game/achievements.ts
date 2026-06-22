@@ -30,6 +30,10 @@ import {
   lifetimeMiningMilestoneReached,
   LIFETIME_MINING_MILESTONE,
 } from './mining-haul';
+import {
+  compostMasterMilestoneReached,
+  COMPOST_MASTER_MILESTONE_GOLD,
+} from './compost';
 
 /** Identifier — stable strings so persisted records survive rebalances. */
 export type AchievementId =
@@ -48,7 +52,8 @@ export type AchievementId =
   | 'rockhound'
   | 'menagerie'
   | 'farm-decorator'
-  | 'cave-veteran';
+  | 'cave-veteran'
+  | 'compost-master';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -190,6 +195,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Mine ${LIFETIME_MINING_MILESTONE} gems over your career.`,
     done: `Pulled ${LIFETIME_MINING_MILESTONE}+ gems out of the cave.`,
     check: (p) => lifetimeMiningMilestoneReached(getMineHaul(p)),
+  },
+  {
+    id: 'compost-master',
+    name: 'Compost Master',
+    hint: `Recycle ${COMPOST_MASTER_MILESTONE_GOLD}g back from fertilizer bags.`,
+    done: `Pulped ${COMPOST_MASTER_MILESTONE_GOLD}+ gold from fertilizer bags.`,
+    check: (p) => compostMasterMilestoneReached(p),
   },
 ];
 

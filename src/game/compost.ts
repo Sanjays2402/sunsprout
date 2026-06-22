@@ -266,6 +266,11 @@ export const COMPOST_RECYCLE_RARE = 3;
  * credited directly to `player.gold` so callers don't have to care;
  * the recycledGold field on the outcome lets the engine surface the
  * gold-back in the same toast that announces the apply.
+ *
+ * Also bumps the per-player CompostLedgerState — lifetimeRecycledGold
+ * + lifetimeBagsApplied — so the "fertilizer master" badge can light
+ * up off a single counter, and the journal can surface "you've
+ * recycled Ng across your career".
  */
 export function applyFertilizer(
   world: World,
@@ -304,6 +309,10 @@ export function applyFertilizer(
   if (typeof player.gold === 'number') {
     player.gold += recycledGold;
   }
+  // Lifetime ledger — bump lifetimeRecycledGold + lifetimeBagsApplied.
+  // Always bumps, even when the player fixture doesn't carry gold, so
+  // unit tests that hand-craft a player can still verify the counter.
+  recordApplied(player, recycledGold);
   return {
     kind: 'applied',
     cropKey: farmCrop.crop,
@@ -395,6 +404,68 @@ export function rareDayCountdownLine(season: number, dayOfSeason: number): strin
   if (delta === 0) return `RARE day TODAY — batches finishing today mint +${RARE_FERTILIZER_STREAK}-streak bags.`;
   if (delta === 1) return `RARE day tomorrow — line a batch up to finish then.`;
   return `RARE day in ${delta} days (day ${rareDay}).`;
+}
+
+// ---------------------------------------------------------------------
+// Lifetime compost ledger — tracks recycled gold + bags applied across
+// the player's career. Lives on a tiny lazy field so we don't widen
+// SaveSnapshot.player at the top level (the persistence whitelist
+// already passes objects through). Bumped from applyFertilizer.
+// ---------------------------------------------------------------------
+
+/** Per-player lifetime compost ledger. */
+export interface CompostLedgerState {
+  /** Total gold recycled from bag applies across the player's career. */
+  lifetimeRecycledGold: number;
+  /** Total fertilizer bags ever applied (regular + rare combined). */
+  lifetimeBagsApplied: number;
+}
+
+/** Gold milestone for the `compost-master` achievement. */
+export const COMPOST_MASTER_MILESTONE_GOLD = 100;
+
+/** Lazy accessor — creates the ledger on first read. */
+export function getCompostLedger(player: object): CompostLedgerState {
+  const p = player as { compostLedger?: CompostLedgerState };
+  if (!p.compostLedger) {
+    p.compostLedger = { lifetimeRecycledGold: 0, lifetimeBagsApplied: 0 };
+  }
+  return p.compostLedger;
+}
+
+/**
+ * Bump the lifetime ledger for a single apply. Called from
+ * applyFertilizer right after the bag is consumed. Pure — doesn't
+ * touch inventory or gold.
+ *
+ * Returns the new lifetime gold total so callers that want to surface
+ * a "milestone reached" toast can check the crossover in one read.
+ */
+export function recordApplied(player: object, recycledGold: number): number {
+  const ledger = getCompostLedger(player);
+  ledger.lifetimeBagsApplied += 1;
+  ledger.lifetimeRecycledGold += recycledGold;
+  return ledger.lifetimeRecycledGold;
+}
+
+/** True iff lifetimeRecycledGold has crossed COMPOST_MASTER_MILESTONE_GOLD. */
+export function compostMasterMilestoneReached(player: object): boolean {
+  return getCompostLedger(player).lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD;
+}
+
+/**
+ * Pretty status line for the crop journal — surfaces lifetime recycled
+ * gold + bags applied. Returns the empty string when the player has
+ * never applied a bag so the journal doesn't surface a "0g recycled"
+ * row on a fresh save.
+ *
+ * Wording: "compost master: 128g recycled across 47 bags."
+ */
+export function compostLedgerLine(player: object): string {
+  const ledger = getCompostLedger(player);
+  if (ledger.lifetimeBagsApplied === 0) return '';
+  const goldStr = ledger.lifetimeRecycledGold.toLocaleString('en-US');
+  return `compost master: ${goldStr}g recycled across ${ledger.lifetimeBagsApplied} bag${ledger.lifetimeBagsApplied === 1 ? '' : 's'}.`;
 }
 
 // ---------------------------------------------------------------------
