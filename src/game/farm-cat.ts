@@ -140,6 +140,55 @@ export function catTick(world: World, player: Player, time: TimeOfDay): number {
   return bonus;
 }
 
+/**
+ * Stamina-tea keys recognised as "pet treats" for the cat. Same
+ * order as the dog's catalog so the two pet modules consume teas
+ * in matched lowest-tier-first priority.
+ */
+export const CAT_TREAT_KEYS = [
+  'dish-herb-tea',
+  'dish-berry-tonic',
+  'dish-hot-cocoa',
+  'dish-mushroom-broth',
+  'dish-sunflower-elixir',
+] as const;
+
+export type CatTreatOutcome =
+  | { kind: 'treated'; streak: number; bonus: number; treatKey: string }
+  | { kind: 'no-treat' }
+  | { kind: 'not-petted-yet' }
+  | { kind: 'at-cap' }
+  | { kind: 'not-owned' }
+  | { kind: 'too-far' };
+
+/**
+ * Spend one stamina tea to bump the cat's pet streak by +1 (clamped
+ * at PET_STREAK_CAP). Mirror of treatDog — same gates, same priority
+ * order for picking which tea to consume.
+ *
+ * The cat's bonus tier is 8g/streak vs the dog's 5g, so a treat in
+ * the bag is actually MORE valuable to give to the cat than the
+ * dog in absolute gold-per-streak terms. The player picks who eats
+ * the tea by which key they press (J vs -).
+ */
+export function treatCat(world: World, player: Player, time: TimeOfDay): CatTreatOutcome {
+  const cat = getCat(world);
+  if (!cat.owned) return { kind: 'not-owned' };
+  if (chebyshev(cat.x, cat.y, player.x, player.y) > PET_RADIUS) return { kind: 'too-far' };
+  if (cat.petLastDay !== time.day) return { kind: 'not-petted-yet' };
+  if (cat.petStreak >= PET_STREAK_CAP) return { kind: 'at-cap' };
+  for (const key of CAT_TREAT_KEYS) {
+    const have = player.inventory[key] ?? 0;
+    if (have > 0) {
+      player.inventory[key] = have - 1;
+      cat.petStreak = Math.min(PET_STREAK_CAP, cat.petStreak + 1);
+      const bonus = cat.petStreak * PET_DAILY_BONUS;
+      return { kind: 'treated', streak: cat.petStreak, bonus, treatKey: key };
+    }
+  }
+  return { kind: 'no-treat' };
+}
+
 // ---------------------------------------------------------------------
 // Procedural sprite
 // ---------------------------------------------------------------------

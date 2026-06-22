@@ -142,6 +142,62 @@ export function dogTick(world: World, player: Player, time: TimeOfDay): number {
 }
 
 /**
+ * Stamina-tea keys recognised as "pet treats". Same catalog the
+ * drinkBest() loop uses, so the player's existing tea stockpile
+ * doubles as pet currency. Ordered cheapest-first so the dog/cat
+ * eats the lowest-value tea before tapping a sunflower elixir.
+ */
+export const PET_TREAT_KEYS = [
+  'dish-herb-tea',
+  'dish-berry-tonic',
+  'dish-hot-cocoa',
+  'dish-mushroom-broth',
+  'dish-sunflower-elixir',
+] as const;
+
+export type PetTreatOutcome =
+  | { kind: 'treated'; streak: number; bonus: number; treatKey: string }
+  | { kind: 'no-treat' }
+  | { kind: 'not-petted-yet' }
+  | { kind: 'at-cap' }
+  | { kind: 'not-owned' }
+  | { kind: 'too-far' };
+
+/**
+ * Spend one pet treat (a stamina tea) from the player's bag to add a
+ * point to the dog's pet streak — clamped at PET_STREAK_CAP. Gated
+ * by:
+ *   - dog must be owned;
+ *   - player must be within PET_RADIUS;
+ *   - dog must already be petted TODAY (no skipping the regular pet);
+ *   - streak < PET_STREAK_CAP (refuse 'at-cap' otherwise so the
+ *     player doesn't waste a tea).
+ *
+ * Returns 'no-treat' when no recognised tea is in the bag. Picks the
+ * lowest-tier tea first so the player keeps the heavy-hitters for
+ * the stamina pool. Streak grows by exactly +1; the bonus paid at
+ * the next dawn = newStreak * PET_DAILY_BONUS (same math as petDog).
+ */
+export function treatDog(world: World, player: Player, time: TimeOfDay): PetTreatOutcome {
+  const dog = getDog(world);
+  if (!dog.owned) return { kind: 'not-owned' };
+  if (dist(dog, player) > PET_RADIUS) return { kind: 'too-far' };
+  if (dog.petLastDay !== time.day) return { kind: 'not-petted-yet' };
+  if (dog.petStreak >= PET_STREAK_CAP) return { kind: 'at-cap' };
+  // Find the lowest-tier tea the player has.
+  for (const key of PET_TREAT_KEYS) {
+    const have = player.inventory[key] ?? 0;
+    if (have > 0) {
+      player.inventory[key] = have - 1;
+      dog.petStreak = Math.min(PET_STREAK_CAP, dog.petStreak + 1);
+      const bonus = dog.petStreak * PET_DAILY_BONUS;
+      return { kind: 'treated', streak: dog.petStreak, bonus, treatKey: key };
+    }
+  }
+  return { kind: 'no-treat' };
+}
+
+/**
  * Per-frame movement update. Soft-chase the player when more than
  * FOLLOW_RADIUS tiles away; idle in place when close.
  */

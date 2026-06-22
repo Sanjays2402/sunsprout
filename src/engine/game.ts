@@ -105,6 +105,7 @@ import {
   drawDogSprite,
   getDog,
   petDog,
+  treatDog,
   updateDog,
 } from '../game/farm-dog';
 import {
@@ -115,6 +116,7 @@ import {
   drawCatSprite,
   getCat,
   petCat,
+  treatCat,
 } from '../game/farm-cat';
 import {
   GREENHOUSE_INVENTORY_KEY,
@@ -1138,7 +1140,19 @@ export class Game {
         if (out.kind === 'petted') {
           this.setToast(`Pet the dog. Streak ${out.streak} (+${out.bonus}g tomorrow).`);
         } else if (out.kind === 'already-today') {
-          this.setToast('Already petted today — come back tomorrow.');
+          // Already petted today — try a treat. A stamina tea bumps
+          // the streak by +1 (capped). Falls back to the regular
+          // already-today line when the bag has no tea.
+          const treat = treatDog(this.world, p, this.time);
+          if (treat.kind === 'treated') {
+            this.setToast(
+              `Treat for the dog (${treat.treatKey.replace('dish-', '')}). Streak ${treat.streak} (+${treat.bonus}g tomorrow).`,
+            );
+          } else if (treat.kind === 'at-cap') {
+            this.setToast(`Already petted today — streak ${getDog(this.world).petStreak} is at the cap.`);
+          } else {
+            this.setToast('Already petted today — come back tomorrow (or with a stamina tea).');
+          }
         }
       } else {
         this.setToast('Walk closer to the dog to pet it.');
@@ -1163,7 +1177,17 @@ export class Game {
         if (out.kind === 'petted') {
           this.setToast(`Pet the cat. Streak ${out.streak} (+${out.bonus}g tomorrow).`);
         } else if (out.kind === 'already-today') {
-          this.setToast('The cat has had enough scritches for today.');
+          // Already petted today — try a treat. Same flow as the dog.
+          const treat = treatCat(this.world, p, this.time);
+          if (treat.kind === 'treated') {
+            this.setToast(
+              `Treat for the cat (${treat.treatKey.replace('dish-', '')}). Streak ${treat.streak} (+${treat.bonus}g tomorrow).`,
+            );
+          } else if (treat.kind === 'at-cap') {
+            this.setToast(`The cat has had enough — streak ${getCat(this.world).petStreak} is at the cap.`);
+          } else {
+            this.setToast('The cat has had enough scritches for today (try a stamina tea).');
+          }
         }
       } else {
         this.setToast('Stand by the farmhouse to pet the cat.');
