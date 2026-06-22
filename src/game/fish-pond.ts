@@ -357,3 +357,49 @@ export function pondStatusLine(
     return `Pond stocked with ${name}${rimTag}. Come back tomorrow — or press > with a different fish to swap.${ribbonTag}`;
   return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting${rimTag}.${ribbonTag}`;
 }
+
+/**
+ * True iff tomorrow's pond yield would put `pending` over the cap, i.e.
+ * at least one fish would be lost to overflow if the player doesn't
+ * collect today. Pure read on the live pond state + the player's rim
+ * status. Returns false for empty / already-overflowing / not-yet-stocked
+ * ponds — the dawn-toast nag is meant to land BEFORE the loss, not after.
+ *
+ * Why "tomorrow" semantics: the dawn-toast tail fires AFTER pondTick has
+ * already credited today's yield, so the player has the current pending
+ * total. The nag is forward-looking — if pending + yieldToday would
+ * exceed cap on the NEXT rollover, surface the warning.
+ */
+export function pondWouldOverflowTomorrow(
+  state: PondState,
+  player?: { inventory: Record<string, number> },
+): boolean {
+  if (state.species === null) return false;
+  if (state.pending <= 0) return false;
+  const cap = pondMaxFor(player);
+  if (state.pending >= cap) return false;
+  const yieldTomorrow = POND_YIELD_PER_DAY[state.species] ?? 1;
+  return state.pending + yieldTomorrow > cap;
+}
+
+/**
+ * Dawn-toast tail line nagging the player to collect from the pond
+ * before tomorrow's yield wastes a fish. Empty when no nag is due.
+ *
+ * The wording calls out the exact loss so the player knows whether
+ * a "I'll grab it tomorrow" plan is fine (loss of 1 minnow on the
+ * way to a 7-pending stack is forgivable) or expensive (overflow of
+ * a pike on a 10-cap rim is real gold gone).
+ */
+export function pondOverflowWarning(
+  state: PondState,
+  player?: { inventory: Record<string, number> },
+): string {
+  if (!pondWouldOverflowTomorrow(state, player)) return '';
+  const species = state.species!;
+  const name = FISH[species].name;
+  const cap = pondMaxFor(player);
+  const yieldTomorrow = POND_YIELD_PER_DAY[species] ?? 1;
+  const lost = state.pending + yieldTomorrow - cap;
+  return `Pond is brimming with ${name} (${state.pending}/${cap}) — collect by tomorrow or lose ${lost}.`;
+}

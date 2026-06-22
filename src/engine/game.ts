@@ -256,6 +256,7 @@ import {
 import {
   getPond,
   interactPond,
+  pondOverflowWarning,
   pondStatusLine,
   pondTick,
 } from '../game/fish-pond';
@@ -787,9 +788,14 @@ export class Game {
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
       const isFirstWinterDay = isFrozenSeason(this.time) && this.time.day === 1;
-      const headline = isFirstWinterDay
+      const headlineBase = isFirstWinterDay
         ? winterFlavorLine(frozen)
         : `A new day begins · Day ${this.time.day}${flavorTail}`;
+      // Pond overflow nag — layered ON TOP of the regular tail so the
+      // player gets the "pond yielded N" line AND the "collect or lose"
+      // warning in the same toast. Empty when no nag is due.
+      const pondOverflow = pondOverflowWarning(getPond(this.world), this.world.player);
+      const headline = pondOverflow ? `${headlineBase} · ${pondOverflow}` : headlineBase;
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {
