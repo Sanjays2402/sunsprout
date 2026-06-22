@@ -230,9 +230,28 @@ export function rareFinishDayLine(season: number): string {
 
 /** Outcome of an apply attempt. */
 export type ApplyOutcome =
-  | { kind: 'applied'; cropKey: string; newStreak: number; bonus: number; rare: boolean }
+  | {
+      kind: 'applied';
+      cropKey: string;
+      newStreak: number;
+      bonus: number;
+      rare: boolean;
+      /** Gold-back recycled from the bag (1g regular, 3g rare). */
+      recycledGold: number;
+    }
   | { kind: 'no-fertilizer' }
   | { kind: 'no-crop' };
+
+/**
+ * Gold returned when a fertilizer bag is consumed. The "compost compost"
+ * loop: applying a bag tears the empty hessian sack and a few stray
+ * compost grains, recycled back into the gold pile (1g per regular,
+ * 3g per rare bag). Small enough that the player doesn't farm fert
+ * for gold — large enough that a lifetime stockpile feels like it
+ * always leaves a small parting gift.
+ */
+export const COMPOST_RECYCLE_REGULAR = 1;
+export const COMPOST_RECYCLE_RARE = 3;
 
 /**
  * Apply one fertilizer bag to the crop at (tx,ty). Prefers rare bags
@@ -240,10 +259,17 @@ export type ApplyOutcome =
  * regular bags for later without losing rare value. Returns the new
  * waterStreak so the caller can surface it in a toast. Silently leaves
  * the streak alone if no crop is there.
+ *
+ * Side effect on apply: a small "compost compost" recycle pays the
+ * player 1g (regular bag) or 3g (rare bag) — the bag's stray grains
+ * + hessian sack pulped back into something useful. The recycle is
+ * credited directly to `player.gold` so callers don't have to care;
+ * the recycledGold field on the outcome lets the engine surface the
+ * gold-back in the same toast that announces the apply.
  */
 export function applyFertilizer(
   world: World,
-  player: { inventory: Record<string, number> },
+  player: { inventory: Record<string, number>; gold?: number },
   tx: number,
   ty: number,
 ): ApplyOutcome {
@@ -255,26 +281,36 @@ export function applyFertilizer(
   const farmCrop = c as unknown as FarmCrop;
   let bonus: number;
   let rare: boolean;
+  let recycledGold: number;
   if (haveRare > 0) {
     player.inventory[RARE_FERTILIZER_INVENTORY_KEY] = haveRare - 1;
     bonus = RARE_FERTILIZER_STREAK;
     rare = true;
+    recycledGold = COMPOST_RECYCLE_RARE;
   } else {
     player.inventory[FERTILIZER_INVENTORY_KEY] = haveReg - 1;
     bonus = FERTILIZER_STREAK;
     rare = false;
+    recycledGold = COMPOST_RECYCLE_REGULAR;
   }
   farmCrop.waterStreak = (farmCrop.waterStreak ?? 0) + bonus;
   // The crop is now treated as freshly watered so the dryness counter
   // doesn't ruin the bumped streak overnight.
   farmCrop.daysSinceWater = 0;
   farmCrop.watered = true;
+  // Credit the recycle directly to the player's gold. We only touch
+  // gold when the field exists — the test fixture for compost-only
+  // callers uses a lightweight player object that may not carry gold.
+  if (typeof player.gold === 'number') {
+    player.gold += recycledGold;
+  }
   return {
     kind: 'applied',
     cropKey: farmCrop.crop,
     newStreak: farmCrop.waterStreak,
     bonus,
     rare,
+    recycledGold,
   };
 }
 

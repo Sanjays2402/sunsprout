@@ -1480,7 +1480,18 @@ export class Game {
         const out = applyFertilizer(this.world, p, front.tx, front.ty);
         if (out.kind === 'applied') {
           const tag = out.rare ? 'Rare fertilizer applied' : 'Fertilized';
-          this.setToast(`${tag} — streak now ${out.newStreak} (+${out.bonus}).`);
+          // The recycle is already credited on `p.gold` by applyFertilizer;
+          // we just need to add a money-log entry and a "+Ng" tail on the
+          // toast so the player sees the recycle as a real reward.
+          if (out.recycledGold > 0) {
+            logGold(p, out.recycledGold, 'compost recycle', this.time.day);
+          }
+          const goldTail = out.recycledGold > 0
+            ? ` (+${out.recycledGold}g recycled)`
+            : '';
+          this.setToast(
+            `${tag} — streak now ${out.newStreak} (+${out.bonus}).${goldTail}`,
+          );
         }
       } else {
         const have = p.inventory[COMPOST_BIN_INVENTORY_KEY] ?? 0;
