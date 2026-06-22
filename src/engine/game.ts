@@ -190,10 +190,12 @@ import { drawStaminaBar } from '../ui/stamina-bar';
 import {
   CART_X,
   CART_Y,
+  breederTradeInLine,
   cartArrivalLine,
   cartOpen,
   cartVisitToday,
   nearCart,
+  tradeBreederEggs,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine } from '../game/barometer';
@@ -1921,6 +1923,14 @@ export class Game {
         const px = Math.round(p.x);
         const py = Math.round(p.y);
         if (nearCart(px, py) && cartOpen(this.time)) {
+          // Auto-sweep breeder eggs from the bag before the menu opens
+          // — Pip eyes them and pays 2x the fancy-egg sell price. No
+          // new keybind; the existing E press carries the trade.
+          const tradeOut = tradeBreederEggs(this.world.player, px, py, this.time);
+          if (tradeOut.kind === 'traded') {
+            logGold(this.world.player, tradeOut.gold, `cart: breeder trade (x${tradeOut.eggs})`, this.time.day);
+            this.setToast(breederTradeInLine(tradeOut));
+          }
           this.cartMenu.open();
           return;
         }

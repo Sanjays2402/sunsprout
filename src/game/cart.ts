@@ -24,6 +24,7 @@ import type { TimeOfDay } from './time';
 import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './decor';
 import { SPA_PASS_INVENTORY_KEY, SPA_PASS_PRICE, SPA_PASS_PUNCHES } from './bath-house';
 import { BAROMETER_INVENTORY_KEY, BAROMETER_PRICE } from './barometer';
+import { BREEDER_EGG_INVENTORY_KEY, FANCY_EGG_SELL_PRICE } from './coop';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -184,4 +185,62 @@ export function buyFromCart(
 /** Pretty label for the dawn arrival toast. */
 export function cartArrivalLine(): string {
   return 'Pip the Peddler is in town today (09-18 by the well).';
+}
+
+// ---------------------------------------------------------------------
+// Breeder egg trade-in — Pip pays double the fancy-egg sell price for
+// any breeder eggs the player walks up to the cart with. Triggers
+// automatically on cart-menu open so the player never has to learn a
+// new keybind, and it stays revertible by paying out 0 + a no-op toast
+// when no eggs are on hand.
+// ---------------------------------------------------------------------
+
+/**
+ * Multiplier on FANCY_EGG_SELL_PRICE Pip pays per breeder egg.
+ *
+ * Sets the cart trade-in to 2x the well's fancy-egg sell price. Tuned
+ * to feel rewarding without dwarfing the hatchery path (a breeder
+ * hatches a guaranteed heritage chick — that's still a stronger
+ * long-run play than the gold).
+ */
+export const BREEDER_TRADEIN_MULTIPLIER = 2;
+
+/** Per-egg gold Pip pays at the cart trade-in. */
+export const BREEDER_TRADEIN_PRICE = FANCY_EGG_SELL_PRICE * BREEDER_TRADEIN_MULTIPLIER;
+
+/** Outcome of a trade-in attempt. */
+export type BreederTradeInOutcome =
+  | { kind: 'traded'; eggs: number; gold: number; remainingGold: number }
+  | { kind: 'none' }
+  | { kind: 'closed' }
+  | { kind: 'too-far' };
+
+/**
+ * Try to trade every breeder egg in the player's bag to Pip for
+ * BREEDER_TRADEIN_PRICE gold each. Gated by cart-open + adjacency
+ * exactly like buyFromCart so the trade can't happen off-hours or
+ * from across the village.
+ *
+ * Returns 'none' when the bag is empty — the cart-menu open hook
+ * checks this first so a no-op trade doesn't toast.
+ */
+export function tradeBreederEggs(
+  player: Player,
+  px: number,
+  py: number,
+  time: TimeOfDay,
+): BreederTradeInOutcome {
+  if (!cartOpen(time)) return { kind: 'closed' };
+  if (!nearCart(px, py)) return { kind: 'too-far' };
+  const have = player.inventory[BREEDER_EGG_INVENTORY_KEY] ?? 0;
+  if (have <= 0) return { kind: 'none' };
+  const gold = have * BREEDER_TRADEIN_PRICE;
+  player.inventory[BREEDER_EGG_INVENTORY_KEY] = 0;
+  player.gold += gold;
+  return { kind: 'traded', eggs: have, gold, remainingGold: player.gold };
+}
+
+/** Pretty toast for the trade-in confirmation. */
+export function breederTradeInLine(out: Extract<BreederTradeInOutcome, { kind: 'traded' }>): string {
+  return `Pip eyes the breeder egg${out.eggs === 1 ? '' : 's'} — pays you ${out.gold}g for ${out.eggs}.`;
 }
