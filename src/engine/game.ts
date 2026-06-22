@@ -207,6 +207,8 @@ import {
   cartVisitToday,
   nearCart,
   tradeBreederEggs,
+  tradeStaminaTeas,
+  teaTradeInLine,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
@@ -2121,6 +2123,15 @@ export class Game {
           if (tradeOut.kind === 'traded') {
             logGold(this.world.player, tradeOut.gold, `cart: breeder trade (x${tradeOut.eggs})`, this.time.day);
             this.setToast(breederTradeInLine(tradeOut));
+          }
+          // Auto-trade stamina teas next: three cheap teas for one
+          // Hot Cocoa, single-shot per E press so a 6-tea bag mints
+          // 1 cocoa per visit (player can re-press to chain through).
+          // Silent when the bag doesn't carry enough teas so the trade
+          // path doesn't toast on every menu open.
+          const teaOut = tradeStaminaTeas(this.world.player, px, py, this.time);
+          if (teaOut.kind === 'traded') {
+            this.setToast(teaTradeInLine(teaOut));
           }
           // Capture this season's headliner into the rumor history
           // ring buffer (idempotent on repeat opens within the same

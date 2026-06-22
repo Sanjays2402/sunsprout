@@ -321,3 +321,109 @@ export function tradeBreederEggs(
 export function breederTradeInLine(out: Extract<BreederTradeInOutcome, { kind: 'traded' }>): string {
   return `Pip eyes the breeder egg${out.eggs === 1 ? '' : 's'} — pays you ${out.gold}g for ${out.eggs}.`;
 }
+
+// ---------------------------------------------------------------------
+// Stamina-tea trade-in — exchange three cheap stamina teas (herb-tea
+// or berry-tonic) for one Hot Cocoa. Mirrors the breeder-egg trade-in
+// shape: auto-fires on cart-menu open so the player doesn't learn a
+// new keybind, returns 'none' silently when the bag doesn't carry
+// enough teas, and credits the new dish directly into the
+// `dish-hot-cocoa` inventory key the existing drinkBest path already
+// honors.
+//
+// Why teas-for-cocoa and not the other direction: a cocoa restores
+// 35 stamina, a herb-tea restores 20 — three teas total 60 stamina,
+// the cocoa is 35. The trade is a CONVENIENCE: one cocoa hotkey
+// (Z) drinks 35 in one press instead of three taps. The lost
+// stamina is paid for the keybind ergonomics + bag space.
+//
+// Why limit to cheap teas (herb-tea + berry-tonic): the player can
+// already make Berry Tonic and Mushroom Broth at the inn; the trade-
+// in shouldn't let the player dump high-restore teas (mushroom-broth
+// / sunflower-elixir) at a 3:1 ratio because that's a stamina loss.
+// The eligible set stays cheapest-first so the player auto-burns the
+// least valuable teas.
+// ---------------------------------------------------------------------
+
+import { dishInventoryKey, type DishKey } from './cooking';
+
+/** Teas eligible for the trade-in, cheapest restore first. */
+export const TEA_TRADEIN_KEYS: readonly DishKey[] = [
+  'herb-tea',     // 20 restore
+  'berry-tonic',  // 25 restore
+] as const;
+
+/** Number of teas required per cocoa. */
+export const TEA_TRADEIN_COST = 3;
+
+/** Dish key minted by the trade-in. */
+export const TEA_TRADEIN_REWARD_KEY: DishKey = 'hot-cocoa';
+
+/** Outcome of a tea trade-in attempt. */
+export type TeaTradeInOutcome =
+  | { kind: 'traded'; teasUsed: number; cocoasMinted: number; remainingCocoa: number }
+  | { kind: 'none'; have: number; need: number }
+  | { kind: 'closed' }
+  | { kind: 'too-far' };
+
+/** Sum of eligible teas the player is currently carrying. */
+export function teaTradeInBalance(player: Player): number {
+  let n = 0;
+  for (const key of TEA_TRADEIN_KEYS) {
+    n += player.inventory[dishInventoryKey(key)] ?? 0;
+  }
+  return n;
+}
+
+/** True iff the player has at least TEA_TRADEIN_COST eligible teas. */
+export function canTradeStaminaTeas(player: Player): boolean {
+  return teaTradeInBalance(player) >= TEA_TRADEIN_COST;
+}
+
+/**
+ * Try to swap TEA_TRADEIN_COST cheapest teas for one Hot Cocoa.
+ * Honours the same gate as buyFromCart (cart open + adjacency). Walks
+ * TEA_TRADEIN_KEYS in cheapest-first order so the player burns the
+ * least valuable teas first; sweeps each key dry before moving to
+ * the next, ensuring a 5-tea bag carrying 4 herb-tea + 1 berry-tonic
+ * cleanly consumes 3 herb-teas.
+ *
+ * The minted cocoa lands in `dish-hot-cocoa` so the existing
+ * drinkBest (Z) path picks it up without any extra wiring.
+ */
+export function tradeStaminaTeas(
+  player: Player,
+  px: number,
+  py: number,
+  time: TimeOfDay,
+): TeaTradeInOutcome {
+  if (!cartOpen(time)) return { kind: 'closed' };
+  if (!nearCart(px, py)) return { kind: 'too-far' };
+  const balance = teaTradeInBalance(player);
+  if (balance < TEA_TRADEIN_COST) {
+    return { kind: 'none', have: balance, need: TEA_TRADEIN_COST };
+  }
+  let remaining = TEA_TRADEIN_COST;
+  for (const key of TEA_TRADEIN_KEYS) {
+    if (remaining <= 0) break;
+    const dishKey = dishInventoryKey(key);
+    const have = player.inventory[dishKey] ?? 0;
+    if (have <= 0) continue;
+    const consume = Math.min(have, remaining);
+    player.inventory[dishKey] = have - consume;
+    remaining -= consume;
+  }
+  const cocoaKey = dishInventoryKey(TEA_TRADEIN_REWARD_KEY);
+  player.inventory[cocoaKey] = (player.inventory[cocoaKey] ?? 0) + 1;
+  return {
+    kind: 'traded',
+    teasUsed: TEA_TRADEIN_COST,
+    cocoasMinted: 1,
+    remainingCocoa: player.inventory[cocoaKey],
+  };
+}
+
+/** Pretty toast for the trade-in confirmation. */
+export function teaTradeInLine(out: Extract<TeaTradeInOutcome, { kind: 'traded' }>): string {
+  return `Pip swaps ${out.teasUsed} stamina teas for ${out.cocoasMinted} Hot Cocoa. (${out.remainingCocoa} on hand)`;
+}
