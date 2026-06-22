@@ -105,6 +105,36 @@ export const PERFUMED_SOAP_INVENTORY_KEY = 'perfumed-soap';
 /** How many soaks earn one Perfumed Soap. */
 export const SOAP_PER_SOAKS = 10;
 
+/**
+ * Inventory key prefix for the seasonal-towel cosmetic. Per-season
+ * suffixes ('spring' / 'summer' / 'fall' / 'winter') keep the four
+ * towels disjoint so the player can collect every one in a year.
+ *
+ * The towel is gifted when the player's PER-SEASON soak count crosses
+ * SEASONAL_TOWEL_SOAKS in the current season. Once gifted for a
+ * (season) the bath house won't re-gift the same one — the player has
+ * to wait until next year's same season to chase it.
+ */
+export const SEASONAL_TOWEL_INVENTORY_PREFIX = 'towel-';
+
+/** Season-index to short name used for the towel inventory key + label. */
+export const SEASON_KEYS = ['spring', 'summer', 'fall', 'winter'] as const;
+export type SeasonKey = (typeof SEASON_KEYS)[number];
+
+/** Inventory key for a specific season's towel. */
+export function seasonalTowelKey(season: 0 | 1 | 2 | 3): string {
+  return `${SEASONAL_TOWEL_INVENTORY_PREFIX}${SEASON_KEYS[season]}`;
+}
+
+/** Pretty label for the towel toast. */
+export function seasonalTowelLabel(season: 0 | 1 | 2 | 3): string {
+  const name = SEASON_KEYS[season];
+  return `${name[0].toUpperCase()}${name.slice(1)} Towel`;
+}
+
+/** How many soaks IN A SINGLE SEASON earn the seasonal towel cosmetic. */
+export const SEASONAL_TOWEL_SOAKS = 5;
+
 /** Per-player bath-house bookkeeping. */
 export interface BathState {
   /** Day index the buff EXPIRES on (>= today means buff is active). */
@@ -121,6 +151,22 @@ export interface BathState {
    * `totalSoaks` forward via persistence.
    */
   soapsGifted?: number;
+  /**
+   * Per-season soak counter, keyed by `${year}-${season}` so a soak in
+   * Spring of year 1 and Spring of year 2 each count toward their own
+   * SEASONAL_TOWEL_SOAKS milestone. The bath house's calendar doesn't
+   * carry a year — we use the engine's `time.day` modulo bookkeeping
+   * via the same `${season}` key plus a `seasonalTowelGifted` set so
+   * the milestone only fires once per "stretch".
+   */
+  seasonalSoaks?: Partial<Record<SeasonKey, number>>;
+  /**
+   * Set of season keys for which the seasonal towel has been gifted
+   * THIS run. Once a key appears here the bath house won't re-gift
+   * the same towel until the player clears the gift (e.g. via a
+   * future "trade in" path) — for now this means one towel per save.
+   */
+  seasonalTowelsGifted?: Partial<Record<SeasonKey, boolean>>;
 }
 
 /** Lazy reader on the Player. */
@@ -182,6 +228,14 @@ export type BathOutcome =
       totalSoaks: number;
       /** New Perfumed Soaps gifted this soak (0 or 1). */
       soapsEarned: number;
+      /** Per-season soak count AFTER this soak (drives the towel toast). */
+      seasonalSoaks: number;
+      /** True iff this soak crossed the SEASONAL_TOWEL_SOAKS milestone for the current season. */
+      towelEarned: boolean;
+      /** Inventory key of the towel gifted this soak (empty when none). */
+      towelKey: string;
+      /** Pretty label of the towel gifted this soak (empty when none). */
+      towelLabel: string;
     }
   | { kind: 'too-far' }
   | { kind: 'not-enough-gold'; need: number; have: number }
@@ -251,6 +305,31 @@ export function takeBath(
     player.inventory[PERFUMED_SOAP_INVENTORY_KEY] =
       (player.inventory[PERFUMED_SOAP_INVENTORY_KEY] ?? 0) + soapsEarned;
   }
+  // Seasonal-towel bookkeeping — increment the per-season soak count
+  // and gift the matching towel the moment we cross
+  // SEASONAL_TOWEL_SOAKS. One towel per (save, season): we use a
+  // seasonalTowelsGifted map so a reload mid-season doesn't double-gift,
+  // and so a player who already earned Spring's towel doesn't get a
+  // second one if they keep soaking through Spring.
+  const seasonKey = time ? SEASON_KEYS[time.season] : null;
+  let seasonalCount = 0;
+  let towelEarned = false;
+  let towelKey = '';
+  let towelLabel = '';
+  if (seasonKey && time) {
+    if (!state.seasonalSoaks) state.seasonalSoaks = {};
+    seasonalCount = (state.seasonalSoaks[seasonKey] ?? 0) + 1;
+    state.seasonalSoaks[seasonKey] = seasonalCount;
+    if (!state.seasonalTowelsGifted) state.seasonalTowelsGifted = {};
+    const alreadyEarned = state.seasonalTowelsGifted[seasonKey] === true;
+    if (!alreadyEarned && seasonalCount >= SEASONAL_TOWEL_SOAKS) {
+      state.seasonalTowelsGifted[seasonKey] = true;
+      towelEarned = true;
+      towelKey = seasonalTowelKey(time.season);
+      towelLabel = seasonalTowelLabel(time.season);
+      player.inventory[towelKey] = (player.inventory[towelKey] ?? 0) + 1;
+    }
+  }
   const s = getStamina(player);
   s.max = MAX_STAMINA + BATH_BONUS;
   s.current = Math.min(s.max, s.current + BATH_BONUS);
@@ -265,6 +344,10 @@ export function takeBath(
     passesLeft: passState.punchesLeft,
     totalSoaks: state.totalSoaks,
     soapsEarned,
+    seasonalSoaks: seasonalCount,
+    towelEarned,
+    towelKey,
+    towelLabel,
   };
 }
 
@@ -292,11 +375,18 @@ export function bathFlavorLine(out: Extract<BathOutcome, { kind: 'soaked' }>): s
   const loyaltyTail = out.soapsEarned > 0
     ? ` Bath house gifts you a Perfumed Soap for ${out.totalSoaks} lifetime soaks.`
     : '';
+  // Seasonal-towel tail — fires the soak that crosses
+  // SEASONAL_TOWEL_SOAKS for the current season. Wording calls out the
+  // season directly so the player understands the loop ("oh, the Fall
+  // one is a different towel, I want to chase that").
+  const towelTail = out.towelEarned
+    ? ` The bath house slides a ${out.towelLabel} across the counter — ${out.seasonalSoaks} soaks this season.`
+    : '';
   if (out.paidWithPass) {
-    return `Soaked at the bath house (spa pass, ${out.passesLeft} punch${out.passesLeft === 1 ? '' : 'es'} left). +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}`;
+    return `Soaked at the bath house (spa pass, ${out.passesLeft} punch${out.passesLeft === 1 ? '' : 'es'} left). +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}${towelTail}`;
   }
   const winterTag = out.discounted ? ' (winter rate)' : '';
-  return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}`;
+  return `Soaked at the bath house${winterTag}. +${out.bonus} stamina cap for ${out.daysLeft} day${plural}.${loyaltyTail}${towelTail}`;
 }
 
 /** Pretty progress line for HUD inspection at the bath house entrance. */

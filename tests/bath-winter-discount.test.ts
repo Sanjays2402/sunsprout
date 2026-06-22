@@ -116,6 +116,10 @@ describe('bathFlavorLine with winter tag', () => {
       passesLeft: 0,
       totalSoaks: 1,
       soapsEarned: 0,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).toContain('winter rate');
   });
@@ -132,6 +136,10 @@ describe('bathFlavorLine with winter tag', () => {
       passesLeft: 0,
       totalSoaks: 1,
       soapsEarned: 0,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).not.toContain('winter rate');
   });

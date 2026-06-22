@@ -123,6 +123,10 @@ describe('bathFlavorLine surfaces the gift', () => {
       passesLeft: 0,
       totalSoaks: SOAP_PER_SOAKS,
       soapsEarned: 1,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).toMatch(/Perfumed Soap/);
     expect(line).toMatch(/lifetime soaks/);
@@ -140,6 +144,10 @@ describe('bathFlavorLine surfaces the gift', () => {
       passesLeft: 0,
       totalSoaks: 3,
       soapsEarned: 0,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).not.toMatch(/Perfumed Soap/);
   });

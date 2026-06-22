@@ -150,6 +150,10 @@ describe('bathFlavorLine names the punch path', () => {
       passesLeft: 2,
       totalSoaks: 1,
       soapsEarned: 0,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).toContain('spa pass');
     expect(line).toContain('2 punches');
@@ -167,6 +171,10 @@ describe('bathFlavorLine names the punch path', () => {
       passesLeft: 0,
       totalSoaks: 1,
       soapsEarned: 0,
+      seasonalSoaks: 1,
+      towelEarned: false,
+      towelKey: '',
+      towelLabel: '',
     });
     expect(line).not.toContain('spa pass');
   });

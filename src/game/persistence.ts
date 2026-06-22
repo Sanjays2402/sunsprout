@@ -278,6 +278,12 @@ export function serializeGame(game: Game): SaveSnapshot {
             expiresOnDay: getBath(p).expiresOnDay,
             totalSoaks: getBath(p).totalSoaks,
             soapsGifted: getBath(p).soapsGifted,
+            seasonalSoaks: getBath(p).seasonalSoaks
+              ? { ...getBath(p).seasonalSoaks }
+              : undefined,
+            seasonalTowelsGifted: getBath(p).seasonalTowelsGifted
+              ? { ...getBath(p).seasonalTowelsGifted }
+              : undefined,
           }
         : undefined,
       spaPass: (p as Player & { spaPass?: SpaPassState }).spaPass
@@ -456,11 +462,18 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   // Bath house — preserve buff expiry so a reload mid-soak still
   // honours the stamina-cap lift. Also restore lifetime soak count +
   // gifted-soap count so the loyalty path doesn't reset on reload.
+  // Same goes for the per-season towel bookkeeping.
   if (snap.player.bath) {
     const cur = getBath(p);
     cur.expiresOnDay = snap.player.bath.expiresOnDay;
     if (snap.player.bath.totalSoaks !== undefined) cur.totalSoaks = snap.player.bath.totalSoaks;
     if (snap.player.bath.soapsGifted !== undefined) cur.soapsGifted = snap.player.bath.soapsGifted;
+    if (snap.player.bath.seasonalSoaks !== undefined) {
+      cur.seasonalSoaks = { ...snap.player.bath.seasonalSoaks };
+    }
+    if (snap.player.bath.seasonalTowelsGifted !== undefined) {
+      cur.seasonalTowelsGifted = { ...snap.player.bath.seasonalTowelsGifted };
+    }
   }
   // Spa pass — restore punches so the player doesn't lose paid-for
   // soaks when the page reloads mid-season.
