@@ -120,3 +120,146 @@ export function rumorFooterLine(season: number): string {
   if (!row) return '';
   return `Next visit's headliner: ${row.label}`;
 }
+
+// ---------------------------------------------------------------------
+// Rumor history — track the last RUMOR_HISTORY_CAP headliners and
+// whether the player bought each one. Persists on the player as a
+// small ring buffer so the cart menu can show "you snubbed the
+// barometer two seasons ago" and the panel can list a season-by-
+// season ledger.
+//
+// We use the cart-menu controller as the trigger point: every time
+// Pip's cart opens, we capture the season's headliner into history
+// (if it isn't already there), and the cart-buy hook stamps the
+// matching entry as bought. A pure module — the engine wires the
+// two stamps; no IO here.
+// ---------------------------------------------------------------------
+
+/** Max number of rumor history entries retained on the player. */
+export const RUMOR_HISTORY_CAP = 4;
+
+/** Single row in the player's rumor history. */
+export interface RumorHistoryEntry {
+  /** Season index Pip teased this headliner in (0..3). */
+  season: number;
+  /** Cart catalog key of the headliner. */
+  itemKey: string;
+  /** Pretty label snapshot — saves a CART_CATALOG re-lookup at render time. */
+  label: string;
+  /** Buy price snapshot. */
+  buyPrice: number;
+  /** True iff the player bought the row while it was the headliner. */
+  bought: boolean;
+}
+
+/** Per-player rumor history (newest at the END). */
+export interface RumorHistoryState {
+  entries: RumorHistoryEntry[];
+}
+
+/** Lazy reader. Mirrors the lazy pattern in other game/* modules. */
+export function getRumorHistory(player: object): RumorHistoryState {
+  const p = player as { rumorHistory?: RumorHistoryState };
+  if (!p.rumorHistory) p.rumorHistory = { entries: [] };
+  return p.rumorHistory;
+}
+
+/**
+ * Record THIS season's headliner into history if it isn't already
+ * the last entry. Called by the cart-menu open hook so a single
+ * visit produces a single entry regardless of how many times the
+ * player open-closes the menu.
+ *
+ * Returns the entry that landed (or the already-present one). Idempotent.
+ */
+export function recordRumorVisit(
+  player: object,
+  season: number,
+): RumorHistoryEntry | null {
+  const row = currentSeasonHeadliner(season);
+  if (!row) return null;
+  const state = getRumorHistory(player);
+  const last = state.entries[state.entries.length - 1];
+  if (last && last.season === season && last.itemKey === row.key) {
+    return last;
+  }
+  const entry: RumorHistoryEntry = {
+    season,
+    itemKey: row.key,
+    label: row.label,
+    buyPrice: row.buyPrice,
+    bought: false,
+  };
+  state.entries.push(entry);
+  // Trim from the FRONT so the newest RUMOR_HISTORY_CAP entries survive.
+  if (state.entries.length > RUMOR_HISTORY_CAP) {
+    state.entries.splice(0, state.entries.length - RUMOR_HISTORY_CAP);
+  }
+  return entry;
+}
+
+/**
+ * Stamp the latest history entry as bought when (and only when) the
+ * player buys the row that matches the current season's headliner.
+ * Called by the cart buy path AFTER the buy succeeds. Idempotent on
+ * a re-stamp of the same season's headliner.
+ */
+export function recordRumorBuy(
+  player: object,
+  season: number,
+  itemKey: string,
+): boolean {
+  if (!isCurrentHeadlinerKey(season, itemKey)) return false;
+  const state = getRumorHistory(player);
+  // Walk backwards; the matching entry will almost always be the last,
+  // but a player can hop seasons without buying and still want past
+  // matches to remain accurate.
+  for (let i = state.entries.length - 1; i >= 0; i--) {
+    const e = state.entries[i];
+    if (e.season === season && e.itemKey === itemKey) {
+      e.bought = true;
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Season-index → human label used for history lines. */
+const RUMOR_SEASON_NAMES = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+
+/**
+ * Pretty per-entry line — "Spring: Brass Barometer (300g) - bought"
+ * or "...  skipped". Pure formatter.
+ */
+export function rumorHistoryEntryLine(entry: RumorHistoryEntry): string {
+  const season = RUMOR_SEASON_NAMES[Math.abs(entry.season) % 4] ?? 'Spring';
+  const stamp = entry.bought ? 'bought' : 'skipped';
+  return `${season}: ${entry.label} (${entry.buyPrice}g) — ${stamp}`;
+}
+
+/**
+ * Full history block as an array of lines (newest first), or a single
+ * "No rumor history yet." line when the ring is empty. Used by the
+ * cart-menu footer / lore panel / future rumor-history panel.
+ */
+export function rumorHistoryLines(player: object): string[] {
+  const entries = getRumorHistory(player).entries;
+  if (entries.length === 0) return ['No rumor history yet — Pip will start teasing soon.'];
+  // Newest first feels more natural for a "what just happened" list.
+  return entries.slice().reverse().map(rumorHistoryEntryLine);
+}
+
+/**
+ * Short summary used inline somewhere we have limited room — e.g.
+ * the dawn-toast tail when Pip arrives could fold the "you've
+ * snubbed Pip's last 2 picks" into the existing flavour line.
+ *
+ * Returns the empty string when the ring is empty.
+ */
+export function rumorHistorySummary(player: object): string {
+  const entries = getRumorHistory(player).entries;
+  if (entries.length === 0) return '';
+  let bought = 0;
+  for (const e of entries) if (e.bought) bought += 1;
+  return `Headliners: ${bought}/${entries.length} bought.`;
+}

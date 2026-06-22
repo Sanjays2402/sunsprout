@@ -207,7 +207,7 @@ import {
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
-import { rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine } from '../game/cart-rumor';
+import { recordRumorBuy, recordRumorVisit, rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
@@ -1628,6 +1628,11 @@ export class Game {
                 rebateLine = ` Pip nods — rebate +${rebate}g for grabbing the headliner.`;
                 postBuyGold = out.remainingGold + rebate;
               }
+              // Stamp the rumor-history entry as bought. The history
+              // entry was created on cart-menu open via
+              // recordRumorVisit(); the buy upgrades it from 'skipped'
+              // to 'bought'.
+              recordRumorBuy(this.world.player, this.time.season, out.item.key);
             }
             this.setToast(`Bought ${out.item.label}. (${postBuyGold}g left)${baroLine}${rebateLine}`);
           } else if (out.kind === 'refilled') {
@@ -2043,6 +2048,10 @@ export class Game {
             logGold(this.world.player, tradeOut.gold, `cart: breeder trade (x${tradeOut.eggs})`, this.time.day);
             this.setToast(breederTradeInLine(tradeOut));
           }
+          // Capture this season's headliner into the rumor history
+          // ring buffer (idempotent on repeat opens within the same
+          // visit). The matching buy stamps it as 'bought' below.
+          recordRumorVisit(this.world.player, this.time.season);
           this.cartMenu.open();
           return;
         }

@@ -44,6 +44,7 @@ import { getTournament, type TournamentState } from './tournament';
 import { getStorm, type StormState } from './storm';
 import { getBath, getSpaPass, type BathState, type SpaPassState } from './bath-house';
 import { getMineHaul, type MineHaulState } from './mining-haul';
+import { getRumorHistory, type RumorHistoryState } from './cart-rumor';
 import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
 import { getComposts, type PlacedCompost } from './compost';
@@ -129,6 +130,8 @@ export interface SaveSnapshot {
     spaPass?: SpaPassState;
     /** Mining haul — running tally + previous run's tally. */
     mineHaul?: MineHaulState;
+    /** Rumor history — last RUMOR_HISTORY_CAP headliners + bought flags. */
+    rumorHistory?: RumorHistoryState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -299,6 +302,11 @@ export function serializeGame(game: Game): SaveSnapshot {
               counts: { ...getMineHaul(p).lastRun.counts },
               gold: getMineHaul(p).lastRun.gold,
             },
+          }
+        : undefined,
+      rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
+        ? {
+            entries: getRumorHistory(p).entries.map((e) => ({ ...e })),
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -502,6 +510,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       counts: { ...snap.player.mineHaul.lastRun.counts },
       gold: snap.player.mineHaul.lastRun.gold,
     };
+  }
+  // Rumor history — restore the ring buffer of past headliners + the
+  // bought flag so the cart-menu can keep showing accurate skipped/
+  // bought stamps after a reload.
+  if (snap.player.rumorHistory) {
+    const cur = getRumorHistory(p);
+    cur.entries = snap.player.rumorHistory.entries.map((e) => ({ ...e }));
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

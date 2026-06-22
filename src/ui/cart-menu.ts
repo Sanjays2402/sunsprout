@@ -9,7 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
 import { ownsDecor } from '../game/decor';
-import { isCurrentHeadlinerKey, rumorFooterLine, rumorRebateAmount } from '../game/cart-rumor';
+import { isCurrentHeadlinerKey, rumorFooterLine, rumorHistorySummary, rumorRebateAmount } from '../game/cart-rumor';
 
 const PANEL_W = 560;
 const PANEL_H = 380;
@@ -188,8 +188,17 @@ export class CartMenu {
       const rumor = rumorFooterLine(time.season);
       if (rumor) {
         ctx.fillStyle = TITLE_COLOR;
-        ctx.fillText(rumor, x + PANEL_W / 2, y + PANEL_H - 36);
+        ctx.fillText(rumor, x + PANEL_W / 2, y + PANEL_H - 50);
         ctx.fillStyle = HINT;
+      }
+      // Rumor history summary — "Headliners: 2/4 bought." right below
+      // the next-visit hint so the player sees both at a glance.
+      // Empty when the player has never opened the cart, in which case
+      // the line is suppressed.
+      const summary = rumorHistorySummary(player);
+      if (summary) {
+        ctx.fillStyle = HINT;
+        ctx.fillText(summary, x + PANEL_W / 2, y + PANEL_H - 36);
       }
     }
     ctx.fillText('↑/↓ to choose · Enter to buy · Esc to leave', x + PANEL_W / 2, y + PANEL_H - 22);
