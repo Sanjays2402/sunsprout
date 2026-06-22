@@ -1,0 +1,146 @@
+// Mining haul tally — what gems the player has pulled out of the
+// cave so far on the current "run".
+//
+// "Run" here means "since you last slept". The player heads down to
+// the cave entrance, strikes ore until they're out of stamina, then
+// either drinks a tea or walks home. A tally that resets on sleep
+// gives the player a clean ledger of "how productive was today's
+// expedition" — useful both for celebrating a fat run (5 rubies in
+// a morning!) and for spotting a frustrating one (8 strikes, all
+// copper, time to swap pickaxe).
+//
+// Pure module: no IO, no canvas. The engine bumps the tally on
+// every successful strike (via recordMined()) and resets it on
+// sleep (via resetMineHaul()). The dawn toast surfaces the prior
+// run's totals as a "yesterday's haul:" tail, and the bath-house /
+// sleep summary can also read the running totals.
+//
+// Why a dedicated module rather than a field on Player.inventory:
+// inventory is what's IN your bag; the haul tally has to survive a
+// well-sell that empties the bag mid-day, so it's its own counter.
+
+import type { Player } from '../world/world';
+import type { GemKey } from './gems';
+import { GEMS, GEM_KEYS } from './gems';
+
+/** Per-(GemKey) tally of how many of that gem the player has mined this run. */
+export interface MineHaulState {
+  /**
+   * Map of GemKey -> count mined this run. Missing keys mean 0; we
+   * store only nonzero entries so a fresh save's tally object stays
+   * empty and serialises tightly.
+   */
+  counts: Partial<Record<GemKey, number>>;
+  /**
+   * Tally of the PREVIOUS run — captured at sleep time so the dawn
+   * toast can read "Yesterday's haul: ...". Reset to a fresh shape
+   * (empty counts + 0 gold) on a save that's never slept.
+   */
+  lastRun: {
+    counts: Partial<Record<GemKey, number>>;
+    /** Sum of GEMS[k].sellPrice * counts[k] at sleep time. */
+    gold: number;
+  };
+}
+
+/** Lazy reader on the Player. */
+export function getMineHaul(player: Player): MineHaulState {
+  const p = player as Player & { mineHaul?: MineHaulState };
+  if (!p.mineHaul) {
+    p.mineHaul = { counts: {}, lastRun: { counts: {}, gold: 0 } };
+  }
+  return p.mineHaul;
+}
+
+/**
+ * Bump the haul tally by one for `gem`. Called from the engine's
+ * mining strike branch right after a strike lands and the inventory
+ * is credited.
+ */
+export function recordMined(player: Player, gem: GemKey): void {
+  const state = getMineHaul(player);
+  state.counts[gem] = (state.counts[gem] ?? 0) + 1;
+}
+
+/**
+ * Total gems mined this run, across all gem types.
+ */
+export function haulCount(state: MineHaulState): number {
+  let n = 0;
+  for (const k of GEM_KEYS) n += state.counts[k] ?? 0;
+  return n;
+}
+
+/**
+ * Sum of GEMS[k].sellPrice * count for every gem in the haul. Pure
+ * read — doesn't care whether the player has actually sold the haul
+ * or is still carrying it, so the number on the toast matches the
+ * "what could you get for this" calculation the player makes in their
+ * head.
+ */
+export function haulGold(state: MineHaulState): number {
+  let g = 0;
+  for (const k of GEM_KEYS) g += (state.counts[k] ?? 0) * GEMS[k].sellPrice;
+  return g;
+}
+
+/**
+ * Snapshot the current run into lastRun and clear the running
+ * tally. Called from the sleep path so "yesterday's haul" reads
+ * the run the player just slept off, not the one they're starting.
+ *
+ * Returns the previous run's totals as a convenience to callers that
+ * want to surface a "you mined N gems for Xg yesterday" toast right
+ * after sleep without a second helper call.
+ */
+export function resetMineHaul(player: Player): {
+  counts: Partial<Record<GemKey, number>>;
+  gold: number;
+  total: number;
+} {
+  const state = getMineHaul(player);
+  const counts = { ...state.counts };
+  const gold = haulGold(state);
+  const total = haulCount(state);
+  state.lastRun = { counts, gold };
+  state.counts = {};
+  return { counts, gold, total };
+}
+
+/**
+ * Pretty status line for the dawn toast. Returns the empty string
+ * when the player didn't mine anything yesterday so the dawn toast
+ * stays uncluttered on quiet days.
+ *
+ * Wording: "Yesterday's haul: 3 copper, 1 ruby (worth 164g)."
+ */
+export function haulYesterdayLine(state: MineHaulState): string {
+  const { counts, gold } = state.lastRun;
+  let total = 0;
+  for (const k of GEM_KEYS) total += counts[k] ?? 0;
+  if (total === 0) return '';
+  const parts: string[] = [];
+  // Walk GEM_KEYS in catalog order so the line reads consistently.
+  for (const k of GEM_KEYS) {
+    const c = counts[k] ?? 0;
+    if (c > 0) parts.push(`${c} ${GEMS[k].name.toLowerCase()}`);
+  }
+  return `Yesterday's mine haul: ${parts.join(', ')} (worth ${gold}g).`;
+}
+
+/**
+ * Pretty status line for the running haul — shown when the player
+ * presses E at the cave entrance to peek at the day so far. Empty
+ * when nothing has been mined yet.
+ */
+export function haulStatusLine(state: MineHaulState): string {
+  const total = haulCount(state);
+  if (total === 0) return 'Today\'s haul is empty. Strike some ore.';
+  const gold = haulGold(state);
+  const parts: string[] = [];
+  for (const k of GEM_KEYS) {
+    const c = state.counts[k] ?? 0;
+    if (c > 0) parts.push(`${c} ${GEMS[k].name.toLowerCase()}`);
+  }
+  return `Today's haul: ${parts.join(', ')} (worth ${gold}g).`;
+}

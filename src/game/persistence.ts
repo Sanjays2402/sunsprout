@@ -43,6 +43,7 @@ import { getExtractor, type ExtractorState } from './seed-extractor';
 import { getTournament, type TournamentState } from './tournament';
 import { getStorm, type StormState } from './storm';
 import { getBath, getSpaPass, type BathState, type SpaPassState } from './bath-house';
+import { getMineHaul, type MineHaulState } from './mining-haul';
 import { getPond, type PondState } from './fish-pond';
 import { getHatcheries, type PlacedHatchery } from './hatchery';
 import { getComposts, type PlacedCompost } from './compost';
@@ -126,6 +127,8 @@ export interface SaveSnapshot {
     bath?: BathState;
     /** Spa pass — punches remaining on the player's redeemed punch card. */
     spaPass?: SpaPassState;
+    /** Mining haul — running tally + previous run's tally. */
+    mineHaul?: MineHaulState;
     /** Open NPC hangout invites + per-NPC cooldown stamps. */
     npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }>;
     lastHangoutDay?: Record<string, number>;
@@ -288,6 +291,15 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       spaPass: (p as Player & { spaPass?: SpaPassState }).spaPass
         ? { punchesLeft: getSpaPass(p).punchesLeft }
+        : undefined,
+      mineHaul: (p as Player & { mineHaul?: MineHaulState }).mineHaul
+        ? {
+            counts: { ...getMineHaul(p).counts },
+            lastRun: {
+              counts: { ...getMineHaul(p).lastRun.counts },
+              gold: getMineHaul(p).lastRun.gold,
+            },
+          }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
         ? (p as Player & { npcInvites: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites.map((iv) => ({ ...iv }))
@@ -480,6 +492,16 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.spaPass) {
     const cur = getSpaPass(p);
     cur.punchesLeft = snap.player.spaPass.punchesLeft;
+  }
+  // Mining haul — restore the running tally + the most-recent run
+  // snapshot so the dawn-toast recap survives a reload.
+  if (snap.player.mineHaul) {
+    const cur = getMineHaul(p);
+    cur.counts = { ...snap.player.mineHaul.counts };
+    cur.lastRun = {
+      counts: { ...snap.player.mineHaul.lastRun.counts },
+      gold: snap.player.mineHaul.lastRun.gold,
+    };
   }
   if (snap.player.npcInvites) {
     (p as Player & { npcInvites?: typeof snap.player.npcInvites }).npcInvites =

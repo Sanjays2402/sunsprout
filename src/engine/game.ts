@@ -168,6 +168,12 @@ import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
 import {
+  getMineHaul,
+  haulYesterdayLine,
+  recordMined,
+  resetMineHaul,
+} from '../game/mining-haul';
+import {
   pickaxeTier,
   pickaxeTierLabel,
   pickaxeUpgradeCost,
@@ -795,7 +801,14 @@ export class Game {
       // player gets the "pond yielded N" line AND the "collect or lose"
       // warning in the same toast. Empty when no nag is due.
       const pondOverflow = pondOverflowWarning(getPond(this.world), this.world.player);
-      const headline = pondOverflow ? `${headlineBase} · ${pondOverflow}` : headlineBase;
+      // Mining haul recap — surfaces "yesterday's haul: ..." on the
+      // morning AFTER a sleep that captured a nonzero run. Empty
+      // string when yesterday was a non-mining day so quiet dawns
+      // stay quiet.
+      const haulRecap = haulYesterdayLine(getMineHaul(this.world.player));
+      let headline = headlineBase;
+      if (pondOverflow) headline = `${headline} · ${pondOverflow}`;
+      if (haulRecap) headline = `${headline} · ${haulRecap}`;
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {
@@ -1040,6 +1053,9 @@ export class Game {
       if (out.kind === 'slept') {
         // Sleep also restores stamina, mirroring the dawn rollover.
         refillStamina(this.world.player, this.time.day);
+        // Snapshot today's mining haul into lastRun + clear the
+        // running tally. The next dawn toast will read lastRun.
+        resetMineHaul(this.world.player);
         this.sleepSummary.open(out.summary);
         if (this.storage) saveToStorage(this, this.storage);
       } else if (out.kind === 'not-at-farmhouse') {
@@ -1782,6 +1798,11 @@ export class Game {
           if (gem) {
             const def = GEMS[gem];
             p.inventory[gemInventoryKey(gem)] = (p.inventory[gemInventoryKey(gem)] ?? 0) + 1;
+            // Run-haul tally — bump per-gem count so the dawn toast
+            // can replay "yesterday's haul" the next morning after
+            // sleep. Tally resets via resetMineHaul() in the sleep
+            // branch.
+            recordMined(p, gem);
             this.checkQuests({ kind: 'mine', gemKey: gem });
             const bonus = strikeBonus(grade);
             if (bonus > 0) {
