@@ -269,6 +269,7 @@ import {
   COMPOST_BIN_INVENTORY_KEY,
   FERTILIZER_INVENTORY_KEY,
   RARE_FERTILIZER_INVENTORY_KEY,
+  rareFinishDayFor,
   RARE_FERTILIZER_STREAK,
   adjacentCompost,
   applyFertilizer,
@@ -1377,11 +1378,15 @@ export class Game {
       if (bin) {
         const out = depositCrops(bin, p, this.time.day);
         if (out.kind === 'deposited') {
+          const rareDay = rareFinishDayFor(this.time.season);
+          const rareTag = out.finishOnDay === rareDay
+            ? ' RARE day — bags will be premium.'
+            : '';
           this.setToast(
-            `Composted ${out.crops} crop${out.crops === 1 ? '' : 's'}. Ready in 3 days.`,
+            `Composted ${out.crops} crop${out.crops === 1 ? '' : 's'}. Ready in 3 days.${rareTag}`,
           );
         } else if (out.kind === 'no-crops') {
-          this.setToast(compostStatusLine(bin, this.time.day));
+          this.setToast(compostStatusLine(bin, this.time.day, this.time.season, this.time.day));
         } else if (out.kind === 'bin-full') {
           this.setToast('Compost bin is full. Wait for batches to finish.');
         }

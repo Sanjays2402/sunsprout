@@ -287,27 +287,78 @@ export function pendingCrops(world: World): number {
   return total;
 }
 
-/** Pretty status line for the bin under the player's feet. */
-export function compostStatusLine(bin: PlacedCompost, today: number): string {
+/** Pretty status line for the bin under the player's feet.
+ *
+ * When `season` + `today` are supplied the line also surfaces a
+ * countdown to the season's rare-fertilizer day, plus a flag on any
+ * batch that's currently scheduled to finish on it. This lets the
+ * player plan deposits around the rare window without leaving the bin
+ * to flip the calendar.
+ *
+ * Older callers that pass just (bin, today) keep the old output —
+ * the rare hint defaults off so any existing test fixtures pass.
+ */
+export function compostStatusLine(
+  bin: PlacedCompost,
+  today: number,
+  season?: number,
+  dayOfSeason?: number,
+): string {
   if (bin.batches.length === 0) {
-    return 'Compost bin is empty. Press F to deposit normal-tier crops.';
+    const empty = 'Compost bin is empty. Press F to deposit normal-tier crops.';
+    if (season !== undefined && dayOfSeason !== undefined) {
+      const rareHint = rareDayCountdownLine(season, dayOfSeason);
+      if (rareHint) return `${empty} ${rareHint}`;
+    }
+    return empty;
   }
   let nearestLeft = Infinity;
   let pendingBags = 0;
+  let pendingRare = 0;
   let dryCrops = 0;
+  let rareDryBatches = 0;
+  const rareDay = season !== undefined ? rareFinishDayFor(season) : -1;
   for (const b of bin.batches) {
     const left = b.finishOnDay - today + 1;
     if (left < nearestLeft) nearestLeft = left;
     if (b.finishOnDay < today) {
-      pendingBags += Math.floor(b.crops / COMPOST_RATIO);
+      const bags = Math.floor(b.crops / COMPOST_RATIO);
+      pendingBags += bags;
+      if (b.finishOnDay === rareDay) pendingRare += bags;
     } else {
       dryCrops += b.crops;
+      if (b.finishOnDay === rareDay) rareDryBatches += 1;
     }
   }
   if (pendingBags > 0) {
-    return `Compost ready: ${pendingBags} bag${pendingBags === 1 ? '' : 's'} hatching at dawn.`;
+    const tag = pendingRare > 0
+      ? ` (${pendingRare} RARE)`
+      : '';
+    return `Compost ready: ${pendingBags} bag${pendingBags === 1 ? '' : 's'}${tag} hatching at dawn.`;
   }
-  return `Composting ${dryCrops} crop${dryCrops === 1 ? '' : 's'} — ${nearestLeft} day${nearestLeft === 1 ? '' : 's'} until first bag.`;
+  const rareTag = rareDryBatches > 0
+    ? ` ${rareDryBatches === 1 ? 'one batch' : `${rareDryBatches} batches`} on the rare-day track.`
+    : '';
+  const countdown = (season !== undefined && dayOfSeason !== undefined && rareDryBatches === 0)
+    ? rareDayCountdownLine(season, dayOfSeason)
+    : '';
+  const tail = rareTag || (countdown ? ` ${countdown}` : '');
+  return `Composting ${dryCrops} crop${dryCrops === 1 ? '' : 's'} — ${nearestLeft} day${nearestLeft === 1 ? '' : 's'} until first bag.${tail}`;
+}
+
+/**
+ * Pretty countdown line for the rare-fertilizer day this season. Used
+ * by the compost HUD glance and any external system (e.g. the dawn
+ * toast on a rare-day deposit). Returns an empty string when the rare
+ * day has already passed for this season.
+ */
+export function rareDayCountdownLine(season: number, dayOfSeason: number): string {
+  const rareDay = rareFinishDayFor(season);
+  const delta = rareDay - dayOfSeason;
+  if (delta < 0) return '';
+  if (delta === 0) return `RARE day TODAY — batches finishing today mint +${RARE_FERTILIZER_STREAK}-streak bags.`;
+  if (delta === 1) return `RARE day tomorrow — line a batch up to finish then.`;
+  return `RARE day in ${delta} days (day ${rareDay}).`;
 }
 
 // ---------------------------------------------------------------------
