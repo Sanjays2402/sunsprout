@@ -33,8 +33,36 @@ export const POND_YIELD_PER_DAY: Record<FishKey, number> = {
   pike: 1,
 };
 
-/** Max uncollected fish that can sit in the pond. */
+/** Max uncollected fish that can sit in the pond. Base footprint. */
 export const POND_MAX_PENDING = 6;
+
+/** Inventory key for the stone-rim pond upgrade (singleton). */
+export const POND_RIM_INVENTORY_KEY = 'pond-stone-rim';
+
+/** Gold cost of the stone-rim upgrade at Pip's cart. */
+export const POND_RIM_PRICE = 450;
+
+/** Capacity once the stone rim is installed — raises 6 -> 10. */
+export const POND_MAX_PENDING_RIM = 10;
+
+/**
+ * True iff the player owns the stone-rim upgrade. Quantity 1 = owned.
+ * Pure read on player.inventory — no separate save schema.
+ */
+export function hasPondRim(player: { inventory: Record<string, number> }): boolean {
+  return (player.inventory[POND_RIM_INVENTORY_KEY] ?? 0) > 0;
+}
+
+/**
+ * Effective capacity for the pond given the (optional) player. Reads
+ * the rim flag from inventory; falls back to POND_MAX_PENDING when no
+ * player is provided so callers that don't care about the upgrade
+ * (legacy tests, headless validation) still get the base capacity.
+ */
+export function pondMaxFor(player?: { inventory: Record<string, number> }): number {
+  if (player && hasPondRim(player)) return POND_MAX_PENDING_RIM;
+  return POND_MAX_PENDING;
+}
 
 /** Persisted pond state on the world. */
 export interface PondState {
@@ -228,25 +256,40 @@ export function interactPond(
 
 /**
  * Day-rollover hook: if the pond is stocked, add today's yield to its
- * pending pool (capped at POND_MAX_PENDING). Idempotent per-day via
+ * pending pool (capped at POND_MAX_PENDING, or POND_MAX_PENDING_RIM
+ * when the stone-rim upgrade is owned). Idempotent per-day via
  * `lastYieldDay`. Returns the number of fish actually added.
+ *
+ * `player` is optional — old callers (tests, headless validation)
+ * keep the original 6-fish cap; the live game.ts caller passes the
+ * player so the rim upgrade matters.
  */
-export function pondTick(world: World, day: number): number {
+export function pondTick(
+  world: World,
+  day: number,
+  player?: { inventory: Record<string, number> },
+): number {
   const state = getPond(world);
   if (state.species === null) return 0;
   if (state.lastYieldDay === day) return 0;
   state.lastYieldDay = day;
   const yieldToday = POND_YIELD_PER_DAY[state.species] ?? 1;
   const before = state.pending;
-  state.pending = Math.min(POND_MAX_PENDING, state.pending + yieldToday);
+  const cap = pondMaxFor(player);
+  state.pending = Math.min(cap, state.pending + yieldToday);
   return state.pending - before;
 }
 
 /** Pretty status line for HUD / toasts. */
-export function pondStatusLine(state: PondState): string {
+export function pondStatusLine(
+  state: PondState,
+  player?: { inventory: Record<string, number> },
+): string {
   if (state.species === null) return 'Pond is empty. Stock with a caught fish.';
   const name = FISH[state.species].name;
+  const cap = pondMaxFor(player);
+  const rimTag = player && hasPondRim(player) ? ` (rim cap ${cap})` : '';
   if (state.pending === 0)
-    return `Pond stocked with ${name}. Come back tomorrow — or press > with a different fish to swap.`;
-  return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting.`;
+    return `Pond stocked with ${name}${rimTag}. Come back tomorrow — or press > with a different fish to swap.`;
+  return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting${rimTag}.`;
 }

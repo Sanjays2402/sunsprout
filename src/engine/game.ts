@@ -672,8 +672,9 @@ export class Game {
       // uses the correct (post-expiry) max.
       maybeExpireBath(this.world.player, this.time.day);
       // Fish pond — when stocked, drops 1-2 fish into the pending pool
-      // for collection. Idempotent per-day.
-      const pondAdded = pondTick(this.world, this.time.day);
+      // for collection. Idempotent per-day. Pass the player so the
+      // stone-rim upgrade widens the cap from 6 -> 10.
+      const pondAdded = pondTick(this.world, this.time.day, this.world.player);
       // Hatcheries — egg-countdown ticks, fires hatch when due. We post
       // a toast for the first hatcher of the morning so the player
       // knows their incubation paid off (or stalled on a full coop).
@@ -1315,7 +1316,7 @@ export class Game {
           `Collected ${out.count} ${out.label}${out.count === 1 ? '' : 's'} from the pond.`,
         );
       } else if (out.kind === 'nothing-pending') {
-        this.setToast(pondStatusLine(getPond(this.world)));
+        this.setToast(pondStatusLine(getPond(this.world), this.world.player));
       } else if (out.kind === 'empty-no-fish') {
         this.setToast('No fish in your bag — catch one first to stock the pond.');
       }

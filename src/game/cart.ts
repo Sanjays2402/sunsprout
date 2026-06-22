@@ -25,6 +25,7 @@ import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './deco
 import { SPA_PASS_INVENTORY_KEY, SPA_PASS_PRICE, SPA_PASS_PUNCHES } from './bath-house';
 import { BAROMETER_INVENTORY_KEY, BAROMETER_PRICE } from './barometer';
 import { BREEDER_EGG_INVENTORY_KEY, FANCY_EGG_SELL_PRICE } from './coop';
+import { POND_MAX_PENDING_RIM, POND_RIM_INVENTORY_KEY, POND_RIM_PRICE } from './fish-pond';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -96,6 +97,12 @@ export const CART_CATALOG: CartItem[] = [
     buyPrice: BAROMETER_PRICE,
     flavor: 'Mount on the porch. Forecast strip reaches two days ahead.',
   },
+  {
+    key: POND_RIM_INVENTORY_KEY,
+    label: 'Stone-Rim Pond Kit',
+    buyPrice: POND_RIM_PRICE,
+    flavor: `Lay stones around the pond. Pending fish cap rises to ${POND_MAX_PENDING_RIM}.`,
+  },
   // Decor pieces — buyable wallpaper + floor packs that retint the
   // farmhouse exterior. Each row mirrors a DECOR_CATALOG entry so the
   // cart UI lists them alongside Pip's other premium goods.
@@ -159,6 +166,10 @@ export function buyFromCart(
   }
   // Barometer is a singleton — short-circuit a re-buy.
   if (itemKey === BAROMETER_INVENTORY_KEY && (player.inventory[BAROMETER_INVENTORY_KEY] ?? 0) > 0) {
+    return { kind: 'already-owned', item };
+  }
+  // Stone-rim pond kit is a singleton — short-circuit a re-buy.
+  if (itemKey === POND_RIM_INVENTORY_KEY && (player.inventory[POND_RIM_INVENTORY_KEY] ?? 0) > 0) {
     return { kind: 'already-owned', item };
   }
   if (itemKey.startsWith('decor-')) {
