@@ -12,7 +12,7 @@
 // closes with a second `R` press or Escape.
 
 import type { Player } from '../world/world';
-import { buildCodex, recipesCooked, totalDishesCooked, type RecipeCodexRow } from '../game/cooking-history';
+import { buildCodex, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, type RecipeCodexRow } from '../game/cooking-history';
 import { RECIPES, RECIPE_KEYS } from '../game/cooking';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
@@ -25,9 +25,11 @@ const KNOWN = '#A3D77A';
 const COOKED = '#F0C24A';
 const LOCKED = '#7a6a9a';
 const GOLD = '#F0C24A';
+const PREMIUM = '#E8B4F0';
 
 const PANEL_W = 360;
 const ROW_H = 28;
+const ROW_H_PREMIUM = 40;
 
 function pretty(key: string): string {
   if (key.endsWith('_harvest')) return key.slice(0, -'_harvest'.length);
@@ -72,7 +74,13 @@ export class RecipeCodex {
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, _canvasH: number): void {
     if (!this.opened) return;
     const rows = buildCodex(player);
-    const h = 56 + rows.length * ROW_H + 22;
+    // Premium rows are slightly taller — pre-sum the actual heights so the
+    // panel chrome scales with the egg-recipe presence.
+    const rowHeights = rows.map((r) =>
+      r.discovery !== 'locked' && r.hasPremium ? ROW_H_PREMIUM : ROW_H,
+    );
+    const rowsTotalH = rowHeights.reduce((a, b) => a + b, 0);
+    const h = 56 + rowsTotalH + 22;
     const x = canvasW - PANEL_W - 12;
     const y = 40;
 
@@ -93,15 +101,22 @@ export class RecipeCodex {
     const cooked = recipesCooked(player);
     const total = RECIPE_KEYS.length;
     const totalDishes = totalDishesCooked(player);
+    const totalPremium = totalPremiumDishesCooked(player);
     ctx.fillStyle = DIM;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(`${cooked}/${total} known  -  ${totalDishes} cooked`, x + PANEL_W - 12, y + 9);
+    // Premium tally tucked at the right of the header — only when nonzero
+    // so a fresh save sees the regular line untouched.
+    const headerRight = totalPremium > 0
+      ? `${cooked}/${total} known  -  ${totalDishes} cooked  -  ${totalPremium} premium`
+      : `${cooked}/${total} known  -  ${totalDishes} cooked`;
+    ctx.fillText(headerRight, x + PANEL_W - 12, y + 9);
 
     ctx.font = '11px ui-monospace, monospace';
+    let ry = y + 32;
     for (let i = 0; i < rows.length; i++) {
       const row: RecipeCodexRow = rows[i];
-      const ry = y + 32 + i * ROW_H;
+      const rowH = rowHeights[i];
 
       // Status pip on the left.
       const color =
@@ -112,6 +127,7 @@ export class RecipeCodex {
       // Name (locked rows show "????" so the reveal moment stays intact).
       ctx.fillStyle = row.discovery === 'locked' ? DIM : TEXT_COLOR;
       ctx.textAlign = 'left';
+      ctx.font = '11px ui-monospace, monospace';
       const nameLabel =
         row.discovery === 'locked'
           ? row.name.replace(/[A-Za-z]/g, '?')
@@ -133,11 +149,38 @@ export class RecipeCodex {
           .map((ing) => `${pretty(ing.key)} ${ing.have}/${ing.count}`)
           .join('  -  ');
         ctx.fillText(parts, x + 22, ry + 14);
+        // Premium sub-row — only for egg-bearing recipes the player has
+        // unlocked. Shows the swap markup line + a per-recipe tally so
+        // the player can see at a glance how much they've leaned into
+        // the breeder-egg pipeline.
+        if (row.hasPremium) {
+          const owned = row.premiumOwned;
+          const cooked = row.premiumCookedCount;
+          // Premium tally pip on the right edge — pink so it visually
+          // doesn't compete with the gold sell price above it.
+          if (owned > 0 || cooked > 0) {
+            ctx.fillStyle = PREMIUM;
+            ctx.textAlign = 'right';
+            ctx.font = 'bold 10px ui-monospace, monospace';
+            const tally = owned > 0 ? `x${owned} ready` : `cooked x${cooked}`;
+            ctx.fillText(tally, x + PANEL_W - 12, ry + 26);
+            ctx.font = '11px ui-monospace, monospace';
+          }
+          // Premium markup line — dim pink so the eye picks it up but
+          // it doesn't compete with the primary ingredient line.
+          ctx.fillStyle = 'rgba(232, 180, 240, 0.65)';
+          ctx.textAlign = 'left';
+          ctx.font = '10px ui-monospace, monospace';
+          ctx.fillText(row.premiumLine, x + 22, ry + 28);
+          ctx.font = '11px ui-monospace, monospace';
+        }
       } else {
         ctx.fillStyle = DIM;
         ctx.textAlign = 'left';
         ctx.fillText('cook the right combo to discover', x + 22, ry + 14);
       }
+
+      ry += rowH;
     }
 
     ctx.fillStyle = HINT;

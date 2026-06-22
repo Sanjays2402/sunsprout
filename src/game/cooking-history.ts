@@ -13,7 +13,16 @@
 // through because it's just a numeric record).
 
 import type { Player } from '../world/world';
-import { RECIPES, RECIPE_KEYS, canCook, type DishKey } from './cooking';
+import {
+  RECIPES,
+  RECIPE_KEYS,
+  canCook,
+  premiumCookLine,
+  premiumDishInventoryKey,
+  premiumSellPrice,
+  recipeHasEgg,
+  type DishKey,
+} from './cooking';
 
 /** Discovery state for a single recipe. */
 export type RecipeDiscovery = 'cooked' | 'known' | 'locked';
@@ -67,12 +76,30 @@ export interface RecipeCodexRow {
   ingredients: Array<{ key: string; count: number; have: number }>;
   discovery: RecipeDiscovery;
   cookedCount: number;
+  /**
+   * True iff `recipeHasEgg(recipe)` — eligible for the breeder-egg swap.
+   * Plain mirror of the cooking.ts predicate so the codex doesn't have to
+   * re-derive it at render time.
+   */
+  hasPremium: boolean;
+  /**
+   * Pre-formatted markup line for premium variant ("Premium (breeder egg
+   * swap): Xg (+Yg)"). Empty string for recipes without an egg.
+   */
+  premiumLine: string;
+  /** Sell price of the premium variant (0 for non-egg recipes). */
+  premiumSellPrice: number;
+  /** Cooked count of the premium variant — bumped by recordPremiumCook. */
+  premiumCookedCount: number;
+  /** Premium-variant dishes currently in the player's bag. */
+  premiumOwned: number;
 }
 
 /** Snapshot every recipe in catalog order. */
 export function buildCodex(player: Player): RecipeCodexRow[] {
   return RECIPE_KEYS.map((key) => {
     const r = RECIPES[key];
+    const premium = recipeHasEgg(r);
     return {
       key,
       name: r.name,
@@ -85,6 +112,43 @@ export function buildCodex(player: Player): RecipeCodexRow[] {
       })),
       discovery: discoveryOf(player, key),
       cookedCount: cookedCount(player, key),
+      hasPremium: premium,
+      premiumLine: premium ? premiumCookLine(key) : '',
+      premiumSellPrice: premium ? premiumSellPrice(key) : 0,
+      premiumCookedCount: premiumCookedCount(player, key),
+      premiumOwned: player.inventory[premiumDishInventoryKey(key)] ?? 0,
     };
   });
+}
+
+// ---------------------------------------------------------------------
+// Premium-variant cook tally — parallel to the regular cookCounts map.
+// Lives on `player.premiumCookCounts` so it never collides with the
+// existing record. Persistence carries it through whitelist.
+// ---------------------------------------------------------------------
+
+/** Lazy accessor for the premium-variant cook counts. */
+export function getPremiumCookCounts(player: Player): Record<string, number> {
+  const p = player as Player & { premiumCookCounts?: Record<string, number> };
+  if (!p.premiumCookCounts) p.premiumCookCounts = {};
+  return p.premiumCookCounts;
+}
+
+/** Bump the premium cook tally for `key`. Returns the new total. */
+export function recordPremiumCook(player: Player, key: DishKey): number {
+  const counts = getPremiumCookCounts(player);
+  counts[key] = (counts[key] ?? 0) + 1;
+  return counts[key];
+}
+
+/** How many premium variants of `key` the player has cooked. */
+export function premiumCookedCount(player: Player, key: DishKey): number {
+  return getPremiumCookCounts(player)[key] ?? 0;
+}
+
+/** Total premium dishes the player has ever cooked. */
+export function totalPremiumDishesCooked(player: Player): number {
+  let n = 0;
+  for (const k of RECIPE_KEYS) n += premiumCookedCount(player, k);
+  return n;
 }

@@ -96,6 +96,8 @@ export interface SaveSnapshot {
     mail?: Mailbox;
     /** Per-recipe cooked count for the codex panel. */
     cookCounts?: Record<string, number>;
+    /** Per-recipe PREMIUM cooked count — parallel to cookCounts. */
+    premiumCookCounts?: Record<string, number>;
     /** Per-crop lifetime tally for the journal panel. */
     cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number; bestDayHarvest?: number; ribbonSeason?: number; ribbonDay?: number }>;
     /** Earned achievements. */
@@ -219,6 +221,9 @@ export function serializeGame(game: Game): SaveSnapshot {
         : undefined,
       cookCounts: (p as Player & { cookCounts?: Record<string, number> }).cookCounts
         ? { ...(p as Player & { cookCounts?: Record<string, number> }).cookCounts }
+        : undefined,
+      premiumCookCounts: (p as Player & { premiumCookCounts?: Record<string, number> }).premiumCookCounts
+        ? { ...(p as Player & { premiumCookCounts?: Record<string, number> }).premiumCookCounts }
         : undefined,
       cropJournal: (p as Player & { cropJournal?: Record<string, { sown: number; normal: number; silver: number; gold: number; bestStreak: number }> }).cropJournal
         ? Object.fromEntries(
@@ -396,6 +401,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
   if (snap.player.cookCounts) {
     (p as Player & { cookCounts?: Record<string, number> }).cookCounts = {
       ...snap.player.cookCounts,
+    };
+  }
+  if (snap.player.premiumCookCounts) {
+    (p as Player & { premiumCookCounts?: Record<string, number> }).premiumCookCounts = {
+      ...snap.player.premiumCookCounts,
     };
   }
   if (snap.player.cropJournal) {
