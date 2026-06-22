@@ -198,7 +198,7 @@ import {
   tradeBreederEggs,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
-import { BAROMETER_INVENTORY_KEY, barometerBoughtLine } from '../game/barometer';
+import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
 import { rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
@@ -727,6 +727,12 @@ export class Game {
       // Regenerate the day's forage layout — deterministic per (season,day).
       regenerateForage(this.world, this.time.season, this.time.day);
       this.forageCleared = false;
+      // Barometer-side storm warning — checked once per dawn, only
+      // surfaced when none of the higher-priority tail messages have
+      // already claimed the dawn toast. Returns an empty string when
+      // the player has no barometer or no storm is on the 2-day
+      // forecast horizon.
+      const stormHorizonLine = barometerStormWarning(this.world.player, this.time);
       const flavorTail =
         rained > 0
           ? ` (rain watered ${rained})`
@@ -754,7 +760,9 @@ export class Game {
                                 ? ` (${spouseGift.npcName} left you ${spouseGift.label})`
                                 : pondAdded > 0
                                   ? ` (pond yielded ${pondAdded} fish)`
-                                  : '';
+                                  : stormHorizonLine
+                                    ? ` · ${stormHorizonLine}`
+                                    : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.
@@ -1989,8 +1997,14 @@ export class Game {
             }
           }
           const prog = boardProgress(p, this.time);
+          // Barometer storm warning: when a storm sits in (tomorrow,
+          // day-after-tomorrow), append a "Storm in N days" tail to
+          // the board hint. Empty string when the player has no
+          // barometer or no storm is on the horizon.
+          const stormWarning = barometerStormWarning(p, this.time);
+          const warningTail = stormWarning ? ` ${stormWarning}` : '';
           this.setToast(
-            `Board: ${posted.label} (${prog.have}/${prog.need}). +${posted.rewardGold}g. ${repBannerLine(p)}`,
+            `Board: ${posted.label} (${prog.have}/${prog.need}). +${posted.rewardGold}g. ${repBannerLine(p)}${warningTail}`,
           );
           return;
         }

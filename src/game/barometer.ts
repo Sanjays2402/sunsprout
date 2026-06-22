@@ -15,7 +15,7 @@
 import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
 import type { Weather } from './weather';
-import { rollWeather } from './weather';
+import { rollWeather, weatherTomorrow } from './weather';
 
 /** Inventory key for an owned barometer. Quantity 1 = owned. */
 export const BAROMETER_INVENTORY_KEY = 'barometer';
@@ -50,4 +50,25 @@ export function weatherDayAfterTomorrow(time: TimeOfDay): Weather {
 /** Pretty label for the cart purchase toast. */
 export function barometerBoughtLine(): string {
   return `Barometer mounted on the porch. Forecast now reaches two days ahead.`;
+}
+
+/**
+ * Returns "Storm in N days — line up shelters now." when the barometer
+ * is mounted AND a storm sits in the (tomorrow, day-after-tomorrow)
+ * forecast window, otherwise an empty string. Drives the village
+ * board's storm-warning chip + the dawn-toast tail.
+ *
+ * Distance ordering: prefer the closer storm so a chain of two storms
+ * surfaces the more urgent one first. With a 2-day lookahead we only
+ * ever pick from { 1, 2 } so the ordering is trivial.
+ */
+export function barometerStormWarning(player: Player, time: TimeOfDay): string {
+  if (!hasBarometer(player)) return '';
+  if (weatherTomorrow(time) === 'storm') {
+    return 'Storm tomorrow — line up shelters now.';
+  }
+  if (weatherDayAfterTomorrow(time) === 'storm') {
+    return 'Storm in 2 days — line up shelters now.';
+  }
+  return '';
 }
