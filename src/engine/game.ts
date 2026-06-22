@@ -241,6 +241,7 @@ import {
   alreadyEntered,
   enterTournament,
   tournamentDawnLine,
+  tournamentNudgeLine,
   tournamentOpen,
 } from '../game/tournament';
 import {
@@ -664,7 +665,16 @@ export class Game {
       // player knows to head over to the village square.
       const pipArrived = cartVisitToday(this.time);
       // Friendship tournament — announce at dawn on the contest day.
-      const tournamentLine = tournamentDawnLine(this.time);
+      // Pair it with a PB / next-tier nudge so the player sees the
+      // strategic context (today's count vs target) alongside the
+      // bare event announcement.
+      const tournamentLineBase = tournamentDawnLine(this.time);
+      const tournamentNudge = tournamentLineBase
+        ? tournamentNudgeLine(this.world.player, this.time)
+        : '';
+      const tournamentLine = tournamentLineBase
+        ? (tournamentNudge ? `${tournamentLineBase} ${tournamentNudge}` : tournamentLineBase)
+        : null;
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
       // Free trial shelter: the FIRST storm of a fresh save auto-spawns

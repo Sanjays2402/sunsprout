@@ -191,3 +191,93 @@ export function tournamentDawnLine(time: TimeOfDay): string | null {
   if (!kind) return null;
   return `${TOURNAMENT_LABELS[kind]} at the well ${TOURNAMENT_OPEN_HOUR}-${TOURNAMENT_CLOSE_HOUR}h!`;
 }
+
+/**
+ * Personal-best score for THIS tournament KIND across the player's
+ * history. We scan every entries[] record for matching kinds and
+ * return the highest score. Returns 0 when the player has never
+ * entered this kind.
+ *
+ * Why kind-keyed rather than (season, kind)-keyed: the player's
+ * Spring flower-show PB and their following Spring flower-show PB
+ * should compete with each other. The seasonal rotation means there
+ * are four flower shows possible per save year, but always THE SAME
+ * KIND of contest each Spring.
+ */
+export function personalBestFor(player: Player, kind: TournamentKind): {
+  score: number;
+  tier: RibbonTier | 'none';
+} {
+  const state = getTournament(player);
+  let bestScore = 0;
+  let bestTier: RibbonTier | 'none' = 'none';
+  for (const key of Object.keys(state.entries)) {
+    if (!key.endsWith(`-${kind}`)) continue;
+    const entry = state.entries[key];
+    if (entry.score > bestScore) {
+      bestScore = entry.score;
+      bestTier = entry.tier;
+    }
+  }
+  return { score: bestScore, tier: bestTier };
+}
+
+/**
+ * Today's score in the bag IF the player walked up to the well right
+ * now. Defers to scoreFor(); a wrapper so callers don't have to know
+ * which tournament kind today is.
+ */
+export function scoreTodayFor(player: Player, time: TimeOfDay): number {
+  const kind = tournamentKindToday(time);
+  if (!kind) return 0;
+  return scoreFor(player, kind);
+}
+
+/**
+ * Dawn-toast hint that pairs the tournament announce with the
+ * player's PB + today's count + the next tier they could clear.
+ * Examples:
+ *   "Spring Flower Show at the well 14-18h! Carrying 6 — silver
+ *    needs 8. (PB: silver at 12.)"
+ *   "Summer Fishing Derby at the well 14-18h! No PB yet — bronze
+ *    needs 3."
+ *
+ * Designed to land on the SAME dawn the existing tournamentDawnLine
+ * fires, so the player gets the strategic context "what should I
+ * be chasing today" alongside the bare event announcement.
+ */
+export function tournamentNudgeLine(player: Player, time: TimeOfDay): string {
+  const kind = tournamentKindToday(time);
+  if (!kind) return '';
+  const today = scoreFor(player, kind);
+  const pb = personalBestFor(player, kind);
+  const nextTier = nextTierToClear(today);
+  const carryFrag = today > 0 ? `Carrying ${today}` : 'Carrying nothing yet';
+  const tierFrag = nextTier
+    ? `${nextTier.tier} needs ${nextTier.threshold}`
+    : 'maxed (gold) — go for the cleanest sweep';
+  const pbFrag = pb.score > 0
+    ? `(PB: ${pb.tier === 'none' ? 'no ribbon' : pb.tier} at ${pb.score}.)`
+    : '(no PB yet.)';
+  return `${carryFrag} — ${tierFrag}. ${pbFrag}`;
+}
+
+/**
+ * Returns the next tier ABOVE the player's current score, or null
+ * when they've already cleared gold. Pure: doesn't read player state.
+ */
+export function nextTierToClear(score: number): {
+  tier: RibbonTier;
+  threshold: number;
+} | null {
+  if (score < TIER_THRESHOLD.bronze) {
+    return { tier: 'bronze', threshold: TIER_THRESHOLD.bronze };
+  }
+  if (score < TIER_THRESHOLD.silver) {
+    return { tier: 'silver', threshold: TIER_THRESHOLD.silver };
+  }
+  if (score < TIER_THRESHOLD.gold) {
+    return { tier: 'gold', threshold: TIER_THRESHOLD.gold };
+  }
+  return null;
+}
