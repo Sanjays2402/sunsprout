@@ -302,6 +302,7 @@ export function serializeGame(game: Game): SaveSnapshot {
               counts: { ...getMineHaul(p).lastRun.counts },
               gold: getMineHaul(p).lastRun.gold,
             },
+            lifetimeCounts: { ...(getMineHaul(p).lifetimeCounts ?? {}) },
           }
         : undefined,
       rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
@@ -510,6 +511,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       counts: { ...snap.player.mineHaul.lastRun.counts },
       gold: snap.player.mineHaul.lastRun.gold,
     };
+    // Older saves predate lifetimeCounts — fall back to an empty map
+    // so the achievement check doesn't crash on the first reload.
+    cur.lifetimeCounts = snap.player.mineHaul.lifetimeCounts
+      ? { ...snap.player.mineHaul.lifetimeCounts }
+      : {};
   }
   // Rumor history — restore the ring buffer of past headliners + the
   // bought flag so the cart-menu can keep showing accurate skipped/

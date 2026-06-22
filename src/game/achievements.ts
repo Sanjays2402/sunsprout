@@ -25,6 +25,11 @@ import { getCoops } from './coop';
 import { getGreenhouses } from './greenhouse';
 import { getChests } from './chest';
 import { getSprinklers } from './sprinklers';
+import {
+  getMineHaul,
+  lifetimeMiningMilestoneReached,
+  LIFETIME_MINING_MILESTONE,
+} from './mining-haul';
 
 /** Identifier — stable strings so persisted records survive rebalances. */
 export type AchievementId =
@@ -42,7 +47,8 @@ export type AchievementId =
   | 'wedding-bells'
   | 'rockhound'
   | 'menagerie'
-  | 'farm-decorator';
+  | 'farm-decorator'
+  | 'cave-veteran';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -177,6 +183,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
       getGreenhouses(w).length > 0 &&
       getChests(w).length >= 2 &&
       getSprinklers(w).length > 0,
+  },
+  {
+    id: 'cave-veteran',
+    name: 'Cave Veteran',
+    hint: `Mine ${LIFETIME_MINING_MILESTONE} gems over your career.`,
+    done: `Pulled ${LIFETIME_MINING_MILESTONE}+ gems out of the cave.`,
+    check: (p) => lifetimeMiningMilestoneReached(getMineHaul(p)),
   },
 ];
 

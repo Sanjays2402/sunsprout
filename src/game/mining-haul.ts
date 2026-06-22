@@ -41,25 +41,41 @@ export interface MineHaulState {
     /** Sum of GEMS[k].sellPrice * counts[k] at sleep time. */
     gold: number;
   };
+  /**
+   * Lifetime per-gem tally — never resets, separate from `counts` so
+   * the "what did I mine today" recap stays clean while a parallel
+   * career counter accrues. Bumped alongside `counts` on every
+   * recordMined call. Optional because older saves predate it; the
+   * lazy reader fills it on first read.
+   */
+  lifetimeCounts?: Partial<Record<GemKey, number>>;
 }
+
+/** Threshold for the lifetime-mining achievement / "Rockhound II". */
+export const LIFETIME_MINING_MILESTONE = 100;
 
 /** Lazy reader on the Player. */
 export function getMineHaul(player: Player): MineHaulState {
   const p = player as Player & { mineHaul?: MineHaulState };
   if (!p.mineHaul) {
-    p.mineHaul = { counts: {}, lastRun: { counts: {}, gold: 0 } };
+    p.mineHaul = { counts: {}, lastRun: { counts: {}, gold: 0 }, lifetimeCounts: {} };
   }
+  // Older saves predate the lifetime field — backfill so reads are safe.
+  if (!p.mineHaul.lifetimeCounts) p.mineHaul.lifetimeCounts = {};
   return p.mineHaul;
 }
 
 /**
  * Bump the haul tally by one for `gem`. Called from the engine's
  * mining strike branch right after a strike lands and the inventory
- * is credited.
+ * is credited. Bumps BOTH the current-run count and the lifetime
+ * counter so the career milestone never has to be reconstructed.
  */
 export function recordMined(player: Player, gem: GemKey): void {
   const state = getMineHaul(player);
   state.counts[gem] = (state.counts[gem] ?? 0) + 1;
+  state.lifetimeCounts = state.lifetimeCounts ?? {};
+  state.lifetimeCounts[gem] = (state.lifetimeCounts[gem] ?? 0) + 1;
 }
 
 /**
@@ -82,6 +98,38 @@ export function haulGold(state: MineHaulState): number {
   let g = 0;
   for (const k of GEM_KEYS) g += (state.counts[k] ?? 0) * GEMS[k].sellPrice;
   return g;
+}
+
+/**
+ * Lifetime total gems mined across the player's career, across all
+ * gem types. Backed by lifetimeCounts which is bumped on every
+ * recordMined call.
+ */
+export function lifetimeHaulCount(state: MineHaulState): number {
+  const life = state.lifetimeCounts ?? {};
+  let n = 0;
+  for (const k of GEM_KEYS) n += life[k] ?? 0;
+  return n;
+}
+
+/**
+ * Lifetime gem-sell value: sum of GEMS[k].sellPrice * lifetimeCounts[k].
+ * Useful for an "all-time-haul" tag in the lore panel without storing
+ * a redundant gold field.
+ */
+export function lifetimeHaulGold(state: MineHaulState): number {
+  const life = state.lifetimeCounts ?? {};
+  let g = 0;
+  for (const k of GEM_KEYS) g += (life[k] ?? 0) * GEMS[k].sellPrice;
+  return g;
+}
+
+/**
+ * True iff the lifetime tally has crossed the LIFETIME_MINING_MILESTONE
+ * threshold. Wired into the achievements catalog.
+ */
+export function lifetimeMiningMilestoneReached(state: MineHaulState): boolean {
+  return lifetimeHaulCount(state) >= LIFETIME_MINING_MILESTONE;
 }
 
 /**
