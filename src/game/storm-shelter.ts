@@ -171,6 +171,62 @@ export function shelterCount(world: World): number {
   return getShelters(world).length;
 }
 
+/**
+ * Free trial: spawn ONE shelter onto an outdoor crop's tile the
+ * first time a save is about to face a storm. Teaches the player
+ * the system exists without forcing them to craft a shelter blind.
+ *
+ * Fires when:
+ *   - the player has NEVER seen a storm before (the storm `hit`
+ *     map is empty — i.e. this is the first storm of the save);
+ *   - there is at least one outdoor crop in the field;
+ *   - the player owns zero shelters (so a returning player who
+ *     already crafted one doesn't get a freebie on top).
+ *
+ * Returns the tile the shelter landed on (or null when the trial
+ * was skipped). The shelter is dropped on the outdoor crop tile
+ * itself, so the SHELTER_RADIUS=1 footprint protects that crop +
+ * its 3x3 neighbours. The shelter is consumed on storm impact like
+ * any other.
+ *
+ * The world / storm-state coupling lives here (rather than in
+ * storm.ts) so storm.ts stays focused on the damage path. The
+ * caller (game.ts dawn block) invokes seedTrialShelter BEFORE
+ * maybeFireStorm so the placement is in place when the storm fires.
+ *
+ * `player` is typed loosely so the caller can pass the real Player
+ * object — the storm slot is lazily added by storm.getStorm(); when
+ * absent (fresh save) the trial fires.
+ */
+export function seedTrialShelter(
+  world: World,
+  player: { storm?: { hit?: Record<string, number> } } | unknown,
+): { tx: number; ty: number } | null {
+  // Already crafted a shelter? Skip.
+  if (getShelters(world).length > 0) return null;
+  // Already lived through a storm? Skip.
+  const hit =
+    (player as { storm?: { hit?: Record<string, number> } })?.storm?.hit;
+  if (hit && Object.keys(hit).length > 0) return null;
+  // Find any outdoor crop — easier than scanning the field tile-by-tile.
+  const crops = (world as unknown as { crops: Array<{ tx: number; ty: number }> }).crops ?? [];
+  if (crops.length === 0) return null;
+  // Pick the lowest-(ty, tx) crop so the placement is deterministic
+  // across reloads. Easy ordering — no need to surface the choice.
+  let best = crops[0];
+  for (const c of crops) {
+    if (c.ty < best.ty || (c.ty === best.ty && c.tx < best.tx)) best = c;
+  }
+  // Place onto the crop's tile. The placeShelter guard wants grass
+  // or tilled — a crop sits on a tilled tile so this clears, but
+  // some test fixtures stand crops on grass; either way the same
+  // canPlaceShelter check covers both.
+  if (!canPlaceShelter(world, best.tx, best.ty)) return null;
+  const placed = placeShelter(world, best.tx, best.ty);
+  if (!placed) return null;
+  return { tx: placed.tx, ty: placed.ty };
+}
+
 // ---------------------------------------------------------------------
 // Procedural sprite
 // ---------------------------------------------------------------------

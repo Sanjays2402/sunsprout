@@ -243,7 +243,7 @@ import {
   decayCoopHappiness,
   petTipBonus,
 } from '../game/animal-happiness';
-import { maybeFireStorm, stormFlavorLine, takeStormMemo } from '../game/storm';
+import { maybeFireStorm, stormFlavorLine, stormScheduledDay, takeStormMemo } from '../game/storm';
 import {
   BATH_X,
   BATH_Y,
@@ -295,6 +295,7 @@ import {
   getShelters,
   isPaired,
   placeShelter,
+  seedTrialShelter,
 } from '../game/storm-shelter';
 import { applyRepBonus, repBannerLine } from '../game/board-reputation';
 import { isLateNightFishing, nightAwareFishPick, nightFlavorLine } from '../game/night-fishing';
@@ -659,6 +660,17 @@ export class Game {
       const tournamentLine = tournamentDawnLine(this.time);
       // Greenhouse boost: every crop inside grows extra and stays watered.
       const greenBumped = greenhouseTick(this.world);
+      // Free trial shelter: the FIRST storm of a fresh save auto-spawns
+      // a shelter on one outdoor crop so the player learns the system
+      // exists. Fires BEFORE maybeFireStorm so the shelter is in
+      // place when the damage pass runs. Skipped when the player has
+      // already crafted a shelter or already lived through a storm.
+      // Only fires on a day the storm actually WILL fire (otherwise
+      // we'd pre-spawn a freebie that just sits in the field unused).
+      let trialShelter: { tx: number; ty: number } | null = null;
+      if (this.time.day === stormScheduledDay(this.world.player, this.time.season)) {
+        trialShelter = seedTrialShelter(this.world, this.world.player);
+      }
       // Seasonal storm — once per season, deterministically picked. Fires
       // here (AFTER greenhouseTick) so the greenhouse is the shelter:
       // crops inside the glass keep their streak point intact.
@@ -666,7 +678,10 @@ export class Game {
       if (stormOut.kind === 'fired') {
         const memo = takeStormMemo(this.world.player);
         if (memo) {
-          this.setToast(stormFlavorLine(memo));
+          const trialTail = trialShelter
+            ? ' (Pip left a free trial Storm Shelter on your field overnight — consumed by the storm.)'
+            : '';
+          this.setToast(`${stormFlavorLine(memo)}${trialTail}`);
         }
       }
       // Bath house — drop the stamina cap back to base if the buff ran
