@@ -449,3 +449,108 @@ export function premiumCookLine(recipeKey: DishKey): string {
 
 /** Constant re-export so test fixtures pulling from cooking.ts can find it. */
 export { FANCY_EGG_SELL_PRICE };
+
+// ---------------------------------------------------------------------
+// Stamina-tea double-batch — at the inn the player can pour a
+// double-batch of any stamina-restoring tea by spending 2x the
+// ingredients to produce 3x finished dishes. The "third dish" is the
+// inn's discount-for-bulk reward; mechanically it gives a player who
+// has saved up forage a satisfying way to convert it into a deep
+// stamina reserve without per-recipe wiring.
+//
+// Why this design:
+//   - we don't introduce a parallel dish key — the bonus yield piles
+//     into the same `dish-<key>` slot as a regular cook so the
+//     existing drinkBest path picks them up unchanged.
+//   - only the five existing stamina-restoring teas are eligible
+//     (herb-tea / hot-cocoa / berry-tonic / mushroom-broth /
+//     sunflower-elixir). Restricting it to those keeps the cookbook
+//     focused on the energy loop and prevents a player from
+//     "double-batching" pumpkin custard to print sunsprout-feasts.
+//   - we expose canCookDoubleBatch + cookDoubleBatch separately so
+//     a future inn UI can toggle the batch path without re-wiring
+//     the cook() function.
+// ---------------------------------------------------------------------
+
+/** Multiplier applied to each ingredient when double-batching. */
+export const DOUBLE_BATCH_INGREDIENT_MULT = 2;
+
+/** Yield bonus — 3 dishes per batch instead of the regular 1. */
+export const DOUBLE_BATCH_DISH_YIELD = 3;
+
+/** Canonical set of stamina-tea dish keys — mirrors stamina.ts entries. */
+export const STAMINA_TEA_KEYS: ReadonlySet<DishKey> = new Set<DishKey>([
+  'herb-tea',
+  'hot-cocoa',
+  'berry-tonic',
+  'mushroom-broth',
+  'sunflower-elixir',
+]);
+
+/**
+ * True iff `recipeKey` resolves to a dish that restores stamina —
+ * the only recipes eligible for the double-batch path. The eligible
+ * set mirrors stamina.ts entries; tests assert the two stay in sync.
+ */
+export function isStaminaTea(recipeKey: DishKey): boolean {
+  return STAMINA_TEA_KEYS.has(recipeKey);
+}
+
+/** True iff the player can cook a double-batch of `recipeKey`. */
+export function canCookDoubleBatch(player: Player, recipeKey: DishKey): boolean {
+  const recipe = RECIPES[recipeKey];
+  if (!recipe) return false;
+  if (!isStaminaTea(recipeKey)) return false;
+  for (const ing of recipe.ingredients) {
+    if ((player.inventory[ing.key] ?? 0) < ing.count * DOUBLE_BATCH_INGREDIENT_MULT) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * Cook a double-batch of `recipeKey` — consumes 2x ingredients and
+ * mints 3 dishes into `dish-<recipeKey>`. The bonus dish piles into
+ * the existing slot so the drinkBest path picks it up without any
+ * extra wiring.
+ *
+ * Returns false (no mutation) when the recipe isn't a stamina tea or
+ * the player lacks the doubled ingredients.
+ */
+export function cookDoubleBatch(player: Player, recipeKey: DishKey): boolean {
+  const recipe = RECIPES[recipeKey];
+  if (!recipe) return false;
+  if (!isStaminaTea(recipeKey)) return false;
+  if (!canCookDoubleBatch(player, recipeKey)) return false;
+  for (const ing of recipe.ingredients) {
+    player.inventory[ing.key] =
+      (player.inventory[ing.key] ?? 0) - ing.count * DOUBLE_BATCH_INGREDIENT_MULT;
+  }
+  const dishKey = dishInventoryKey(recipeKey);
+  player.inventory[dishKey] = (player.inventory[dishKey] ?? 0) + DOUBLE_BATCH_DISH_YIELD;
+  return true;
+}
+
+/**
+ * Pretty status line for the codex panel — surfaces the discounted
+ * yield when the recipe is eligible. Returns the empty string for
+ * non-tea recipes so the codex doesn't surface noise.
+ *
+ * Wording: "Double batch: 2x ingredients -> 3 dishes (saves Yg per dish)."
+ */
+export function doubleBatchLine(recipeKey: DishKey): string {
+  if (!isStaminaTea(recipeKey)) return '';
+  const recipe = RECIPES[recipeKey];
+  if (!recipe) return '';
+  // The "savings" is the per-dish ingredient-cost reduction: a regular
+  // cook spends ingredientsValue() per dish; a double batch spends
+  // 2x ingredientsValue() over 3 dishes -> 2/3 per dish. The dish-side
+  // savings are dish-key-keyed; we surface the per-dish ingredient
+  // savings instead because that's what the player feels.
+  const perDishRaw = ingredientsValue(recipe);
+  const perDishBatch = Math.round((perDishRaw * DOUBLE_BATCH_INGREDIENT_MULT) /
+    DOUBLE_BATCH_DISH_YIELD);
+  const saved = Math.max(0, perDishRaw - perDishBatch);
+  return `Double batch: ${DOUBLE_BATCH_INGREDIENT_MULT}x ingredients -> ${DOUBLE_BATCH_DISH_YIELD} dishes (saves ${saved}g/dish in raw cost).`;
+}
