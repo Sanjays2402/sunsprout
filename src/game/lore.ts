@@ -23,9 +23,10 @@ import { FORAGE, FORAGE_KEYS, forageInventoryKey } from './forage';
 import { CROPS } from './crops';
 import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
+import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
 
 /** Category labels — listed in panel display order. */
-export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk'] as const;
+export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk', 'Rumors'] as const;
 export type LoreCategory = (typeof LORE_CATEGORIES)[number];
 
 /** One row in the lore panel. */
@@ -51,8 +52,12 @@ function teaserFor(category: LoreCategory): string {
     case 'Forage': return 'Wander the grass at dawn.';
     case 'Crops':  return 'Plant a seed and tend it.';
     case 'Folk':   return 'Greet someone in the village.';
+    case 'Rumors': return 'Wait for Pip to roll into the village square.';
   }
 }
+
+/** Season-index → human label for the rumors tab. */
+const RUMOR_SEASON_NAMES = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
 
 /** True iff the player has caught at least one of `key`. */
 function fishDiscovered(player: Player, key: FishKey): boolean {
@@ -151,6 +156,27 @@ export function buildLoreRows(player: Player): LoreRow[] {
       });
     }
   }
+  // Rumors — every entry in the rumor history ring buffer.
+  // Newest at top so a glance reads "what just happened" first.
+  // We treat each entry as "discovered" because Pip has explicitly
+  // teased it — even a skipped headliner is something the player
+  // saw. The bought/skipped state lands in the description so the
+  // panel doubles as a ledger of "what did I follow through on".
+  const rumorEntries = getRumorHistory(player).entries;
+  for (let i = rumorEntries.length - 1; i >= 0; i--) {
+    const entry: RumorHistoryEntry = rumorEntries[i];
+    const seasonName = RUMOR_SEASON_NAMES[Math.abs(entry.season) % 4] ?? 'Spring';
+    const stamp = entry.bought ? 'bought' : 'skipped';
+    out.push({
+      category: 'Rumors',
+      id: `${entry.season}-${entry.itemKey}-${i}`,
+      name: `${seasonName} - ${entry.label}`,
+      discovered: true,
+      description: `${entry.buyPrice}g headliner Pip teased - ${stamp}.`,
+      teaser: teaserFor('Rumors'),
+      count: entry.bought ? 1 : 0,
+    });
+  }
   return out;
 }
 
@@ -169,6 +195,7 @@ export function loreProgress(player: Player): LoreProgress[] {
     Forage: { category: 'Forage', discovered: 0, total: 0 },
     Crops: { category: 'Crops', discovered: 0, total: 0 },
     Folk: { category: 'Folk', discovered: 0, total: 0 },
+    Rumors: { category: 'Rumors', discovered: 0, total: 0 },
   };
   for (const r of rows) {
     buckets[r.category].total += 1;
@@ -177,9 +204,17 @@ export function loreProgress(player: Player): LoreProgress[] {
   return LORE_CATEGORIES.map((c) => buckets[c]);
 }
 
-/** Overall percentage of discoveries (0..1). */
+/** Overall percentage of discoveries (0..1).
+ *
+ * The Rumors tab is excluded from the completion math because rumor
+ * entries are a visit LOG, not a discovery catalogue — a player who
+ * has never opened a rumor still has a perfectly complete bestiary
+ * in spirit, and we don't want a skipped headliner to drag the
+ * "discovered" percentage around as Pip rolls through. The tab still
+ * surfaces its own per-tab progress count.
+ */
 export function loreCompletion(player: Player): number {
-  const rows = buildLoreRows(player);
+  const rows = buildLoreRows(player).filter((r) => r.category !== 'Rumors');
   if (rows.length === 0) return 0;
   const discovered = rows.filter((r) => r.discovered).length;
   return discovered / rows.length;
