@@ -23,7 +23,7 @@
 // Pure module: no IO, no canvas. The Game wires the dawn toast tail;
 // the CartMenu draws the footer line.
 
-import { CART_CATALOG } from './cart';
+import { CART_CATALOG, SPA_PASS_REFILL_KEY } from './cart';
 import type { CartItem } from './cart';
 
 /**
@@ -49,9 +49,13 @@ function rumorHash(season: number): number {
  */
 export function rumorItemForSeason(season: number): CartItem | null {
   // Pool of non-decor rows. Sort by key so the indexing stays stable
-  // regardless of CART_CATALOG declaration order.
+  // regardless of CART_CATALOG declaration order. Filters out the
+  // spa-pass-refill row too — that row is gated by canRefillSpaPass()
+  // and a fresh-game player who never bought a pass would see Pip
+  // headline an item they're not allowed to buy. Decor rows already
+  // get the same treatment for the wallpaper-spam reason.
   const pool = CART_CATALOG
-    .filter((row) => !row.key.startsWith('decor-'))
+    .filter((row) => !row.key.startsWith('decor-') && row.key !== SPA_PASS_REFILL_KEY)
     .slice()
     .sort((a, b) => a.key.localeCompare(b.key));
   if (pool.length === 0) return null;

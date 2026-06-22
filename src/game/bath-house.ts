@@ -53,6 +53,19 @@ export const SPA_PASS_PRICE = 700;
 /** Number of free soaks one spa pass carries. */
 export const SPA_PASS_PUNCHES = 4;
 
+/**
+ * Discounted price for a refill purchased at Pip's cart AFTER the
+ * player has already redeemed at least one full spa pass. The full
+ * SPA_PASS_PRICE pays for the loyalty card + 4 punches; a refill is
+ * just punches, so it costs significantly less.
+ *
+ * Tuned at 500g (vs the 700g full price) so the cumulative cost of
+ * a refill loop sits at 125g/soak — meaningful savings over the
+ * 200g cash price and the 175g amortised first-pass price, but not
+ * so cheap it trivialises the bath-house economy.
+ */
+export const SPA_PASS_REFILL_PRICE = 500;
+
 /** Per-player spa-pass bookkeeping. */
 export interface SpaPassState {
   /** Total free soaks remaining across all redeemed passes. */

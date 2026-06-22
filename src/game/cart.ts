@@ -22,10 +22,22 @@
 import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
 import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './decor';
-import { SPA_PASS_INVENTORY_KEY, SPA_PASS_PRICE, SPA_PASS_PUNCHES } from './bath-house';
+import {
+  SPA_PASS_INVENTORY_KEY,
+  SPA_PASS_PRICE,
+  SPA_PASS_PUNCHES,
+  SPA_PASS_REFILL_PRICE,
+  getBath,
+  getSpaPass,
+} from './bath-house';
 import { BAROMETER_INVENTORY_KEY, BAROMETER_PRICE } from './barometer';
 import { BREEDER_EGG_INVENTORY_KEY, FANCY_EGG_SELL_PRICE } from './coop';
 import { POND_MAX_PENDING_RIM, POND_RIM_INVENTORY_KEY, POND_RIM_PRICE } from './fish-pond';
+
+/** Synthetic CART_CATALOG key for the spa-pass refill row. Not stored
+ *  in the player's inventory — purchasing it credits punches directly
+ *  via SPA_PASS_PUNCHES on the spa-pass pool. */
+export const SPA_PASS_REFILL_KEY = 'spa-pass-refill';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -92,6 +104,12 @@ export const CART_CATALOG: CartItem[] = [
     flavor: `${SPA_PASS_PUNCHES} free soaks at the bath house. Auto-redeems on first use.`,
   },
   {
+    key: SPA_PASS_REFILL_KEY,
+    label: 'Spa Pass Refill',
+    buyPrice: SPA_PASS_REFILL_PRICE,
+    flavor: `${SPA_PASS_PUNCHES} more punches on your spa pass. Cheaper than a fresh card — only sells once your pass is empty.`,
+  },
+  {
     key: BAROMETER_INVENTORY_KEY,
     label: 'Brass Barometer',
     buyPrice: BAROMETER_PRICE,
@@ -136,11 +154,38 @@ export function nearCart(px: number, py: number): boolean {
 /** Outcome of an attempted purchase. */
 export type CartBuyOutcome =
   | { kind: 'bought'; item: CartItem; remainingGold: number }
+  | { kind: 'refilled'; item: CartItem; remainingGold: number; punches: number }
+  | { kind: 'refill-not-eligible'; reason: 'no-pass' | 'still-has-punches' }
   | { kind: 'already-owned'; item: CartItem }
   | { kind: 'closed' }
   | { kind: 'too-far' }
   | { kind: 'unknown-item' }
   | { kind: 'not-enough-gold'; need: number; have: number };
+
+/**
+ * True iff the player has redeemed a spa pass before AND is currently
+ * out of punches. The refill is intentionally gated by these BOTH so:
+ *   - a fresh-game player can't skip the loyalty-card price by buying
+ *     the cheaper refill straight off the bat;
+ *   - a player who still has punches can't double-stack and end up
+ *     with >SPA_PASS_PUNCHES uncommitted soaks (the punches pool
+ *     would tolerate it, but visually a fresh refill on top of an
+ *     unused card reads as accidental over-spend).
+ *
+ * "Has redeemed a pass before" is detected by checking the bath
+ * state's totalSoaks AND that the player has no unredeemed pass in
+ * the bag — equivalent to "has actually used the bath house and the
+ * bag is bare". A bath state with at least one paid-with-pass soak
+ * is the stronger signal but more fragile across reload, so we use
+ * the looser "has soaked at all" check.
+ */
+export function canRefillSpaPass(player: Player): boolean {
+  const bag = player.inventory[SPA_PASS_INVENTORY_KEY] ?? 0;
+  if (bag > 0) return false;
+  if (getSpaPass(player).punchesLeft > 0) return false;
+  const bath = getBath(player);
+  return (bath.totalSoaks ?? 0) > 0;
+}
 
 /**
  * Attempt to buy a cart item by key. Validates that Pip is open and
@@ -171,6 +216,28 @@ export function buyFromCart(
   // Stone-rim pond kit is a singleton — short-circuit a re-buy.
   if (itemKey === POND_RIM_INVENTORY_KEY && (player.inventory[POND_RIM_INVENTORY_KEY] ?? 0) > 0) {
     return { kind: 'already-owned', item };
+  }
+  // Spa pass refill — special-case path. Credits punches directly
+  // into the spa-pass pool (no inventory key), gated by canRefillSpaPass
+  // so a fresh-game player can't shortcut the full loyalty-card price.
+  if (itemKey === SPA_PASS_REFILL_KEY) {
+    const bag = player.inventory[SPA_PASS_INVENTORY_KEY] ?? 0;
+    const pool = getSpaPass(player);
+    const bath = getBath(player);
+    if (bag > 0 || pool.punchesLeft > 0) {
+      return { kind: 'refill-not-eligible', reason: 'still-has-punches' };
+    }
+    if ((bath.totalSoaks ?? 0) <= 0) {
+      return { kind: 'refill-not-eligible', reason: 'no-pass' };
+    }
+    player.gold -= item.buyPrice;
+    pool.punchesLeft += SPA_PASS_PUNCHES;
+    return {
+      kind: 'refilled',
+      item,
+      remainingGold: player.gold,
+      punches: pool.punchesLeft,
+    };
   }
   if (itemKey.startsWith('decor-')) {
     const decorKey = itemKey.slice('decor-'.length);

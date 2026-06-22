@@ -1559,6 +1559,17 @@ export class Game {
               }
             }
             this.setToast(`Bought ${out.item.label}. (${postBuyGold}g left)${baroLine}${rebateLine}`);
+          } else if (out.kind === 'refilled') {
+            logGold(this.world.player, -out.item.buyPrice, `cart: ${out.item.label}`, this.time.day);
+            this.setToast(
+              `Refilled spa pass: ${out.punches} punch${out.punches === 1 ? '' : 'es'} on the card. (${out.remainingGold}g left)`,
+            );
+          } else if (out.kind === 'refill-not-eligible') {
+            if (out.reason === 'no-pass') {
+              this.setToast("Pip eyes you — \"Buy a Spa Pass first; refills are for return customers.\"");
+            } else {
+              this.setToast("Your spa pass still has punches left — soak through them first.");
+            }
           } else if (out.kind === 'already-owned') {
             this.setToast(`You already own ${out.item.label}.`);
           } else if (out.kind === 'not-enough-gold') {
