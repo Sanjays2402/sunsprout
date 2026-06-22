@@ -673,8 +673,10 @@ export class Game {
       maybeExpireBath(this.world.player, this.time.day);
       // Fish pond — when stocked, drops 1-2 fish into the pending pool
       // for collection. Idempotent per-day. Pass the player so the
-      // stone-rim upgrade widens the cap from 6 -> 10.
-      const pondAdded = pondTick(this.world, this.time.day, this.world.player);
+      // stone-rim upgrade widens the cap from 6 -> 10. Pass `time` so
+      // the per-species ribbon updates on the day a swarm sets a new
+      // record (mirrors the crop ribbon flow in crop-journal.ts).
+      const pondAdded = pondTick(this.world, this.time.day, this.world.player, this.time);
       // Hatcheries — egg-countdown ticks, fires hatch when due. We post
       // a toast for the first hatcher of the morning so the player
       // knows their incubation paid off (or stalled on a full coop).

@@ -64,6 +64,15 @@ export function pondMaxFor(player?: { inventory: Record<string, number> }): numb
   return POND_MAX_PENDING;
 }
 
+/** Per-species lifetime ribbon — heaviest single-day yield ever pulled. */
+export interface PondRibbon {
+  /** Highest count collected in a single dawn for this species. */
+  count: number;
+  /** Calendar tag of the day the record was set. */
+  season: number;
+  day: number;
+}
+
 /** Persisted pond state on the world. */
 export interface PondState {
   /** Which species the pond is currently stocked with, or null when empty. */
@@ -72,6 +81,14 @@ export interface PondState {
   pending: number;
   /** Last day the dawn yield was applied (-1 = never). */
   lastYieldDay: number;
+  /**
+   * Heaviest single-day yield per species. Mirrors the crop ribbon
+   * pattern in crop-journal.ts so a flexed pond loop reads as a real
+   * achievement. Recorded at pondTick time — the moment the dawn
+   * yield actually arrives, NOT at collect time, so a player who lets
+   * pending fish stack up doesn't artificially inflate the ribbon.
+   */
+  ribbons?: Partial<Record<FishKey, PondRibbon>>;
 }
 
 /** Lazy reader on the World. */
@@ -263,11 +280,19 @@ export function interactPond(
  * `player` is optional — old callers (tests, headless validation)
  * keep the original 6-fish cap; the live game.ts caller passes the
  * player so the rim upgrade matters.
+ *
+ * When `time` is supplied, the ribbon for the current species is
+ * recomputed against today's pending total — a 7-pending minnow run
+ * on Fall day 4 sets the minnow ribbon to {7, Fall, 4}. We use the
+ * total pending (not the yield ADD this morning) so the ribbon
+ * reflects the heaviest swarm the pond actually held at dawn, which
+ * is what the player ends up flexing.
  */
 export function pondTick(
   world: World,
   day: number,
   player?: { inventory: Record<string, number> },
+  time?: { season: number; day: number },
 ): number {
   const state = getPond(world);
   if (state.species === null) return 0;
@@ -277,7 +302,44 @@ export function pondTick(
   const before = state.pending;
   const cap = pondMaxFor(player);
   state.pending = Math.min(cap, state.pending + yieldToday);
+  if (time) recordPondRibbon(state, state.species, state.pending, time);
   return state.pending - before;
+}
+
+/**
+ * Update the pond ribbon for `species` if `count` beats the prior
+ * record (or no record exists). Pure mutation on `state.ribbons`.
+ * Exposed so the dawn engine and the swap path can both record a
+ * new high without duplicating the comparator.
+ */
+export function recordPondRibbon(
+  state: PondState,
+  species: FishKey,
+  count: number,
+  time: { season: number; day: number },
+): void {
+  if (count <= 0) return;
+  if (!state.ribbons) state.ribbons = {};
+  const prev = state.ribbons[species];
+  if (!prev || count > prev.count) {
+    state.ribbons[species] = { count, season: time.season, day: time.day };
+  }
+}
+
+/** Returns the current ribbon for `species`, or undefined when unset. */
+export function pondRibbonFor(state: PondState, species: FishKey): PondRibbon | undefined {
+  return state.ribbons?.[species];
+}
+
+/** Season-index → human label used for ribbon tags. */
+const POND_SEASON_NAMES = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+
+/** Format a pond ribbon as "ribbon: 7 in a day - Fall d4" or empty. */
+export function pondRibbonLine(state: PondState, species: FishKey): string {
+  const ribbon = pondRibbonFor(state, species);
+  if (!ribbon) return '';
+  const name = POND_SEASON_NAMES[Math.abs(ribbon.season) % 4] ?? 'Spring';
+  return `ribbon: ${ribbon.count} in a day - ${name} d${ribbon.day}`;
 }
 
 /** Pretty status line for HUD / toasts. */
@@ -289,7 +351,9 @@ export function pondStatusLine(
   const name = FISH[state.species].name;
   const cap = pondMaxFor(player);
   const rimTag = player && hasPondRim(player) ? ` (rim cap ${cap})` : '';
+  const ribbon = pondRibbonLine(state, state.species);
+  const ribbonTag = ribbon ? ` [${ribbon}]` : '';
   if (state.pending === 0)
-    return `Pond stocked with ${name}${rimTag}. Come back tomorrow — or press > with a different fish to swap.`;
-  return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting${rimTag}.`;
+    return `Pond stocked with ${name}${rimTag}. Come back tomorrow — or press > with a different fish to swap.${ribbonTag}`;
+  return `Pond: ${state.pending} ${name}${state.pending === 1 ? '' : 's'} waiting${rimTag}.${ribbonTag}`;
 }
