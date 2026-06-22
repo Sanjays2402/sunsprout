@@ -24,6 +24,7 @@ import { CROPS } from './crops';
 import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
+import { getMineHaul, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
 
 /** Category labels — listed in panel display order. */
 export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk', 'Rumors'] as const;
@@ -218,4 +219,29 @@ export function loreCompletion(player: Player): number {
   if (rows.length === 0) return 0;
   const discovered = rows.filter((r) => r.discovered).length;
   return discovered / rows.length;
+}
+
+/**
+ * Per-tab footer line — currently surfaces the lifetime mining career
+ * recap inside the Gems tab. Returns the empty string for tabs that
+ * have nothing extra to say so the panel can render nothing without
+ * a guard.
+ *
+ * Wording (Gems):
+ *   "career: 142 gems / 3,820g"  when the player has mined anything
+ *   "career: 0 gems"             when the lifetime ledger is empty
+ *
+ * Pulled out as a pure formatter so the lore-panel UI doesn't grow
+ * a mining-haul import just to draw a footer.
+ */
+export function loreTabFooter(player: Player, category: LoreCategory): string {
+  if (category !== 'Gems') return '';
+  const state = getMineHaul(player);
+  const count = lifetimeHaulCount(state);
+  const gold = lifetimeHaulGold(state);
+  if (count === 0) return 'career: 0 gems';
+  // Pretty-format the gold with thousands separators so big-haul saves
+  // read cleanly without scientific shorthand.
+  const goldStr = gold.toLocaleString('en-US');
+  return `career: ${count} gem${count === 1 ? '' : 's'} / ${goldStr}g`;
 }

@@ -11,6 +11,7 @@ import {
   buildLoreRows,
   loreCompletion,
   loreProgress,
+  loreTabFooter,
 } from '../game/lore';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
@@ -171,6 +172,18 @@ export class LorePanel {
         ctx.font = '10px ui-monospace, monospace';
         ctx.fillText(`x${r.count}`, x + PANEL_W - 14, ry + 6);
       }
+    }
+
+    // Per-tab footer line — currently surfaces a lifetime mining recap
+    // on the Gems tab; other tabs return an empty string and skip the
+    // draw. Sits just above the scroll indicator + bottom hint so it
+    // doesn't compete with the row strip.
+    const tabFooter = loreTabFooter(player, this.tab);
+    if (tabFooter.length > 0) {
+      ctx.fillStyle = ROW_PIP_ON;
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(tabFooter, x + PANEL_W / 2, y + h - 44);
     }
 
     // Scroll indicator if list overflows.
