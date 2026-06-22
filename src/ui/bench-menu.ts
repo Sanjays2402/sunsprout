@@ -10,6 +10,7 @@ import {
   canCraft,
   craftAtBench,
   recipeCostLine,
+  recipeShoppingList,
   type BenchCraftOutcome,
   type BenchRecipe,
 } from '../game/bench';
@@ -170,6 +171,21 @@ export class BenchMenu {
         ctx.fillStyle = TITLE_COLOR;
         ctx.textAlign = 'right';
         ctx.fillText(`x${owned}`, rowX + rowW - 10, rowY + 44);
+      }
+
+      // Shopping-list hint on dimmed rows — surfaces the EXACT gap
+      // ("need 120g more, need 1 more Iron Nugget") so the player
+      // can plan a mining run or well sell without doing the math.
+      // Empty for craftable rows; we still skip the draw to keep
+      // them visually unfussed.
+      if (!ok) {
+        const hint = recipeShoppingList(player, recipe);
+        if (hint) {
+          ctx.font = 'bold 10px ui-monospace, monospace';
+          ctx.fillStyle = '#E89C5A';
+          ctx.textAlign = 'left';
+          ctx.fillText(hint, rowX + 10, rowY + 44);
+        }
       }
     }
 

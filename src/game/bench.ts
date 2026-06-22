@@ -112,6 +112,34 @@ export function canCraft(player: Player, recipe: BenchRecipe): boolean {
 }
 
 /**
+ * Per-recipe shopping-list line: what the player is missing right
+ * now in plain language. Returns an empty string when the player
+ * can already craft the recipe. Surfaces to the bench menu so the
+ * "dimmed" rows tell the player exactly which gap to close instead
+ * of forcing them to do the gold + gem math by eye.
+ *
+ * Lists gold first, then gem shortage. When BOTH are short the line
+ * surfaces both gaps separated by ", " — early-game players rarely
+ * have enough of either resource and seeing both gaps at once is
+ * the whole point.
+ */
+export function recipeShoppingList(player: Player, recipe: BenchRecipe): string {
+  const parts: string[] = [];
+  if (player.gold < recipe.gold) {
+    parts.push(`need ${recipe.gold - player.gold}g more`);
+  }
+  const gemInv = gemInventoryKey(recipe.gem.key);
+  const gemHave = player.inventory[gemInv] ?? 0;
+  if (gemHave < recipe.gem.count) {
+    const shortBy = recipe.gem.count - gemHave;
+    const gemName = GEMS[recipe.gem.key].name;
+    const plural = shortBy === 1 ? '' : 's';
+    parts.push(`need ${shortBy} more ${gemName}${plural}`);
+  }
+  return parts.join(', ');
+}
+
+/**
  * Spend gold + gems and grant one of `recipeKey`. Returns a detailed
  * outcome so the UI can post a precise toast.
  */
