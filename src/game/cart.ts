@@ -23,6 +23,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
 import { DECOR_CATALOG, buyDecor, ownsDecor, type DecorBuyOutcome } from './decor';
 import { SPA_PASS_INVENTORY_KEY, SPA_PASS_PRICE, SPA_PASS_PUNCHES } from './bath-house';
+import { BAROMETER_INVENTORY_KEY, BAROMETER_PRICE } from './barometer';
 
 /** Cart parking tile (just west of the well so it doesn't block paths). */
 export const CART_X = 16;
@@ -88,6 +89,12 @@ export const CART_CATALOG: CartItem[] = [
     buyPrice: SPA_PASS_PRICE,
     flavor: `${SPA_PASS_PUNCHES} free soaks at the bath house. Auto-redeems on first use.`,
   },
+  {
+    key: BAROMETER_INVENTORY_KEY,
+    label: 'Brass Barometer',
+    buyPrice: BAROMETER_PRICE,
+    flavor: 'Mount on the porch. Forecast strip reaches two days ahead.',
+  },
   // Decor pieces — buyable wallpaper + floor packs that retint the
   // farmhouse exterior. Each row mirrors a DECOR_CATALOG entry so the
   // cart UI lists them alongside Pip's other premium goods.
@@ -148,6 +155,10 @@ export function buyFromCart(
   if (!item) return { kind: 'unknown-item' };
   if (player.gold < item.buyPrice) {
     return { kind: 'not-enough-gold', need: item.buyPrice, have: player.gold };
+  }
+  // Barometer is a singleton — short-circuit a re-buy.
+  if (itemKey === BAROMETER_INVENTORY_KEY && (player.inventory[BAROMETER_INVENTORY_KEY] ?? 0) > 0) {
+    return { kind: 'already-owned', item };
   }
   if (itemKey.startsWith('decor-')) {
     const decorKey = itemKey.slice('decor-'.length);

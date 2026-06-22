@@ -1,10 +1,16 @@
 // Weather HUD strip — a small pill in the top status bar showing
-// "Today: <weather>  /  Tomorrow: <weather>". Matches the existing
+// "Today: <weather>  /  Next: <weather>". Matches the existing
 // HUD palette (PANEL_BG / PANEL_BORDER / monospace) and sits flush
 // under the top status bar.
+//
+// When the player owns a Brass Barometer (sold at Pip's cart) the
+// strip widens and adds an "After" pill for the day-after-tomorrow,
+// extending the forecast to two days ahead.
 
+import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { weatherToday, weatherTomorrow, WEATHER } from '../game/weather';
+import { hasBarometer, weatherDayAfterTomorrow } from '../game/barometer';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -13,16 +19,21 @@ const SUBTLE = '#9D8FB8';
 
 /**
  * Renders the strip aligned to the top-right, just below the status
- * bar. Returns void; the HUD layer composes it on every frame.
+ * bar. Returns void; the HUD layer composes it on every frame. When
+ * the player owns the barometer the strip widens to include an
+ * "After" pill (day-after-tomorrow).
  */
 export function drawWeatherStrip(
   ctx: CanvasRenderingContext2D,
   time: TimeOfDay,
   canvasW: number,
+  player?: Player,
 ): void {
   const today = weatherToday(time);
   const tomorrow = weatherTomorrow(time);
-  const w = 220;
+  const showAfter = player ? hasBarometer(player) : false;
+  const after = showAfter ? weatherDayAfterTomorrow(time) : null;
+  const w = showAfter ? 320 : 220;
   const h = 22;
   const x = canvasW - w - 12;
   const y = 40;
@@ -46,6 +57,12 @@ export function drawWeatherStrip(
   ctx.fillStyle = SUBTLE;
   ctx.fillText('Next', x + 116, y + h / 2);
   drawWeatherPill(ctx, x + 148, y + 4, WEATHER[tomorrow].label, WEATHER[tomorrow].color);
+
+  if (showAfter && after) {
+    ctx.fillStyle = SUBTLE;
+    ctx.fillText('After', x + 220, y + h / 2);
+    drawWeatherPill(ctx, x + 254, y + 4, WEATHER[after].label, WEATHER[after].color);
+  }
 
   ctx.restore();
   void TEXT_COLOR;

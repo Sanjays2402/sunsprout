@@ -196,6 +196,7 @@ import {
   nearCart,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
+import { BAROMETER_INVENTORY_KEY, barometerBoughtLine } from '../game/barometer';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
 import { BENCH_X, BENCH_Y, nearBench } from '../game/bench';
@@ -1526,7 +1527,10 @@ export class Game {
           const out = this.cartMenu.confirm(this.world.player, px, py, this.time);
           if (out.kind === 'bought') {
             logGold(this.world.player, -out.item.buyPrice, `cart: ${out.item.label}`, this.time.day);
-            this.setToast(`Bought ${out.item.label}. (${out.remainingGold}g left)`);
+            const baroLine = out.item.key === BAROMETER_INVENTORY_KEY
+              ? ` ${barometerBoughtLine()}`
+              : '';
+            this.setToast(`Bought ${out.item.label}. (${out.remainingGold}g left)${baroLine}`);
           } else if (out.kind === 'already-owned') {
             this.setToast(`You already own ${out.item.label}.`);
           } else if (out.kind === 'not-enough-gold') {
@@ -2293,7 +2297,7 @@ export class Game {
     drawBarks(this.ctx, this.world, (wx, wy) => this.camera.worldToScreen(wx, wy), TILE_SIZE);
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
-    drawWeatherStrip(this.ctx, this.time, this.canvas.width);
+    drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens
