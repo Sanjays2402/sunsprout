@@ -346,6 +346,7 @@ export function breederTradeInLine(out: Extract<BreederTradeInOutcome, { kind: '
 // ---------------------------------------------------------------------
 
 import { dishInventoryKey, type DishKey } from './cooking';
+import { INN_FORAGE_TRADEIN_COST, innForageTradeInBalance } from './inn-trade';
 
 /** Teas eligible for the trade-in, cheapest restore first. */
 export const TEA_TRADEIN_KEYS: readonly DishKey[] = [
@@ -444,14 +445,68 @@ export function teaTradeInLine(out: Extract<TeaTradeInOutcome, { kind: 'traded' 
  * draw call. The auto-trade itself fires inside the cart E-press
  * path (game.ts) right after tradeBreederEggs, so the chip is just
  * a heads-up before the player opens the menu.
+ *
+ * Cross-system nudge (long-pipeline pointer): when the player is
+ * SHORT on teas (under the COST gate) but is carrying enough cheap
+ * forage at the inn to mint at least one Sage Tea, the chip appends
+ * a " - or trade N forage at the inn for Sage Tea" tail so the player
+ * who only sees the cart-side gate also learns about the inn route.
+ * Suppressed when:
+ *   - the player can already trade at the cart (no need to point
+ *     them at the longer pipeline), or
+ *   - the player has zero forage to convert (the tail would just be
+ *     noise).
+ * Lives on the cart side because that's where the \"I need more
+ * teas, how do I get them?\" question is most natural — at the
+ * inn, the chip already tells the same player the forage path will
+ * fire on open.
  */
 export function staminaTeaTradeInLine(player: Player): string {
   const balance = teaTradeInBalance(player);
-  if (balance <= 0) return '';
+  const innForageBalance = innForageTradeInBalance(player);
+  const innTail = staminaTeaTradeInInnHint(balance, innForageBalance);
+  if (balance <= 0) {
+    // Even with an empty tea bag, surface the inn hint when the
+    // player is sitting on enough forage to mint a Sage Tea — the
+    // long pipeline only matters when there's a concrete next step.
+    return innTail;
+  }
   if (balance < TEA_TRADEIN_COST) {
     const need = TEA_TRADEIN_COST - balance;
-    return `${balance} tea${balance === 1 ? '' : 's'} - need ${need} more for a Hot Cocoa trade.`;
+    return `${balance} tea${balance === 1 ? '' : 's'} - need ${need} more for a Hot Cocoa trade.${innTail}`;
   }
-  // balance >= COST: at least one trade can fire on open.
+  // balance >= COST: at least one trade can fire on open. The inn
+  // hint is suppressed at this branch on purpose — the player has
+  // already cleared the immediate trade gate and doesn't need a
+  // pointer at the longer pipeline.
   return `trade ready: ${TEA_TRADEIN_COST} teas -> Hot Cocoa.`;
+}
+
+/**
+ * Pure helper for the cart-side inn hint tail. Returns the empty
+ * string when the player can already trade at the cart, when the
+ * forage bag is empty (nothing to trade), or when there isn't
+ * enough forage to mint a single Sage Tea at the inn.
+ *
+ * Wording:
+ *   - " - or trade 3 forage at the inn for Sage Tea"  (1 tea minted)
+ *   - " - or trade 6 forage at the inn for 2 Sage Tea"  (>=2 teas)
+ *
+ * Pulled out as its own helper so the cart-side chip can stay a
+ * single composable string and the inn-tail can be pinned in unit
+ * tests independently of the cart-side balance buckets.
+ */
+function staminaTeaTradeInInnHint(teaBalance: number, forageBalance: number): string {
+  // Player can already trade at the cart -> suppress the inn hint.
+  if (teaBalance >= TEA_TRADEIN_COST) return '';
+  // No forage to convert -> nothing to point at.
+  if (forageBalance < INN_FORAGE_TRADEIN_COST) return '';
+  // Number of Sage Tea the inn would mint with the player's current
+  // forage bag (one tea per COST forage, integer floor).
+  const teasMinted = Math.floor(forageBalance / INN_FORAGE_TRADEIN_COST);
+  const forageUsed = teasMinted * INN_FORAGE_TRADEIN_COST;
+  if (teasMinted === 1) {
+    return ` - or trade ${forageUsed} forage at the inn for Sage Tea`;
+  }
+  return ` - or trade ${forageUsed} forage at the inn for ${teasMinted} Sage Tea`;
 }
