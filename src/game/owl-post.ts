@@ -64,6 +64,43 @@ export function owlCandidateIds(): string[] {
   return Object.keys(CANDIDATES).sort();
 }
 
+/**
+ * Returns the owl-menu candidate ids re-sorted so the player's active
+ * chain target (the NPC currently riding a consecutive-day streak)
+ * floats to the top of the list. When no chain is active, returns
+ * the same alphabetical order as owlCandidateIds().
+ *
+ * Pure read — doesn't mutate state, doesn't touch chain length. The
+ * menu UI swaps owlCandidateIds() -> owlCandidateIdsForMenu(player)
+ * so a player riding a chain can see their active recipient at a
+ * glance without scrolling.
+ *
+ * Why a separate function rather than always sorting: keeps
+ * owlCandidateIds() as the canonical alphabetical list (used by
+ * tests, persistence, future panel surfaces that aren't decision
+ * UI). The menu-specific sort is a UX detail that doesn't belong
+ * in the base candidate accessor.
+ *
+ * The chain target is hoisted EVEN IF the chain is at length 1 (the
+ * floor — no bonus yet) because length 1 still represents an active
+ * intent ("I sent an owl to Maple yesterday, I'll probably send to
+ * Maple today"). The sort puts the player's most recent activity at
+ * the top regardless of whether it carries a bonus yet.
+ */
+export function owlCandidateIdsForMenu(player: object): string[] {
+  const ids = owlCandidateIds();
+  const chain = getOwlChain(player);
+  if (!chain.npcId) return ids;
+  // Hoist the chain target to the front while preserving the
+  // alphabetical order of every other recipient. Stable: the rest
+  // of the list stays in its existing order.
+  const active = chain.npcId;
+  const front = ids.filter((id) => id === active);
+  if (front.length === 0) return ids; // chain target isn't a candidate anymore
+  const rest = ids.filter((id) => id !== active);
+  return [...front, ...rest];
+}
+
 /** Outcome of an owl-post dispatch. */
 export type OwlPostOutcome =
   | {

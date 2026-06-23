@@ -13,6 +13,7 @@ import {
   chainBonusChip,
   dispatchOwl,
   owlCandidateIds,
+  owlCandidateIdsForMenu,
   owlFluencyTierColor,
   owlPostFeeChip,
   owlPostFeeFor,
@@ -46,13 +47,30 @@ export class OwlMenu {
   private lockoutMs = 0;
   private flash = '';
   private flashFade = 0;
+  /**
+   * Snapshot of the candidate id list FOR THIS OPEN — captured on
+   * open(player) so the active-chain hoist sticks while the menu is
+   * open. Without the snapshot, dispatching to an NPC mid-session
+   * (which moves the chain to that NPC) would re-order rows under
+   * the player's selection and selectedId() would point at the wrong
+   * row. Empty array when the menu has never been opened — open()
+   * is the only mutation site.
+   */
+  private displayIds: string[] = [];
 
-  open(): void {
+  open(player?: object): void {
     this.opened = true;
     this.index = 0;
     this.lockoutMs = 180;
     this.flash = '';
     this.flashFade = 0;
+    // Snapshot the candidate list at open time so the row order
+    // doesn't shift mid-session. When a player object is passed,
+    // the active-chain target floats to the top via
+    // owlCandidateIdsForMenu; without a player (older callers /
+    // unit fixtures), fall back to the alphabetical default so
+    // the contract stays backwards compatible.
+    this.displayIds = player ? owlCandidateIdsForMenu(player) : owlCandidateIds();
   }
 
   close(): void {
@@ -63,8 +81,19 @@ export class OwlMenu {
     return this.opened;
   }
 
+  /**
+   * Returns the displayed candidate id list — snapshotted on open()
+   * so mid-session chain changes don't reorder rows under the player's
+   * selection. Returns the alphabetical default when the menu has
+   * never been opened (defensive for callers that hit selectedId
+   * pre-open).
+   */
+  candidateIds(): string[] {
+    return this.displayIds.length > 0 ? this.displayIds : owlCandidateIds();
+  }
+
   selectedId(): string {
-    return owlCandidateIds()[this.index];
+    return this.candidateIds()[this.index];
   }
 
   update(dtMs: number): void {
@@ -79,13 +108,13 @@ export class OwlMenu {
 
   selectPrev(): void {
     if (!this.opened) return;
-    const n = owlCandidateIds().length;
+    const n = this.candidateIds().length;
     this.index = (this.index - 1 + n) % n;
   }
 
   selectNext(): void {
     if (!this.opened) return;
-    const n = owlCandidateIds().length;
+    const n = this.candidateIds().length;
     this.index = (this.index + 1) % n;
   }
 
@@ -151,7 +180,7 @@ export class OwlMenu {
 
     const rowH = 50;
     const rowsTop = y + 64;
-    const ids = owlCandidateIds();
+    const ids = this.candidateIds();
     for (let i = 0; i < ids.length; i++) {
       const id = ids[i];
       const def = CANDIDATES[id];

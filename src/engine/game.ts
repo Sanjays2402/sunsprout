@@ -1337,7 +1337,10 @@ export class Game {
       if (!this.isAtFarmhouseSimple()) {
         this.setToast('Stand near the farmhouse to call the owl.');
       } else {
-        this.owlMenu.open();
+        // Pass the player so owlCandidateIdsForMenu hoists the active
+        // chain target to the top — a player riding a chain sees their
+        // current recipient at the front of the list without scrolling.
+        this.owlMenu.open(this.world.player);
       }
     }
 

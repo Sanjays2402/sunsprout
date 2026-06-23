@@ -57,6 +57,13 @@ function stubCtx(): {
           calls.push({ fn: prop, args });
         };
       }
+      // measureText returns a TextMetrics-shaped object; the draw path
+      // uses it to position the chain-bonus chip after the hearts label.
+      // We don't need real glyph widths — a stable fake width keeps the
+      // test deterministic and silences the runtime TypeError.
+      if (prop === 'measureText') {
+        return (s: string) => ({ width: s.length * 7 });
+      }
       // Properties touched in the draw path.
       if (
         prop === 'fillStyle' ||
