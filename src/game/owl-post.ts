@@ -259,3 +259,30 @@ export function owlStampLine(player: object, npcId: string): string {
   if (tier === '') return `Owl posts: ${n}.`;
   return `Owl posts: ${n} (${tier}).`;
 }
+
+/**
+ * Pretty fee chip for the owl-menu — shows the per-NPC cost on each
+ * row so the player can SEE the tier discount before pressing Enter.
+ * Pulled out as a pure helper so the menu UI doesn't have to know
+ * about the tier-discount math.
+ *
+ * Wording:
+ *   - no stamps / no discount:   "40g"
+ *   - any discounted tier:       "32g (-8g, regular)"
+ *
+ * The savings tag uses the SHORT tier label without the "pen pal" /
+ * "courier" suffix so the chip stays compact in the owl-menu's
+ * limited per-row real estate. The full tier label is already on
+ * the Folk lore row description, so duplicating the suffix here
+ * would just clutter the menu without adding new information.
+ */
+export function owlPostFeeChip(player: object, npcId: string): string {
+  const fee = owlPostFeeFor(player, npcId);
+  const savings = OWL_POST_FEE - fee;
+  if (savings <= 0) return `${OWL_POST_FEE}g`;
+  const tier = owlFluencyTier(player, npcId);
+  // Compress the tier label to the leading word (occasional/regular/favorite)
+  // so the chip stays narrow in the menu row.
+  const shortTier = tier.split(' ')[0] || tier;
+  return `${fee}g (-${savings}g, ${shortTier})`;
+}

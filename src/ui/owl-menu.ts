@@ -12,6 +12,7 @@ import {
   OWL_POST_FEE,
   dispatchOwl,
   owlCandidateIds,
+  owlPostFeeChip,
   owlPostFeeFor,
   type OwlPostOutcome,
 } from '../game/owl-post';
@@ -172,6 +173,16 @@ export class OwlMenu {
       ctx.fillStyle = HINT;
       ctx.textAlign = 'left';
       ctx.fillText(`hearts: ${hearts}`, rowX + 10, rowY + 28);
+      // Per-NPC fee chip — surfaces the tier-discounted price so the
+      // player can SEE the savings before pressing Enter. Drawn on
+      // the row's right edge under the gift label. The chip turns
+      // gold when discounted (visual cue that you've earned a perk)
+      // and stays dim/text when at full price.
+      const chip = owlPostFeeChip(player, id);
+      const isDiscounted = owlPostFeeFor(player, id) < OWL_POST_FEE;
+      ctx.textAlign = 'right';
+      ctx.fillStyle = isDiscounted ? GOLD : HINT;
+      ctx.fillText(chip, rowX + rowW - 10, rowY + 28);
       const todayUsed = heartsRow && heartsRow.lastGiftDay >= 0 ? heartsRow.lastGiftDay : -1;
       void todayUsed;
     }
