@@ -250,7 +250,7 @@ import {
   alreadyEntered,
   enterTournament,
   tournamentDawnLine,
-  tournamentNudgeLine,
+  tournamentNudgeWithCareer,
   tournamentOpen,
 } from '../game/tournament';
 import {
@@ -677,10 +677,14 @@ export class Game {
       // Friendship tournament — announce at dawn on the contest day.
       // Pair it with a PB / next-tier nudge so the player sees the
       // strategic context (today's count vs target) alongside the
-      // bare event announcement.
+      // bare event announcement. The "with career" variant layers a
+      // career recap on top of the nudge — "Career: 3 entries - 1
+      // gold / 1 silver. Best: 18 (Spring Flower Show)." — so the
+      // player gets the immediate strategy AND the all-time view in
+      // one dawn toast.
       const tournamentLineBase = tournamentDawnLine(this.time);
       const tournamentNudge = tournamentLineBase
-        ? tournamentNudgeLine(this.world.player, this.time)
+        ? tournamentNudgeWithCareer(this.world.player, this.time)
         : '';
       const tournamentLine = tournamentLineBase
         ? (tournamentNudge ? `${tournamentLineBase} ${tournamentNudge}` : tournamentLineBase)

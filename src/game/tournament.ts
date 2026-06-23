@@ -281,3 +281,115 @@ export function nextTierToClear(score: number): {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------
+// Tournament career recap — pulls the whole entries[] map down into a
+// one-line "what have I done across the save" recap line. Surfaces on
+// the tournament-dawn-line so a player who has never entered any
+// tournament before reads "Career: first entry. Take the bronze!"
+// and a seasoned cook reads "Career: 12 entries - 4 gold / 3 silver
+// / 5 bronze. Best: 24 (Fall Harvest Weigh-In)."
+//
+// Pure module-side helper so the engine just appends the line to the
+// existing tournamentNudgeLine without growing its own bookkeeping.
+// ---------------------------------------------------------------------
+
+/** Aggregate stats across every tournament entry in the player's save. */
+export interface TournamentCareer {
+  /** Total entries across every season. */
+  entries: number;
+  /** Per-tier ribbon counts (won prizes, not catalog ribbons). */
+  ribbons: Record<RibbonTier, number>;
+  /** Highest score ever recorded — null when zero entries. */
+  bestScore: number | null;
+  /** Kind that scored bestScore — null when zero entries. */
+  bestKind: TournamentKind | null;
+}
+
+/**
+ * Walk the entries[] map and roll up totals + best-ever entry. Returns
+ * a fresh aggregate that callers can render into a recap line. The
+ * map keys carry the season + kind, so we can pull the bestKind label
+ * straight out of the key by parsing.
+ *
+ * Pure read — doesn't mutate state.
+ */
+export function tournamentCareer(player: Player): TournamentCareer {
+  const state = getTournament(player);
+  const career: TournamentCareer = {
+    entries: 0,
+    ribbons: { bronze: 0, silver: 0, gold: 0 },
+    bestScore: null,
+    bestKind: null,
+  };
+  for (const key of Object.keys(state.entries)) {
+    const entry = state.entries[key];
+    career.entries += 1;
+    if (entry.tier !== 'none') {
+      career.ribbons[entry.tier] += 1;
+    }
+    if (career.bestScore === null || entry.score > career.bestScore) {
+      career.bestScore = entry.score;
+      // Key shape: `${season}-${kind}` — strip the leading "<season>-"
+      // off the key to recover the kind suffix.
+      const dash = key.indexOf('-');
+      if (dash >= 0) {
+        const kindStr = key.slice(dash + 1);
+        // Tighten the type — only accept valid TournamentKind tags.
+        if ((TOURNAMENT_KINDS as readonly string[]).includes(kindStr)) {
+          career.bestKind = kindStr as TournamentKind;
+        }
+      }
+    }
+  }
+  return career;
+}
+
+/**
+ * Pretty recap line for the dawn-toast career footer. Returns a
+ * "first entry" prompt when the player has never entered any
+ * tournament so they get a positive on-ramp, otherwise rolls up
+ * the gold/silver/bronze tallies and names the best-ever score +
+ * kind.
+ *
+ * Wording examples:
+ *   zero entries:        "Career: first entry — take the bronze!"
+ *   one prize so far:    "Career: 1 entry - 1 bronze."
+ *   several prizes:      "Career: 5 entries - 2 gold / 1 silver / 1 bronze. Best: 22 (Spring Flower Show)."
+ *   only no-prize tries: "Career: 3 entries - no ribbons yet. Best: 2 (Summer Fishing Derby)."
+ *
+ * Pure tail; reads only from `player` via tournamentCareer.
+ */
+export function tournamentCareerLine(player: Player): string {
+  const career = tournamentCareer(player);
+  if (career.entries === 0) {
+    return `Career: first entry — take the bronze!`;
+  }
+  const entryNoun = career.entries === 1 ? 'entry' : 'entries';
+  const ribbonParts: string[] = [];
+  if (career.ribbons.gold > 0) ribbonParts.push(`${career.ribbons.gold} gold`);
+  if (career.ribbons.silver > 0) ribbonParts.push(`${career.ribbons.silver} silver`);
+  if (career.ribbons.bronze > 0) ribbonParts.push(`${career.ribbons.bronze} bronze`);
+  const ribbonStr = ribbonParts.length > 0 ? ribbonParts.join(' / ') : 'no ribbons yet';
+  const bestFrag = career.bestScore !== null && career.bestScore > 0 && career.bestKind
+    ? ` Best: ${career.bestScore} (${TOURNAMENT_LABELS[career.bestKind]}).`
+    : '';
+  return `Career: ${career.entries} ${entryNoun} - ${ribbonStr}.${bestFrag}`;
+}
+
+/**
+ * Extends tournamentNudgeLine with a career-recap tail. The base
+ * nudge line surfaces today's strategy ("Carrying 6 - silver needs
+ * 8."); the career tail layers the all-time view on top so the
+ * player gets BOTH the immediate goal AND the long-term context in
+ * one dawn toast.
+ *
+ * Returns the empty string when it's not a tournament day so the
+ * dawn-toast flavor tail stays clean on every other dawn.
+ */
+export function tournamentNudgeWithCareer(player: Player, time: TimeOfDay): string {
+  const nudge = tournamentNudgeLine(player, time);
+  if (!nudge) return '';
+  const career = tournamentCareerLine(player);
+  return `${nudge} ${career}`;
+}
