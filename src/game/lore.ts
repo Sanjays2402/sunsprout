@@ -25,7 +25,7 @@ import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
 import { getMineHaul, haulBestRunLine, bestRunCompositionLine, bestRunSplitCompositionLine, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
-import { owlFluencyTierColor, owlStampLine, owlStampsFor } from './owl-post';
+import { activeChainLength, owlFluencyTierColor, owlStampLine, owlStampsFor } from './owl-post';
 
 /** Category labels — listed in panel display order. */
 export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk', 'Rumors'] as const;
@@ -163,6 +163,16 @@ export function buildLoreRows(player: Player): LoreRow[] {
       // posts to this recipient (occasional / regular / favorite).
       const owlCount = owlStampsFor(player, id);
       const owlTail = owlCount > 0 ? ` ${owlStampLine(player, id)}` : '';
+      // Active letter-chain indicator — surfaces ONLY when the player
+      // is currently riding a consecutive-day owl-post chain with
+      // THIS NPC and the chain has at least 2 links (a single-day
+      // chain is the floor — no signal worth surfacing). Reads off
+      // the same OwlStampBook.chain field that drove the dispatch
+      // bonus, so a player who broke the streak by switching
+      // recipients sees the new chain on the new NPC and the old
+      // tail disappears the same dawn the chain breaks.
+      const chainLen = activeChainLength(player, id);
+      const chainTail = chainLen >= 2 ? ` Chain: ${chainLen} days.` : '';
       // Per-NPC owl fluency tier color — bronze / silver / gold chip
       // drawn alongside the row text by the panel UI when the player
       // has crossed at least one fluency tier with this NPC. Null
@@ -174,7 +184,7 @@ export function buildLoreRows(player: Player): LoreRow[] {
         id,
         name: def.name,
         discovered: seen,
-        description: `Hearts ${hearts}/10. Loves ${lovesPretty}.${owlTail}`,
+        description: `Hearts ${hearts}/10. Loves ${lovesPretty}.${owlTail}${chainTail}`,
         teaser: teaserFor('Folk'),
         count: hearts,
         tierColor,
