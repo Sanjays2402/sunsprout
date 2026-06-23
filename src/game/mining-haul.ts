@@ -241,6 +241,12 @@ export function resetMineHaul(
  * the line gains a " - best run ever!" suffix so the player gets
  * direct feedback that a record fell. Pure tail — silent on every
  * other dawn so a normal day doesn't carry the brag.
+ *
+ * When the just-recapped run did NOT beat the record but came close
+ * (>= RECORD_GAP_NAG_MIN_PCT of either axis), the line gains a
+ * " — N% of your best" tail so the player tracking the record gets
+ * one-glance context on the gap. Silent on tiny runs (well under
+ * the threshold) so a quiet day stays quiet.
  */
 export function haulYesterdayLine(state: MineHaulState): string {
   const { counts, gold } = state.lastRun;
@@ -272,7 +278,63 @@ export function haulYesterdayLine(state: MineHaulState): string {
           : 'best run ever for gold!';
     return `${base} - ${tag}`;
   }
+  // Gap-to-best nag — only fires when the player actually HAS a
+  // captured bestRun on either axis, and yesterday's run was close
+  // enough (>= RECORD_GAP_NAG_MIN_PCT) to be worth surfacing. We
+  // pick the higher of the two percentages (count% vs gold%) so
+  // a run that's a near-record on gold but weak on count still
+  // surfaces the encouraging number. Silent when both percentages
+  // sit below the nag floor so a one-copper-pity-run stays quiet.
+  const nag = recordGapNagLine(state);
+  if (nag) return `${base} - ${nag}`;
   return base;
+}
+
+/**
+ * Halfway nag floor — only surface the "X% of your best" tail when
+ * yesterday's run sits at or above this fraction of the captured
+ * best. Below that the player is too far off the record for the
+ * gap to feel motivating; above it, the close-but-not-quite signal
+ * is precisely the encouragement we want to provide.
+ *
+ * Tuned at 50% so a half-as-productive day still gets a callout —
+ * generous enough that most mining runs trigger it once the player
+ * has built up a real record, restrictive enough that a one-copper
+ * day after a 14-gem PB stays silent.
+ */
+export const RECORD_GAP_NAG_MIN_PCT = 50;
+
+/**
+ * Pretty "N% of your best" tail for the dawn toast. Returns the
+ * empty string when:
+ *   - bestRun is absent (fresh save)
+ *   - lastRun already broke the record (haulYesterdayLine handles
+ *     the brag tail in that case — we don't double-surface)
+ *   - the closer of (count%, gold%) sits below RECORD_GAP_NAG_MIN_PCT
+ *
+ * Pure tail; reads only from `state` so the caller doesn't have to
+ * thread anything new.
+ */
+export function recordGapNagLine(state: MineHaulState): string {
+  const best = state.bestRun;
+  if (!best) return '';
+  const { counts, gold } = state.lastRun;
+  let total = 0;
+  for (const k of GEM_KEYS) total += counts[k] ?? 0;
+  if (total === 0) return '';
+  // If we just MATCHED either record this is a "best ever" run; the
+  // brag tail in haulYesterdayLine handles it.
+  if (best.count === total || best.gold === gold) return '';
+  const countPct = best.count > 0 ? Math.floor((total / best.count) * 100) : 0;
+  const goldPct = best.gold > 0 ? Math.floor((gold / best.gold) * 100) : 0;
+  // Pick the higher of the two percentages so a near-record on one
+  // axis still surfaces the encouragement.
+  const top = Math.max(countPct, goldPct);
+  if (top < RECORD_GAP_NAG_MIN_PCT) return '';
+  // Cap at 99% — exact 100% lands in the "record matched" branch
+  // above (which we already early-returned from).
+  const pct = Math.min(99, top);
+  return `${pct}% of your best run`;
 }
 
 /**
