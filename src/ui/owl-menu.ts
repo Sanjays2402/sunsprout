@@ -12,8 +12,10 @@ import {
   OWL_POST_FEE,
   dispatchOwl,
   owlCandidateIds,
+  owlFluencyTierColor,
   owlPostFeeChip,
   owlPostFeeFor,
+  previewChainLength,
   type OwlPostOutcome,
 } from '../game/owl-post';
 import type { TimeOfDay } from '../game/time';
@@ -106,7 +108,7 @@ export class OwlMenu {
     this.flashFade = 1800;
   }
 
-  draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
+  draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number, day?: number): void {
     if (!this.opened) return;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - PANEL_H) / 2);
@@ -161,7 +163,24 @@ export class OwlMenu {
       ctx.fillStyle = TEXT;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(def.name, rowX + 10, rowY + 8);
+      // Per-NPC owl fluency tier color chip — bronze/silver/gold dot
+      // drawn just LEFT of the NPC name, mirroring the lore Folk row
+      // chip. Skipped when below the first tier so casual recipients
+      // keep a clean row. Closes the loop on the chip pattern —
+      // tier color now shows up on BOTH the lore Folk row AND the
+      // owl-menu row so the player reads "fluency rank" at a glance
+      // from either surface.
+      const tierColor = owlFluencyTierColor(player, id);
+      let nameX = rowX + 10;
+      if (tierColor) {
+        ctx.fillStyle = '#1a1426';
+        ctx.fillRect(rowX + 10, rowY + 10, 8, 8);
+        ctx.fillStyle = tierColor;
+        ctx.fillRect(rowX + 11, rowY + 11, 6, 6);
+        nameX = rowX + 24;
+        ctx.fillStyle = TEXT;
+      }
+      ctx.fillText(def.name, nameX, rowY + 8);
       ctx.textAlign = 'right';
       ctx.fillStyle = giftKey ? GOLD : DIM;
       ctx.fillText(giftKey ? `gift: ${giftKey}` : 'no gift on hand', rowX + rowW - 10, rowY + 8);
@@ -172,7 +191,19 @@ export class OwlMenu {
       ctx.font = '11px ui-monospace, monospace';
       ctx.fillStyle = HINT;
       ctx.textAlign = 'left';
-      ctx.fillText(`hearts: ${hearts}`, rowX + 10, rowY + 28);
+      // Pending letter-chain preview — surfaces what chain length the
+      // player would land at if they pressed Enter NOW. Only drawn
+      // when the preview is >= 2 (a fresh-start chain at length 1 is
+      // the floor — no signal worth surfacing). Lives next to the
+      // existing hearts label so the player can scan both at once.
+      let heartsLine = `hearts: ${hearts}`;
+      if (typeof day === 'number') {
+        const pendingChain = previewChainLength(player, id, day);
+        if (pendingChain >= 2) {
+          heartsLine = `${heartsLine}  ·  chain: ${pendingChain}`;
+        }
+      }
+      ctx.fillText(heartsLine, rowX + 10, rowY + 28);
       // Per-NPC fee chip — surfaces the tier-discounted price so the
       // player can SEE the savings before pressing Enter. Drawn on
       // the row's right edge under the gift label. The chip turns

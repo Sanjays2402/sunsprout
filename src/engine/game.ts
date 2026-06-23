@@ -2672,7 +2672,7 @@ export class Game {
     this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height, this.time);
     this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.benchMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
-    this.owlMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.owlMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height, this.time.day);
 
     // Fishing timing bar — shows during REELING above the hotbar.
     if (this.rod.state === 'reeling') {
