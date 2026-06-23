@@ -7,7 +7,7 @@
 
 import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
-import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome } from '../game/cart';
+import { CART_CATALOG, type CartItem, buyFromCart, type CartBuyOutcome, staminaTeaTradeInLine } from '../game/cart';
 import { ownsDecor } from '../game/decor';
 import { isCurrentHeadlinerKey, rumorFooterLine, rumorHistorySummary, rumorRebateAmount, rumorStreakLine } from '../game/cart-rumor';
 
@@ -207,6 +207,16 @@ export class CartMenu {
       if (streak) {
         ctx.fillStyle = TITLE_COLOR;
         ctx.fillText(streak, x + PANEL_W / 2, y + PANEL_H - 64);
+        ctx.fillStyle = HINT;
+      }
+      // Stamina-tea trade-in chip — heads-up that the auto-trade-on-
+      // open path will fire (or how many more teas the player needs).
+      // Sits ABOVE the streak chip so the two are stacked top-down:
+      // "tea trade", then "headliner streak". Empty when balance==0.
+      const teaLine = staminaTeaTradeInLine(player);
+      if (teaLine) {
+        ctx.fillStyle = TITLE_COLOR;
+        ctx.fillText(teaLine, x + PANEL_W / 2, y + PANEL_H - 78);
         ctx.fillStyle = HINT;
       }
     }

@@ -427,3 +427,31 @@ export function tradeStaminaTeas(
 export function teaTradeInLine(out: Extract<TeaTradeInOutcome, { kind: 'traded' }>): string {
   return `Pip swaps ${out.teasUsed} stamina teas for ${out.cocoasMinted} Hot Cocoa. (${out.remainingCocoa} on hand)`;
 }
+
+/**
+ * Pretty footer chip for the cart menu — surfaces a "trade ready" /
+ * "n more teas to trade" nudge so the player can see at a glance
+ * whether the auto-trade-on-open path will fire and how many teas it
+ * would consume. Returns the empty string when the player has zero
+ * eligible teas so a fresh-game bag stays uncluttered.
+ *
+ * Wording covers three buckets:
+ *   - balance >= COST           "trade ready: 3 teas -> Hot Cocoa."
+ *   - 0 < balance < COST        "1 tea — need 2 more for a Hot Cocoa trade."
+ *   - balance == 0              "" (empty so the panel renders nothing)
+ *
+ * Pure formatter so the cart-menu UI doesn't grow new logic — just a
+ * draw call. The auto-trade itself fires inside the cart E-press
+ * path (game.ts) right after tradeBreederEggs, so the chip is just
+ * a heads-up before the player opens the menu.
+ */
+export function staminaTeaTradeInLine(player: Player): string {
+  const balance = teaTradeInBalance(player);
+  if (balance <= 0) return '';
+  if (balance < TEA_TRADEIN_COST) {
+    const need = TEA_TRADEIN_COST - balance;
+    return `${balance} tea${balance === 1 ? '' : 's'} - need ${need} more for a Hot Cocoa trade.`;
+  }
+  // balance >= COST: at least one trade can fire on open.
+  return `trade ready: ${TEA_TRADEIN_COST} teas -> Hot Cocoa.`;
+}
