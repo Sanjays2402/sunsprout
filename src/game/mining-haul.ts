@@ -154,6 +154,35 @@ export function lifetimeMiningMilestoneReached(state: MineHaulState): boolean {
 }
 
 /**
+ * Single-run milestone thresholds for the `deep-vein` achievement —
+ * unlock when EITHER bestRun.count crosses DEEP_VEIN_COUNT OR
+ * bestRun.gold crosses DEEP_VEIN_GOLD. Either dimension lights it
+ * up so a quantity grind (20+ copper run) and a value grind (one fat
+ * ruby trip) both have a path to the badge.
+ *
+ * Tuning intent: DEEP_VEIN_COUNT=20 is roughly 2x the mining-run
+ * \"fat haul\" milestone (10), and DEEP_VEIN_GOLD=1000 is 2x the
+ * \"cart's full\" gold milestone (500). The single-run ribbon is the
+ * mid-game checkpoint between the per-run milestones (which fire
+ * mid-cave) and the lifetime cave-veteran badge (100 gems total).
+ */
+export const DEEP_VEIN_COUNT = 20;
+export const DEEP_VEIN_GOLD = 1000;
+
+/**
+ * True iff the player has captured a bestRun that crosses EITHER the
+ * count threshold OR the gold threshold. Reads bestRun off the same
+ * lazy field captured at sleep so the badge doesn't need its own
+ * persisted counter. Returns false on saves that have never recorded
+ * a run (bestRun absent), so a fresh save reads quiet.
+ */
+export function deepVeinMilestoneReached(state: MineHaulState): boolean {
+  const best = state.bestRun;
+  if (!best) return false;
+  return best.count >= DEEP_VEIN_COUNT || best.gold >= DEEP_VEIN_GOLD;
+}
+
+/**
  * Snapshot the current run into lastRun and clear the running
  * tally. Called from the sleep path so "yesterday's haul" reads
  * the run the player just slept off, not the one they're starting.

@@ -34,6 +34,9 @@ import {
   getMineHaul,
   lifetimeMiningMilestoneReached,
   LIFETIME_MINING_MILESTONE,
+  deepVeinMilestoneReached,
+  DEEP_VEIN_COUNT,
+  DEEP_VEIN_GOLD,
 } from './mining-haul';
 import {
   compostMasterMilestoneReached,
@@ -67,7 +70,8 @@ export type AchievementId =
   | 'compost-master'
   | 'breeders-bowl'
   | 'fluent-with-the-owl'
-  | 'pulper';
+  | 'pulper'
+  | 'deep-vein';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -237,6 +241,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Apply ${PULPER_MILESTONE_BAGS} fertilizer bags to your fields.`,
     done: `Pulped ${PULPER_MILESTONE_BAGS}+ fertilizer bags into the soil.`,
     check: (p) => pulperMilestoneReached(p),
+  },
+  {
+    id: 'deep-vein',
+    name: 'Deep Vein',
+    hint: `Pull ${DEEP_VEIN_COUNT} gems or ${DEEP_VEIN_GOLD}g of ore out of the cave in a single run.`,
+    done: `Brought home a single-run haul of ${DEEP_VEIN_COUNT}+ gems or ${DEEP_VEIN_GOLD}+g of ore.`,
+    check: (p) => deepVeinMilestoneReached(getMineHaul(p)),
   },
 ];
 
