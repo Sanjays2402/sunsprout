@@ -203,6 +203,23 @@ export interface OwlStampBook {
     length: number;
     lastDay: number;
   };
+  /**
+   * One-shot \"tier crossing pending\" arm — set inside recordOwlChain
+   * the FIRST time the active chain length crosses into a new bonus
+   * tier (length 2 -> 1.1x, length 4 -> 1.2x, length 7 -> 1.3x). The
+   * dawn-toast composer reads + clears this flag the morning after,
+   * surfacing a one-shot celebratory tail (\"Your owl chain is in
+   * the regular tier now (+10%).\"). Optional because older saves
+   * predate it; the lazy reader leaves it undefined until first set.
+   *
+   * Stores the tier multiplier the chain just crossed into (1.1 /
+   * 1.2 / 1.3) so the composer can read the brag wording without
+   * re-deriving it from chain.length. Carrying the multiplier here
+   * (rather than just the chain length) makes the brag survive a
+   * chain reset that wipes the length back to 1 between the
+   * crossing-day and the next-morning compose.
+   */
+  chainTierBragPending?: number;
 }
 
 /** Lazy reader on Player. */
@@ -348,6 +365,16 @@ export function activeChainLength(player: object, npcId: string): number {
  *
  * Side effect: writes into `OwlStampBook.chain`. Called from
  * dispatchOwl right after the lifetime stamp.
+ *
+ * Also arms the one-shot chainTierBragPending flag on a tier
+ * crossing — the FIRST time the chain length pushes past a
+ * OWL_CHAIN_TIERS boundary (length=2, length=4, length=7) the flag
+ * is set to the new tier's multiplier. The dawn-toast composer
+ * reads + clears it the next morning to surface a celebratory tail
+ * ("Your owl chain is in the regular tier now (+10%)."). The flag
+ * only arms on a length BUMP — a fresh-start chain at length 1 (the
+ * floor) never arms, and a reset (recipient swap / day skip) that
+ * lands a new chain at length 1 also doesn't arm.
  */
 export function recordOwlChain(
   player: object,
@@ -358,17 +385,42 @@ export function recordOwlChain(
   if (chain.npcId === npcId) {
     if (day === chain.lastDay) return chain.length;
     if (day === chain.lastDay + 1) {
+      const prev = chain.length;
       chain.length += 1;
       chain.lastDay = day;
+      // Tier-crossing arm — fires only when the new length landed in
+      // a higher tier than the previous length. Compares the
+      // multipliers (not raw lengths) so the table-driven OWL_CHAIN_TIERS
+      // remains the single source of truth for what counts as a
+      // crossing.
+      maybeArmChainTierBrag(player, prev, chain.length);
       return chain.length;
     }
   }
   // Either new recipient, or skipped a day, or fresh save — start
-  // (or reset) the chain at length 1.
+  // (or reset) the chain at length 1. No tier-crossing arm: length 1
+  // is the floor (chainBonusMultiplier(1) === 1.0).
   chain.npcId = npcId;
   chain.length = 1;
   chain.lastDay = day;
   return 1;
+}
+
+/**
+ * Helper used by recordOwlChain — arms chainTierBragPending iff the
+ * new length crosses into a higher chain-bonus tier than the previous
+ * length. Pure check against the OWL_CHAIN_TIERS table so an addition
+ * to the table flows through here without code changes.
+ *
+ * Stores the NEW tier's multiplier (1.1 / 1.2 / 1.3) so the dawn
+ * composer can read the brag wording without re-deriving the tier.
+ */
+function maybeArmChainTierBrag(player: object, prev: number, next: number): void {
+  const prevMult = chainBonusMultiplier(prev);
+  const nextMult = chainBonusMultiplier(next);
+  if (nextMult > prevMult) {
+    getOwlStamps(player).chainTierBragPending = nextMult;
+  }
 }
 
 /**
@@ -526,4 +578,79 @@ export function owlFluencyTierColor(player: object, npcId: string): string | nul
   const tier = owlFluencyTier(player, npcId);
   if (tier === '') return null;
   return OWL_FLUENCY_TIER_COLOR[tier] ?? null;
+}
+
+// ---------------------------------------------------------------------
+// Chain-tier dawn brag — one-shot celebratory dawn-toast tail the
+// morning AFTER the player's active chain crossed into a new bonus
+// tier. Mirrors the deep-vein-dawn-brag shape: a sticky flag is set
+// inside recordOwlChain on a tier crossing, and the composer reads +
+// clears it on the next dawn so a player who skips a few days doesn't
+// see the same brag re-fire.
+//
+// Why a separate brag tail rather than baking the tier into the
+// existing send-toast: the send-toast already shows the per-send
+// "Letter chain xN (+M%)." multiplier so the player gets immediate
+// feedback at decision time. The dawn brag is the QUIET-MORNING
+// echo — the moment the player wakes up to "you crossed into the
+// regular tier yesterday" without needing to remember the exact
+// length-2 / length-4 / length-7 ladder.
+// ---------------------------------------------------------------------
+
+/**
+ * Per-tier brag label — keyed off the chain-bonus multiplier (matches
+ * chainBonusMultiplier output for length=2/4/7). The dawn brag composes
+ * \"Your owl chain is in the <label> tier now (+<pct>%).\" so the
+ * label is the short adjective that slots into that sentence.
+ *
+ * Labels deliberately echo the OWL_FLUENCY_TIERS naming (occasional /
+ * regular / favorite) but with one twist: at the top tier we say
+ * \"favorite\" rather than \"favorite courier\" because the brag is
+ * about the CHAIN, not the lifetime-pen-pal tier — and the player has
+ * already been calling this NPC their favorite for a while if they're
+ * at length 7. The shared adjective just signals \"top tier across
+ * either system\" without overloading the per-NPC fluency label.
+ */
+export const OWL_CHAIN_TIER_LABEL: Record<string, string> = {
+  '1.1': 'starting',
+  '1.2': 'regular',
+  '1.3': 'favorite',
+};
+
+/**
+ * One-shot dawn-toast tail when the player's chain crossed a new tier
+ * since the last dawn. Reads + clears OwlStampBook.chainTierBragPending
+ * so a re-call returns the empty string the same dawn (and the next
+ * dawn after no more crossings stays quiet).
+ *
+ * Returns the empty string when:
+ *   - chainTierBragPending is absent / falsy (no pending crossing)
+ *   - the pending multiplier doesn't map to a known tier label (defensive)
+ *
+ * Wording: "Your owl chain is in the regular tier now (+20%)."
+ *
+ * Note: this is a PLAYER-LEVEL brag, not per-NPC — the tail surfaces
+ * once even if the player switches recipients between the crossing
+ * day and the next dawn. The chain itself might have reset by then,
+ * but the brag still fires because the player DID cross the tier on
+ * yesterday's send. This matches the deep-vein-dawn-brag pattern
+ * where the brag celebrates the run that earned it, not the state
+ * of the run today.
+ */
+export function chainTierDawnBrag(player: object): string {
+  const book = getOwlStamps(player);
+  const pending = book.chainTierBragPending;
+  if (!pending) return '';
+  // Clear the pending flag whether or not the brag actually surfaces
+  // text — a corrupted pending value with no matching label still
+  // resets cleanly so it doesn't haunt subsequent dawns.
+  book.chainTierBragPending = undefined;
+  // Pin the multiplier to one decimal so floating-point quirks (1.2999...)
+  // don't miss the label table. The table is keyed by the canonical
+  // strings '1.1' / '1.2' / '1.3'.
+  const key = pending.toFixed(1);
+  const label = OWL_CHAIN_TIER_LABEL[key];
+  if (!label) return '';
+  const pct = Math.round((pending - 1) * 100);
+  return `Your owl chain is in the ${label} tier now (+${pct}%).`;
 }

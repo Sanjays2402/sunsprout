@@ -353,6 +353,12 @@ export function serializeGame(game: Game): SaveSnapshot {
             chain: getOwlStamps(p).chain
               ? { ...getOwlStamps(p).chain! }
               : undefined,
+            // One-shot chain-tier brag pending arm — carry the
+            // multiplier through so a save reloaded mid-pending-state
+            // surfaces the dawn brag at the next rollover rather than
+            // swallowing it. Undefined when not armed so older saves
+            // backfill cleanly via the lazy reader.
+            chainTierBragPending: getOwlStamps(p).chainTierBragPending,
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -614,6 +620,12 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // on first access.
     if (snap.player.owlStamps.chain) {
       cur.chain = { ...snap.player.owlStamps.chain };
+    }
+    // Chain-tier brag pending — carry across reload so a player who
+    // crossed a tier just before quitting still sees the dawn brag
+    // the next morning on a fresh boot. Undefined when not armed.
+    if (snap.player.owlStamps.chainTierBragPending !== undefined) {
+      cur.chainTierBragPending = snap.player.owlStamps.chainTierBragPending;
     }
   }
   if (snap.player.npcInvites) {

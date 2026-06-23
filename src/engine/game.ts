@@ -229,7 +229,7 @@ import {
   placeScarecrow,
 } from '../game/scarecrow';
 import { OwlMenu } from '../ui/owl-menu';
-import { owlPostFeeFor } from '../game/owl-post';
+import { chainTierDawnBrag, owlPostFeeFor } from '../game/owl-post';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -849,6 +849,16 @@ export class Game {
       // the flag through so a player who already saw the brag doesn't
       // get it again after a save/load.
       const deepVeinBrag = deepVeinDawnBrag(getMineHaul(this.world.player));
+      // Owl-post chain-tier dawn brag — one-shot celebratory tail the
+      // morning AFTER the active chain crossed into a new bonus tier
+      // (length 2 -> 1.1x, length 4 -> 1.2x, length 7 -> 1.3x). The
+      // helper bumps a flag on OwlStampBook so a re-call returns
+      // empty; reload persistence carries the flag through so a
+      // player who already saw the brag doesn't get it again after a
+      // save/load. Like the deep-vein brag, this is a PLAYER-LEVEL
+      // celebration: it fires once per crossing even if the chain
+      // itself has reset since the crossing day.
+      const chainTierBrag = chainTierDawnBrag(this.world.player);
       // Compose the dawn headline through the generic assembler so the
       // chain of optional tails reads as a single array push rather
       // than a string-concat ladder. New tails added below just slot
@@ -858,6 +868,7 @@ export class Game {
         haulRecap,
         compostNudge,
         deepVeinBrag,
+        chainTierBrag,
       ]);
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
