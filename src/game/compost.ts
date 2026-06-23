@@ -509,6 +509,68 @@ export const COMPOST_MASTER_NUDGE_MIN_GOLD = COMPOST_MASTER_MILESTONE_GOLD / 2;
  */
 export const PULPER_NUDGE_MIN_BAGS = COMPOST_MASTER_MILESTONE_GOLD;
 
+// ---------------------------------------------------------------------
+// LadderNudge — generic pure helper for "halfway to badge" tails.
+//
+// Both compostLedgerLine and compostHalfwayDawnNudge ladder the same
+// shape of nudge: an ordered list of rungs where each rung gates on
+// a [floor, milestone) eligibility window and a readout function
+// turns the "remaining to milestone" number into the tail text. The
+// FIRST eligible rung wins (so an earlier badge always takes priority
+// over a later one — the journal/dawn line never shows two competing
+// tails at once).
+//
+// Pulling this out as a generic helper gets ahead of the same
+// refactor pressure the dawn-toast composer relieved last tick: as
+// soon as we add a 3rd nudge tier (the natural extension is a "you
+// earned every compost badge" sash, or a third stretch goal beyond
+// pulper), the alternative is a fourth and fifth ternary branch in
+// each call site. Now both call sites are a 1-line walk over the
+// rung array; a 3rd rung is a 4-line array push, not another ternary
+// in two places.
+// ---------------------------------------------------------------------
+
+/**
+ * One rung of a ladder-nudge. Eligible when `value` is in
+ * `[floor, milestone)`. The `readout` function receives the remaining
+ * gap (`milestone - value`) and returns the tail text. The optional
+ * `prereq` predicate gates the rung on an additional condition — used
+ * by the pulper rung to require the compost-master milestone first
+ * (so the pulper nudge never fires before compost-master is earned).
+ */
+export interface LadderNudgeRung {
+  /** Numeric value to compare against floor / milestone. */
+  value: number;
+  /** Lower bound (inclusive). Rung lights up at value >= floor. */
+  floor: number;
+  /** Upper bound (exclusive). Rung extinguishes at value >= milestone. */
+  milestone: number;
+  /** Renders the tail text given the remaining gap to milestone. */
+  readout: (remaining: number) => string;
+  /** Optional extra gate. When supplied, the rung is eligible only when this returns true. */
+  prereq?: () => boolean;
+}
+
+/**
+ * Walks `rungs` in order and returns the readout text for the FIRST
+ * eligible rung — or the empty string when nothing fires. Pure
+ * function; doesn't mutate state, doesn't read player. Order matters:
+ * earlier rungs take priority over later ones.
+ *
+ * "Eligible" means: prereq passes (or is undefined), value >= floor,
+ * value < milestone. The `remaining` argument to the readout is
+ * always positive when the rung fires (>= 1).
+ */
+export function ladderNudge(rungs: ReadonlyArray<LadderNudgeRung>): string {
+  for (const rung of rungs) {
+    if (rung.prereq && !rung.prereq()) continue;
+    if (rung.value < rung.floor) continue;
+    if (rung.value >= rung.milestone) continue;
+    return rung.readout(rung.milestone - rung.value);
+  }
+  return '';
+}
+
 /**
  * Pretty status line for the crop journal — surfaces lifetime recycled
  * gold + bags applied. Returns the empty string when the player has
@@ -517,7 +579,8 @@ export const PULPER_NUDGE_MIN_BAGS = COMPOST_MASTER_MILESTONE_GOLD;
  *
  * Wording: "compost master: 128g recycled across 47 bags."
  *
- * Halfway nudges append a single \"to badge\" tail:
+ * Halfway nudges append a single \"to badge\" tail via the generic
+ * ladderNudge helper:
  *
  *   - 50g <= recycled < 100g           "compost master: 78g recycled across 28 bags. (22g to the badge)"
  *   - 100g <= bagsApplied < 500g       "compost master: 142g recycled across 234 bags. (266 bags to the pulper badge)"
@@ -533,27 +596,25 @@ export function compostLedgerLine(player: object): string {
   if (ledger.lifetimeBagsApplied === 0) return '';
   const goldStr = ledger.lifetimeRecycledGold.toLocaleString('en-US');
   const base = `compost master: ${goldStr}g recycled across ${ledger.lifetimeBagsApplied} bag${ledger.lifetimeBagsApplied === 1 ? '' : 's'}.`;
-  // Compost-master halfway nudge — runs from 50g up to (but not
-  // including) the 100g milestone. Tail names the remaining gold.
-  if (
-    ledger.lifetimeRecycledGold >= COMPOST_MASTER_NUDGE_MIN_GOLD &&
-    ledger.lifetimeRecycledGold < COMPOST_MASTER_MILESTONE_GOLD
-  ) {
-    const remaining = COMPOST_MASTER_MILESTONE_GOLD - ledger.lifetimeRecycledGold;
-    return `${base} (${remaining}g to the badge)`;
-  }
-  // Pulper halfway nudge — starts only AFTER compost-master is earned
-  // so the two tails never compete. Runs from 100 bags up to (but not
-  // including) the 500-bag milestone.
-  if (
-    ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD &&
-    ledger.lifetimeBagsApplied >= PULPER_NUDGE_MIN_BAGS &&
-    ledger.lifetimeBagsApplied < PULPER_MILESTONE_BAGS
-  ) {
-    const remaining = PULPER_MILESTONE_BAGS - ledger.lifetimeBagsApplied;
-    return `${base} (${remaining} bag${remaining === 1 ? '' : 's'} to the pulper badge)`;
-  }
-  return base;
+  const tail = ladderNudge([
+    {
+      value: ledger.lifetimeRecycledGold,
+      floor: COMPOST_MASTER_NUDGE_MIN_GOLD,
+      milestone: COMPOST_MASTER_MILESTONE_GOLD,
+      readout: (remaining) => `(${remaining}g to the badge)`,
+    },
+    {
+      value: ledger.lifetimeBagsApplied,
+      floor: PULPER_NUDGE_MIN_BAGS,
+      milestone: PULPER_MILESTONE_BAGS,
+      // Pulper-tier prereq: compost-master must already be earned so
+      // the two journal tails are mutually exclusive in the same
+      // sense the dawn-nudge ladder is.
+      prereq: () => ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD,
+      readout: (remaining) => `(${remaining} bag${remaining === 1 ? '' : 's'} to the pulper badge)`,
+    },
+  ]);
+  return tail ? `${base} ${tail}` : base;
 }
 
 // ---------------------------------------------------------------------
@@ -585,31 +646,50 @@ export function compostLedgerLine(player: object): string {
  * at once (impossible in practice — the ledger crosses the master
  * milestone first by construction), so the player always sees the
  * earlier badge runway first.
+ *
+ * Implementation rides the generic ladderNudge helper for the
+ * eligibility check, then layers the one-shot side-effect on top so
+ * the rung that fires also stamps its corresponding `*NudgeDawnFired`
+ * flag. Adding a third nudge here is a single push into the array
+ * + a flag init in persistence + one extra readout — no new ternary
+ * chain to grow in both compost-journal and engine-dawn surfaces.
  */
 export function compostHalfwayDawnNudge(player: object): string {
   const ledger = getCompostLedger(player);
-  // Compost-master nudge — eligible window: gold in [floor, milestone).
-  if (
-    !ledger.masterNudgeDawnFired &&
-    ledger.lifetimeRecycledGold >= COMPOST_MASTER_NUDGE_MIN_GOLD &&
-    ledger.lifetimeRecycledGold < COMPOST_MASTER_MILESTONE_GOLD
-  ) {
-    ledger.masterNudgeDawnFired = true;
-    const remaining = COMPOST_MASTER_MILESTONE_GOLD - ledger.lifetimeRecycledGold;
-    return `Halfway to Compost Master - ${remaining}g to go.`;
-  }
-  // Pulper nudge — eligible window: bags in [floor, milestone) AND
-  // the player has already earned compost-master so the two nudges
-  // are mutually exclusive in the same sense the journal-line tails are.
-  if (
-    !ledger.pulperNudgeDawnFired &&
-    ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD &&
-    ledger.lifetimeBagsApplied >= PULPER_NUDGE_MIN_BAGS &&
-    ledger.lifetimeBagsApplied < PULPER_MILESTONE_BAGS
-  ) {
-    ledger.pulperNudgeDawnFired = true;
-    const remaining = PULPER_MILESTONE_BAGS - ledger.lifetimeBagsApplied;
-    return `Halfway to Pulper - ${remaining} bag${remaining === 1 ? '' : 's'} to go.`;
+  // Build the rung set with prereq gates that ALSO check the
+  // one-shot fired flag — once a rung fires, prereq turns false on
+  // subsequent calls so the same rung never re-emits.
+  const masterNudge: LadderNudgeRung = {
+    value: ledger.lifetimeRecycledGold,
+    floor: COMPOST_MASTER_NUDGE_MIN_GOLD,
+    milestone: COMPOST_MASTER_MILESTONE_GOLD,
+    prereq: () => !ledger.masterNudgeDawnFired,
+    readout: (remaining) => `Halfway to Compost Master - ${remaining}g to go.`,
+  };
+  const pulperNudge: LadderNudgeRung = {
+    value: ledger.lifetimeBagsApplied,
+    floor: PULPER_NUDGE_MIN_BAGS,
+    milestone: PULPER_MILESTONE_BAGS,
+    prereq: () =>
+      !ledger.pulperNudgeDawnFired &&
+      ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD,
+    readout: (remaining) =>
+      `Halfway to Pulper - ${remaining} bag${remaining === 1 ? '' : 's'} to go.`,
+  };
+  // Single walk picks the first eligible rung — but we also need to
+  // know WHICH rung fired so we can stamp the matching one-shot flag.
+  // ladderNudge returns the readout text only, so we walk the rungs
+  // ourselves here using the same predicate semantics.
+  const rungs: Array<{ rung: LadderNudgeRung; onFire: () => void }> = [
+    { rung: masterNudge, onFire: () => { ledger.masterNudgeDawnFired = true; } },
+    { rung: pulperNudge, onFire: () => { ledger.pulperNudgeDawnFired = true; } },
+  ];
+  for (const { rung, onFire } of rungs) {
+    if (rung.prereq && !rung.prereq()) continue;
+    if (rung.value < rung.floor) continue;
+    if (rung.value >= rung.milestone) continue;
+    onFire();
+    return rung.readout(rung.milestone - rung.value);
   }
   return '';
 }
