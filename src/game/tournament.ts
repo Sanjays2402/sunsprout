@@ -393,3 +393,41 @@ export function tournamentNudgeWithCareer(player: Player, time: TimeOfDay): stri
   const career = tournamentCareerLine(player);
   return `${nudge} ${career}`;
 }
+
+// ---------------------------------------------------------------------
+// Festival Regular achievement — a career-entries milestone that lights
+// up once the player has entered at least FESTIVAL_REGULAR_MILESTONE
+// village tournaments across the save.
+//
+// 4 entries is the natural ceiling: one tournament per season, the
+// entries map is keyed by `${season}-${kind}` and enterTournament
+// returns 'already-entered' on a re-press in the same season slot
+// (year 2 Spring can't add a second entry over year 1 Spring). So
+// 4 entries = "you've entered every kind at least once — full
+// calendar of festival attendance". Tuned to reward the player who
+// has rounded out the four seasonal events rather than only farming
+// the one they're best at (e.g. only flower-show every Spring while
+// skipping Summer/Fall/Winter).
+//
+// Predicate reads tournamentCareer().entries off the existing
+// aggregate so no new persisted field is needed; the entries map
+// already round-trips through serializeGame.
+// ---------------------------------------------------------------------
+
+/**
+ * Career-entry threshold for the `festival-regular` achievement.
+ * Tuned at 4 = the full calendar of tournaments (Spring flower-show,
+ * Summer fishing-derby, Fall harvest-weigh-in, Winter cook-off).
+ * Below the floor the player is still discovering the festival
+ * rotation; above it they've rounded out every season at least once.
+ */
+export const FESTIVAL_REGULAR_MILESTONE = 4;
+
+/**
+ * True iff the player has entered at least FESTIVAL_REGULAR_MILESTONE
+ * tournaments across their save. Reads tournamentCareer().entries —
+ * no new persisted counter to maintain.
+ */
+export function festivalRegularMilestoneReached(player: Player): boolean {
+  return tournamentCareer(player).entries >= FESTIVAL_REGULAR_MILESTONE;
+}

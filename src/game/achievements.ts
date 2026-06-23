@@ -48,6 +48,10 @@ import {
   owlFluentMilestoneReached,
   OWL_FLUENT_MILESTONE,
 } from './owl-post';
+import {
+  festivalRegularMilestoneReached,
+  FESTIVAL_REGULAR_MILESTONE,
+} from './tournament';
 
 /** Identifier — stable strings so persisted records survive rebalances. */
 export type AchievementId =
@@ -71,7 +75,8 @@ export type AchievementId =
   | 'breeders-bowl'
   | 'fluent-with-the-owl'
   | 'pulper'
-  | 'deep-vein';
+  | 'deep-vein'
+  | 'festival-regular';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -248,6 +253,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Pull ${DEEP_VEIN_COUNT} gems or ${DEEP_VEIN_GOLD}g of ore out of the cave in a single run.`,
     done: `Brought home a single-run haul of ${DEEP_VEIN_COUNT}+ gems or ${DEEP_VEIN_GOLD}+g of ore.`,
     check: (p) => deepVeinMilestoneReached(getMineHaul(p)),
+  },
+  {
+    id: 'festival-regular',
+    name: 'Festival Regular',
+    hint: `Enter every seasonal village tournament at least once (${FESTIVAL_REGULAR_MILESTONE} total).`,
+    done: `Showed up to every seasonal tournament — flower show, fishing derby, harvest weigh-in, and cook-off.`,
+    check: (p) => festivalRegularMilestoneReached(p),
   },
 ];
 
