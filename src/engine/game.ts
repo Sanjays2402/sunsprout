@@ -214,6 +214,7 @@ import {
   teaTradeInLine,
 } from '../game/cart';
 import { CartMenu } from '../ui/cart-menu';
+import { tradeForageForTea, innForageTradeToastLine } from '../game/inn-trade';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
 import { recordRumorBuy, recordRumorVisit, rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine, buyRumorStreakDiscount } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
@@ -1812,6 +1813,16 @@ export class Game {
       // C: open the cooking menu when standing on/adjacent to the inn.
       if (this.input.justPressed.has('c')) {
         if (this.isNearInn()) {
+          // Inn forage trade-in — auto-fires on cooking menu open
+          // right before we surface the menu. Mirrors the cart-side
+          // auto-trade stack (tradeBreederEggs -> tradeStaminaTeas)
+          // so the player doesn't learn a new keybind. Silent when
+          // the bag doesn't carry enough forage so the trade path
+          // doesn't toast on every menu open.
+          const innOut = tradeForageForTea(this.world.player, true);
+          if (innOut.kind === 'traded') {
+            this.setToast(innForageTradeToastLine(innOut));
+          }
           this.cookingMenu.open();
         } else {
           this.setToast('Stand near the inn to cook.');

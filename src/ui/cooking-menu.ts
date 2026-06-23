@@ -23,6 +23,7 @@ import {
   isStaminaTea,
   type DishKey,
 } from '../game/cooking';
+import { innForageTradeInLine } from '../game/inn-trade';
 
 const PANEL_W = 520;
 const PANEL_H = 360;
@@ -257,6 +258,16 @@ export class CookingMenu {
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillStyle = HINT;
     ctx.textAlign = 'center';
+    // Inn forage trade-in chip — heads-up that the auto-trade-on-
+    // open path will fire (or how many more forage the player needs).
+    // Sits ABOVE the keybind footer so the chips read top-down:
+    // "forage trade", then "keybinds". Empty when balance==0.
+    const innLine = innForageTradeInLine(player);
+    if (innLine) {
+      ctx.fillStyle = TITLE_COLOR;
+      ctx.fillText(innLine, x + PANEL_W / 2, y + PANEL_H - 38);
+      ctx.fillStyle = HINT;
+    }
     const footer = batchEligible
       ? '↑/↓ choose · Enter cook · Shift+Enter double-batch · C / Esc close'
       : '↑/↓ to choose · Enter to cook · C / Esc to close';
