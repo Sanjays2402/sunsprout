@@ -41,6 +41,8 @@ import {
 import {
   compostMasterMilestoneReached,
   COMPOST_MASTER_MILESTONE_GOLD,
+  compostMasterSashMilestoneReached,
+  COMPOST_MASTER_SASH_MILESTONE_GOLD,
   pulperMilestoneReached,
   PULPER_MILESTONE_BAGS,
 } from './compost';
@@ -79,7 +81,8 @@ export type AchievementId =
   | 'pulper'
   | 'deep-vein'
   | 'festival-regular'
-  | 'tournament-champion';
+  | 'tournament-champion'
+  | 'compost-master-sash';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -270,6 +273,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Win the gold ribbon at ${TOURNAMENT_CHAMPION_GOLD_RIBBONS} different seasonal tournaments.`,
     done: `Cleared the gold ribbon at ${TOURNAMENT_CHAMPION_GOLD_RIBBONS}+ seasonal tournaments — three quarters of the calendar at the top tier.`,
     check: (p) => tournamentChampionMilestoneReached(p),
+  },
+  {
+    id: 'compost-master-sash',
+    name: 'Compost Master Sash',
+    hint: `Recycle ${COMPOST_MASTER_SASH_MILESTONE_GOLD}g back from fertilizer bags — past the Compost Master rank.`,
+    done: `Pulped ${COMPOST_MASTER_SASH_MILESTONE_GOLD}+ gold back from bags — wear the sash with pride.`,
+    check: (p) => compostMasterSashMilestoneReached(p),
   },
 ];
 

@@ -160,8 +160,12 @@ describe('compostLedgerLine — refactored via ladderNudge (parity check)', () =
     expect(compostLedgerLine(p)).not.toContain('to the badge');
   });
 
-  it('pulper nudge tail after compost-master is earned + bags in [100, 500)', () => {
-    const p = ledgerPlayer(120, 234);
+  it('pulper nudge tail after sash is earned + bags in [100, 500)', () => {
+    // Sash rung now sits between master + pulper; we need recycledGold
+    // past the sash milestone (250g) so the pulper rung wins. Tick #29
+    // added the sash rung as the third ladder slot via the same
+    // ladderNudge refactor this test suite locks down.
+    const p = ledgerPlayer(260, 234);
     expect(compostLedgerLine(p)).toContain('(266 bags to the pulper badge)');
   });
 

@@ -469,6 +469,31 @@ export function compostMasterMilestoneReached(player: object): boolean {
 }
 
 /**
+ * Top-rung gold-recycling milestone for the `compost-master-sash`
+ * achievement — a 3rd compost-tier honor above the compost-master
+ * badge (100g). Tuned at 2.5x the original milestone so it's a clean
+ * \"earned the sash, not just the badge\" honor: the player has been
+ * running the compost loop for multiple seasons and the lifetime
+ * recycle counter has built up meaningfully.
+ *
+ * Reads off the same lifetimeRecycledGold field as compost-master so
+ * no new persisted counter is needed. The ledger already round-trips
+ * through serializeGame.
+ *
+ * Why 250g and not e.g. 200g or 500g: 250g sits right between the
+ * compost-master nudge floor (50g, halfway to 100g) and the pulper
+ * milestone (500 bags applied, roughly 500g recycled at 1g/regular
+ * bag). It's the natural \"halfway between the two badges\" honor
+ * that opens the third rung in the ladderNudge ladder.
+ */
+export const COMPOST_MASTER_SASH_MILESTONE_GOLD = 250;
+
+/** True iff lifetimeRecycledGold has crossed COMPOST_MASTER_SASH_MILESTONE_GOLD. */
+export function compostMasterSashMilestoneReached(player: object): boolean {
+  return getCompostLedger(player).lifetimeRecycledGold >= COMPOST_MASTER_SASH_MILESTONE_GOLD;
+}
+
+/**
  * Lifetime fertilizer-bag milestone for the `pulper` achievement.
  *
  * Tuned around the compost-master gold milestone (100g recycled =
@@ -500,12 +525,34 @@ export function pulperMilestoneReached(player: object): boolean {
 export const COMPOST_MASTER_NUDGE_MIN_GOLD = COMPOST_MASTER_MILESTONE_GOLD / 2;
 
 /**
+ * Halfway threshold for the compost-master-sash nudge — once
+ * lifetimeRecycledGold crosses this AFTER compost-master is earned,
+ * the journal line gains a "(Xg to the sash)" tail so the player can
+ * see the runway to the 3rd-rung honor.
+ *
+ * Tuned at exactly the compost-master milestone (100g) so the sash
+ * nudge starts firing the same moment the compost-master nudge ends —
+ * the journal always shows at most one "to badge / to sash" tail.
+ * The three-rung ladder is now:
+ *
+ *   recycledGold in [50, 100)     "to the badge"
+ *   recycledGold in [100, 250)    "to the sash"
+ *   bagsApplied in [100, 500)     "to the pulper badge"  (gated by master)
+ *
+ * The bag-count pulper rung runs in parallel to the gold-recycled
+ * sash rung in terms of value-axis, but the priority order keeps
+ * gold-recycled ahead so the player sees the next gold milestone
+ * before the bag-count one.
+ */
+export const COMPOST_MASTER_SASH_NUDGE_MIN_GOLD = COMPOST_MASTER_MILESTONE_GOLD;
+
+/**
  * Symmetric halfway threshold for the pulper nudge — once
  * lifetimeBagsApplied crosses this, the journal line gains a
  * "(N bags to badge)" tail. Tuned at exactly the compost-master
  * milestone so the pulper nudge starts firing the same moment the
  * compost-master nudge ends. The two nudges therefore ladder cleanly:
- * the journal always shows at most one \"to badge\" tail.
+ * the journal always shows at most one "to badge" tail.
  */
 export const PULPER_NUDGE_MIN_BAGS = COMPOST_MASTER_MILESTONE_GOLD;
 
@@ -583,13 +630,19 @@ export function ladderNudge(rungs: ReadonlyArray<LadderNudgeRung>): string {
  * ladderNudge helper:
  *
  *   - 50g <= recycled < 100g           "compost master: 78g recycled across 28 bags. (22g to the badge)"
+ *   - 100g <= recycled < 250g          "compost master: 142g recycled across 47 bags. (108g to the sash)"
  *   - 100g <= bagsApplied < 500g       "compost master: 142g recycled across 234 bags. (266 bags to the pulper badge)"
  *
- * Only one tail fires at a time — the compost-master nudge takes
- * priority while it's eligible (it's the earlier milestone). Once the
- * player crosses the compost-master gold threshold, the pulper nudge
- * starts surfacing the bag-count runway. After both are earned the
- * line goes back to a clean \"lifetime totals\" recap.
+ * Only one tail fires at a time — earlier rungs take priority. Once
+ * the player crosses each milestone, the line goes back to a clean
+ * "lifetime totals" recap.
+ *
+ * The 3rd rung (compost-master sash) was added on tick #29 to
+ * validate the ladderNudge refactor on the spot — adding a new
+ * rung is a one-line array push rather than a new ternary branch
+ * in two places. Sash priority sits between master and pulper so
+ * the player sees gold-recycled milestones in order before the bag
+ * count nudge.
  */
 export function compostLedgerLine(player: object): string {
   const ledger = getCompostLedger(player);
@@ -602,6 +655,17 @@ export function compostLedgerLine(player: object): string {
       floor: COMPOST_MASTER_NUDGE_MIN_GOLD,
       milestone: COMPOST_MASTER_MILESTONE_GOLD,
       readout: (remaining) => `(${remaining}g to the badge)`,
+    },
+    {
+      // Compost-master sash rung — fires AFTER the badge is earned
+      // (the floor matches the badge milestone) and runs until the
+      // player crosses the sash threshold. Validates the ladderNudge
+      // refactor: a 3rd rung is a single array push, not another
+      // pair of ternary branches across two surfaces.
+      value: ledger.lifetimeRecycledGold,
+      floor: COMPOST_MASTER_SASH_NUDGE_MIN_GOLD,
+      milestone: COMPOST_MASTER_SASH_MILESTONE_GOLD,
+      readout: (remaining) => `(${remaining}g to the sash)`,
     },
     {
       value: ledger.lifetimeBagsApplied,
