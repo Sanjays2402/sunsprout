@@ -454,6 +454,24 @@ export function compostMasterMilestoneReached(player: object): boolean {
 }
 
 /**
+ * Lifetime fertilizer-bag milestone for the `pulper` achievement.
+ *
+ * Tuned around the compost-master gold milestone (100g recycled =
+ * roughly 100 regular bags or 34 rare bags). 500 bags is a deeper
+ * commitment to the compost loop — a player has to have been running
+ * the bench / bin / apply chain for a real chunk of the save. The
+ * predicate reads lifetimeBagsApplied off the existing CompostLedgerState
+ * so no new persisted field is needed; the ledger already round-trips
+ * through serializeGame and lazy-backfills on older saves.
+ */
+export const PULPER_MILESTONE_BAGS = 500;
+
+/** True iff lifetimeBagsApplied has crossed PULPER_MILESTONE_BAGS. */
+export function pulperMilestoneReached(player: object): boolean {
+  return getCompostLedger(player).lifetimeBagsApplied >= PULPER_MILESTONE_BAGS;
+}
+
+/**
  * Pretty status line for the crop journal — surfaces lifetime recycled
  * gold + bags applied. Returns the empty string when the player has
  * never applied a bag so the journal doesn't surface a "0g recycled"

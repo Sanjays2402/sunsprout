@@ -38,6 +38,8 @@ import {
 import {
   compostMasterMilestoneReached,
   COMPOST_MASTER_MILESTONE_GOLD,
+  pulperMilestoneReached,
+  PULPER_MILESTONE_BAGS,
 } from './compost';
 import {
   owlFluentMilestoneReached,
@@ -64,7 +66,8 @@ export type AchievementId =
   | 'cave-veteran'
   | 'compost-master'
   | 'breeders-bowl'
-  | 'fluent-with-the-owl';
+  | 'fluent-with-the-owl'
+  | 'pulper';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -227,6 +230,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Dispatch ${OWL_FLUENT_MILESTONE} owl-post gifts across the village.`,
     done: `Sent ${OWL_FLUENT_MILESTONE}+ owl-post gifts — the owl knows your handwriting now.`,
     check: (p) => owlFluentMilestoneReached(p),
+  },
+  {
+    id: 'pulper',
+    name: 'Pulper',
+    hint: `Apply ${PULPER_MILESTONE_BAGS} fertilizer bags to your fields.`,
+    done: `Pulped ${PULPER_MILESTONE_BAGS}+ fertilizer bags into the soil.`,
+    check: (p) => pulperMilestoneReached(p),
   },
 ];
 
