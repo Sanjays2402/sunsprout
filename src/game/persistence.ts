@@ -345,6 +345,16 @@ export function serializeGame(game: Game): SaveSnapshot {
         ? {
             lifetimeRecycledGold: getCompostLedger(p).lifetimeRecycledGold,
             lifetimeBagsApplied: getCompostLedger(p).lifetimeBagsApplied,
+            // Rare-bag tally — distinct from lifetimeBagsApplied; powers
+            // the rare-master achievement. Undefined when older saves
+            // never tracked it; the lazy reader backfills 0 on first
+            // access.
+            lifetimeRareBagsApplied: getCompostLedger(p).lifetimeRareBagsApplied,
+            // Halfway dawn-nudge one-shot flags — carry across reload
+            // so a player who already saw the dawn tail doesn't see
+            // it again. Older saves backfill via the optional reader.
+            masterNudgeDawnFired: getCompostLedger(p).masterNudgeDawnFired,
+            pulperNudgeDawnFired: getCompostLedger(p).pulperNudgeDawnFired,
           }
         : undefined,
       owlStamps: (p as Player & { owlStamps?: OwlStampBook }).owlStamps
@@ -604,6 +614,13 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     const cur = getCompostLedger(p);
     cur.lifetimeRecycledGold = snap.player.compostLedger.lifetimeRecycledGold;
     cur.lifetimeBagsApplied = snap.player.compostLedger.lifetimeBagsApplied;
+    // Carry the rare-bag tally — the rare-master achievement reads
+    // off this field. Older saves predating it land here as
+    // undefined; the lazy reader backfills 0 on first access so
+    // the achievement predicate stays correct.
+    if (snap.player.compostLedger.lifetimeRareBagsApplied !== undefined) {
+      cur.lifetimeRareBagsApplied = snap.player.compostLedger.lifetimeRareBagsApplied;
+    }
     // Carry the dawn-nudge one-shot flags so a player who already saw
     // the dawn tail doesn't see it again after a reload. Older saves
     // (without these fields) backfill false via the optional reader.

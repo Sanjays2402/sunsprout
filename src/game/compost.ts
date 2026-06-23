@@ -310,9 +310,13 @@ export function applyFertilizer(
     player.gold += recycledGold;
   }
   // Lifetime ledger — bump lifetimeRecycledGold + lifetimeBagsApplied.
+  // The `rare` flag also bumps the separate lifetimeRareBagsApplied
+  // counter so the rare-master achievement can tell rare grinds from
+  // regular ones — the regular bag counter can't distinguish them
+  // because both bumps it by exactly 1.
   // Always bumps, even when the player fixture doesn't carry gold, so
   // unit tests that hand-craft a player can still verify the counter.
-  recordApplied(player, recycledGold);
+  recordApplied(player, recycledGold, rare);
   return {
     kind: 'applied',
     cropKey: farmCrop.crop,
@@ -420,6 +424,21 @@ export interface CompostLedgerState {
   /** Total fertilizer bags ever applied (regular + rare combined). */
   lifetimeBagsApplied: number;
   /**
+   * Total RARE fertilizer bags ever applied. Distinct from
+   * lifetimeBagsApplied (which counts every bag): rare bags are worth
+   * +4 streak (vs +2 for regular) and they're gated behind the
+   * per-season rare-day finishing window so the player can't farm
+   * them at will. Tracking them separately powers the rare-master
+   * achievement at 100 rare bags applied — a meaningful late-game
+   * grind that the regular bag counter can't distinguish.
+   *
+   * Optional because older saves predate it; the lazy reader
+   * backfills it to 0 on first access. recordApplied bumps both
+   * counters when a rare bag lands; the regular path only bumps
+   * lifetimeBagsApplied.
+   */
+  lifetimeRareBagsApplied?: number;
+  /**
    * Set to true once the player has crossed COMPOST_MASTER_NUDGE_MIN_GOLD
    * and the dawn-toast has surfaced the "halfway to the badge" one-shot
    * for them. Stays true forever so the nudge doesn't re-fire if the
@@ -455,11 +474,19 @@ export function getCompostLedger(player: object): CompostLedgerState {
  *
  * Returns the new lifetime gold total so callers that want to surface
  * a "milestone reached" toast can check the crossover in one read.
+ *
+ * Additional optional `rare` arg: when true, also bumps
+ * `lifetimeRareBagsApplied`. Defaults false so existing call sites
+ * (and tests that hand-craft a player) stay backwards compatible —
+ * the rare-master predicate ignores fixtures that don't bother.
  */
-export function recordApplied(player: object, recycledGold: number): number {
+export function recordApplied(player: object, recycledGold: number, rare: boolean = false): number {
   const ledger = getCompostLedger(player);
   ledger.lifetimeBagsApplied += 1;
   ledger.lifetimeRecycledGold += recycledGold;
+  if (rare) {
+    ledger.lifetimeRareBagsApplied = (ledger.lifetimeRareBagsApplied ?? 0) + 1;
+  }
   return ledger.lifetimeRecycledGold;
 }
 
@@ -509,6 +536,35 @@ export const PULPER_MILESTONE_BAGS = 500;
 /** True iff lifetimeBagsApplied has crossed PULPER_MILESTONE_BAGS. */
 export function pulperMilestoneReached(player: object): boolean {
   return getCompostLedger(player).lifetimeBagsApplied >= PULPER_MILESTONE_BAGS;
+}
+
+/**
+ * Lifetime RARE-bag milestone for the `rare-master` achievement.
+ *
+ * Distinct from pulper (regular + rare combined): rare bags are
+ * gated behind the per-season rare-day finishing window so the
+ * player can only mint ~1 batch per season into rare. Stockpiling
+ * 100 rare bags applied represents many seasons of deliberate
+ * compost-day timing — a real late-game grind.
+ *
+ * Tuned at 100 because:
+ *   - the rare-day appears once per season (RARE_FINISH_DAY range)
+ *   - one compost batch can mint up to floor(COMPOST_MAX_BATCHES *
+ *     CROPS_PER_BATCH / COMPOST_RATIO) bags per season-end if the
+ *     player lines up timing perfectly — call it 4-8 rare bags per
+ *     season at the high end
+ *   - 100 rare bags = roughly 15-25 in-game seasons of optimal play
+ *
+ * Reads off CompostLedgerState.lifetimeRareBagsApplied which the
+ * recordApplied helper bumps when called with `rare=true`. Older
+ * saves lazy-backfill to 0 so the predicate stays correct on
+ * existing playthroughs.
+ */
+export const RARE_MASTER_MILESTONE_BAGS = 100;
+
+/** True iff lifetimeRareBagsApplied has crossed RARE_MASTER_MILESTONE_BAGS. */
+export function rareMasterMilestoneReached(player: object): boolean {
+  return (getCompostLedger(player).lifetimeRareBagsApplied ?? 0) >= RARE_MASTER_MILESTONE_BAGS;
 }
 
 /**

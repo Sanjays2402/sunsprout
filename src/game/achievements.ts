@@ -45,6 +45,8 @@ import {
   COMPOST_MASTER_SASH_MILESTONE_GOLD,
   pulperMilestoneReached,
   PULPER_MILESTONE_BAGS,
+  rareMasterMilestoneReached,
+  RARE_MASTER_MILESTONE_BAGS,
 } from './compost';
 import {
   owlFluentMilestoneReached,
@@ -82,7 +84,8 @@ export type AchievementId =
   | 'deep-vein'
   | 'festival-regular'
   | 'tournament-champion'
-  | 'compost-master-sash';
+  | 'compost-master-sash'
+  | 'rare-master';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -280,6 +283,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Recycle ${COMPOST_MASTER_SASH_MILESTONE_GOLD}g back from fertilizer bags — past the Compost Master rank.`,
     done: `Pulped ${COMPOST_MASTER_SASH_MILESTONE_GOLD}+ gold back from bags — wear the sash with pride.`,
     check: (p) => compostMasterSashMilestoneReached(p),
+  },
+  {
+    id: 'rare-master',
+    name: 'Rare Master',
+    hint: `Apply ${RARE_MASTER_MILESTONE_BAGS} RARE fertilizer bags — only mintable on each season's rare-day.`,
+    done: `Applied ${RARE_MASTER_MILESTONE_BAGS}+ rare fertilizer bags — you've mastered the rare-day compost timing.`,
+    check: (p) => rareMasterMilestoneReached(p),
   },
 ];
 
