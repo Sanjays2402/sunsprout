@@ -419,6 +419,21 @@ export interface CompostLedgerState {
   lifetimeRecycledGold: number;
   /** Total fertilizer bags ever applied (regular + rare combined). */
   lifetimeBagsApplied: number;
+  /**
+   * Set to true once the player has crossed COMPOST_MASTER_NUDGE_MIN_GOLD
+   * and the dawn-toast has surfaced the "halfway to the badge" one-shot
+   * for them. Stays true forever so the nudge doesn't re-fire if the
+   * player drops back under the floor (which can't happen with the
+   * current monotonic ledger, but defending against the case keeps
+   * the contract clean). Optional so older saves backfill cleanly.
+   */
+  masterNudgeDawnFired?: boolean;
+  /**
+   * Symmetric one-shot for the pulper-badge dawn nudge — true once the
+   * dawn-toast has surfaced "halfway to the pulper badge". Optional
+   * for older saves; the lazy reader backfills false.
+   */
+  pulperNudgeDawnFired?: boolean;
 }
 
 /** Gold milestone for the `compost-master` achievement. */
@@ -539,6 +554,64 @@ export function compostLedgerLine(player: object): string {
     return `${base} (${remaining} bag${remaining === 1 ? '' : 's'} to the pulper badge)`;
   }
   return base;
+}
+
+// ---------------------------------------------------------------------
+// Compost-master / pulper halfway dawn nudges — one-shot dawn-toast
+// tails that fire the morning AFTER the player crosses the nudge
+// floor for each badge. The journal line in compostLedgerLine already
+// surfaces "to the badge" / "to the pulper badge" tails passively, but
+// a player who never opens the journal would never see them — these
+// dawn helpers carry the signal directly into the morning toast chain.
+//
+// Each nudge is ONE-SHOT: the dawn helper bumps a boolean flag on the
+// ledger so a player who skips a few days of mining doesn't keep
+// getting the same nag every morning. The flag is sticky; once fired
+// it stays fired across reloads via the lazy ledger persistence.
+// ---------------------------------------------------------------------
+
+/**
+ * Returns the dawn-toast tail to surface today, if any. ONE-SHOT
+ * per nudge — bumps the corresponding fired flag on the ledger as
+ * a side effect so a re-call returns the empty string. Callers
+ * should fire this exactly once per dawn (the engine's day rollover
+ * is the natural site).
+ *
+ * Wording:
+ *   compost-master:  "Halfway to Compost Master - Xg to go."
+ *   pulper:          "Halfway to Pulper - N bags to go."
+ *
+ * Priority: compost-master fires before pulper if both are eligible
+ * at once (impossible in practice — the ledger crosses the master
+ * milestone first by construction), so the player always sees the
+ * earlier badge runway first.
+ */
+export function compostHalfwayDawnNudge(player: object): string {
+  const ledger = getCompostLedger(player);
+  // Compost-master nudge — eligible window: gold in [floor, milestone).
+  if (
+    !ledger.masterNudgeDawnFired &&
+    ledger.lifetimeRecycledGold >= COMPOST_MASTER_NUDGE_MIN_GOLD &&
+    ledger.lifetimeRecycledGold < COMPOST_MASTER_MILESTONE_GOLD
+  ) {
+    ledger.masterNudgeDawnFired = true;
+    const remaining = COMPOST_MASTER_MILESTONE_GOLD - ledger.lifetimeRecycledGold;
+    return `Halfway to Compost Master - ${remaining}g to go.`;
+  }
+  // Pulper nudge — eligible window: bags in [floor, milestone) AND
+  // the player has already earned compost-master so the two nudges
+  // are mutually exclusive in the same sense the journal-line tails are.
+  if (
+    !ledger.pulperNudgeDawnFired &&
+    ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD &&
+    ledger.lifetimeBagsApplied >= PULPER_NUDGE_MIN_BAGS &&
+    ledger.lifetimeBagsApplied < PULPER_MILESTONE_BAGS
+  ) {
+    ledger.pulperNudgeDawnFired = true;
+    const remaining = PULPER_MILESTONE_BAGS - ledger.lifetimeBagsApplied;
+    return `Halfway to Pulper - ${remaining} bag${remaining === 1 ? '' : 's'} to go.`;
+  }
+  return '';
 }
 
 // ---------------------------------------------------------------------

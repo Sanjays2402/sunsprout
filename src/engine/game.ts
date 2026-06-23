@@ -297,6 +297,7 @@ import {
   adjacentCompost,
   applyFertilizer,
   canPlaceCompost,
+  compostHalfwayDawnNudge,
   compostStatusLine,
   compostTick,
   depositCrops,
@@ -825,9 +826,19 @@ export class Game {
       // string when yesterday was a non-mining day so quiet dawns
       // stay quiet.
       const haulRecap = haulYesterdayLine(getMineHaul(this.world.player));
+      // Compost-master / pulper halfway dawn nudge — one-shot tail
+      // the morning AFTER the player crosses the badge runway floor.
+      // The journal line already surfaces a "to badge" tail passively
+      // but a player who never opens the journal would miss it; this
+      // carries the milestone signal directly into the morning toast.
+      // ONE-SHOT — the helper bumps a flag on the compost ledger so a
+      // second dawn doesn't repeat the nag. Survives reload via the
+      // persisted ledger flags.
+      const compostNudge = compostHalfwayDawnNudge(this.world.player);
       let headline = headlineBase;
       if (pondOverflow) headline = `${headline} · ${pondOverflow}`;
       if (haulRecap) headline = `${headline} · ${haulRecap}`;
+      if (compostNudge) headline = `${headline} · ${compostNudge}`;
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {

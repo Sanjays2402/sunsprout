@@ -559,6 +559,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     const cur = getCompostLedger(p);
     cur.lifetimeRecycledGold = snap.player.compostLedger.lifetimeRecycledGold;
     cur.lifetimeBagsApplied = snap.player.compostLedger.lifetimeBagsApplied;
+    // Carry the dawn-nudge one-shot flags so a player who already saw
+    // the dawn tail doesn't see it again after a reload. Older saves
+    // (without these fields) backfill false via the optional reader.
+    cur.masterNudgeDawnFired = snap.player.compostLedger.masterNudgeDawnFired === true;
+    cur.pulperNudgeDawnFired = snap.player.compostLedger.pulperNudgeDawnFired === true;
   }
   if (snap.player.owlStamps) {
     const cur = getOwlStamps(p);
