@@ -199,6 +199,21 @@ export class LorePanel {
       ctx.font = '10px ui-monospace, monospace';
       ctx.fillText(r.discovered ? r.description : r.teaser, x + 28, ry + 16);
 
+      // Tier color chip — currently set on Folk rows for the per-NPC
+      // owl fluency tier (bronze / silver / gold). Tiny diamond-style
+      // square drawn just to the LEFT of the count chip so the
+      // existing count layout doesn't shift. Skipped when no tier
+      // achieved so casual Folk friends keep a clean row.
+      if (r.discovered && r.tierColor) {
+        // Outline first (slightly larger dark frame) so the chip
+        // reads as a deliberate badge rather than a flat color
+        // splotch on the panel background.
+        ctx.fillStyle = '#1a1426';
+        ctx.fillRect(x + PANEL_W - 38, ry + 6, 8, 8);
+        ctx.fillStyle = r.tierColor;
+        ctx.fillRect(x + PANEL_W - 37, ry + 7, 6, 6);
+      }
+
       if (r.discovered && r.count !== undefined && r.count > 0) {
         ctx.fillStyle = ROW_PIP_ON;
         ctx.textAlign = 'right';

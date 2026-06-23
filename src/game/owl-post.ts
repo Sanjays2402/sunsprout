@@ -286,3 +286,49 @@ export function owlPostFeeChip(player: object, npcId: string): string {
   const shortTier = tier.split(' ')[0] || tier;
   return `${fee}g (-${savings}g, ${shortTier})`;
 }
+
+// ---------------------------------------------------------------------
+// Owl fluency tier badge color — a tiny colored chip the lore Folk
+// row can draw alongside the textual fluency label. Mirrors the
+// tournament ribbon palette (bronze / silver / gold) so the player
+// reads "this is a fluency rank" at a glance without having to parse
+// the tier label every time. The color comes from a pure helper so
+// the panel UI doesn't grow an owl-post import — it just calls
+// owlFluencyTierColor(player, npcId) and uses the returned hex
+// (or null when no tier reached).
+//
+// Color choices intentionally pin to the tournament-ribbon family
+// (warm metallic palette) so the lore panel reads as a coherent
+// visual language across separate per-NPC progression systems.
+// ---------------------------------------------------------------------
+
+/**
+ * Per-tier display color. Matches the tournament-ribbon hex family
+ * so the lore panel's per-NPC fluency tag reads in the same visual
+ * language as the player's ribbon counters elsewhere.
+ *
+ * Tiers map by tier label so the constant set automatically picks
+ * up any future addition / rename to OWL_FLUENCY_TIERS without a
+ * second source of truth.
+ */
+export const OWL_FLUENCY_TIER_COLOR: Record<string, string> = {
+  'occasional pen pal': '#B87333', // bronze — warm copper
+  'regular pen pal':    '#C0C0C0', // silver — cool steel
+  'favorite courier':   '#F0C24A', // gold   — warm amber
+};
+
+/**
+ * Returns the tier-color hex for the player's fluency with `npcId`,
+ * or null when the player hasn't crossed the first tier (so the
+ * panel UI can skip the chip draw entirely without a guard).
+ *
+ * Pure read — doesn't bump stamps, doesn't mutate state. Returns
+ * null on missing-tier (rather than empty string) so the call site
+ * has a clean falsy gate without the empty-string + nullish-coalesce
+ * dance.
+ */
+export function owlFluencyTierColor(player: object, npcId: string): string | null {
+  const tier = owlFluencyTier(player, npcId);
+  if (tier === '') return null;
+  return OWL_FLUENCY_TIER_COLOR[tier] ?? null;
+}

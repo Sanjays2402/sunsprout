@@ -25,7 +25,7 @@ import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
 import { getMineHaul, haulBestRunLine, bestRunCompositionLine, bestRunSplitCompositionLine, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
-import { owlStampLine, owlStampsFor } from './owl-post';
+import { owlFluencyTierColor, owlStampLine, owlStampsFor } from './owl-post';
 
 /** Category labels — listed in panel display order. */
 export const LORE_CATEGORIES = ['Fish', 'Gems', 'Forage', 'Crops', 'Folk', 'Rumors'] as const;
@@ -44,6 +44,14 @@ export interface LoreRow {
   teaser: string;
   /** Optional count for inventory-backed entries. */
   count?: number;
+  /**
+   * Optional tier-color hex for the row's progression badge — currently
+   * set on Folk rows for the per-NPC owl-fluency tier (bronze /
+   * silver / gold). Null when the row has no tier achieved (a casual
+   * Folk friend the player has never owl-mailed). The panel draws a
+   * small colored chip alongside the row text when this is set.
+   */
+  tierColor?: string | null;
 }
 
 /** Per-category teaser to fill in locked rows. */
@@ -155,6 +163,12 @@ export function buildLoreRows(player: Player): LoreRow[] {
       // posts to this recipient (occasional / regular / favorite).
       const owlCount = owlStampsFor(player, id);
       const owlTail = owlCount > 0 ? ` ${owlStampLine(player, id)}` : '';
+      // Per-NPC owl fluency tier color — bronze / silver / gold chip
+      // drawn alongside the row text by the panel UI when the player
+      // has crossed at least one fluency tier with this NPC. Null
+      // when the player is below the first tier so casual friends
+      // don't get a misleading chip color.
+      const tierColor = owlFluencyTierColor(player, id);
       out.push({
         category: 'Folk',
         id,
@@ -163,6 +177,7 @@ export function buildLoreRows(player: Player): LoreRow[] {
         description: `Hearts ${hearts}/10. Loves ${lovesPretty}.${owlTail}`,
         teaser: teaserFor('Folk'),
         count: hearts,
+        tierColor,
       });
     }
   }
