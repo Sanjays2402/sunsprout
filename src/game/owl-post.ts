@@ -580,6 +580,30 @@ export function owlFluencyTierColor(player: object, npcId: string): string | nul
   return OWL_FLUENCY_TIER_COLOR[tier] ?? null;
 }
 
+/**
+ * Pretty bonus chip for the owl-menu — shows the chain-bonus payout
+ * the player would lock in if they pressed Enter on this row NOW.
+ * Surfaces only when the previewed chain length crosses into a bonus
+ * tier (>= 1.1x); a fresh-start chain at length 1 (no bonus) returns
+ * the empty string so the menu stays clean for casual recipients.
+ *
+ * Wording: "+10% hearts" / "+20% hearts" / "+30% hearts"
+ *
+ * Pulled out as a pure helper so the menu UI doesn't have to know
+ * about the chain-tier multiplier math — it just calls the helper
+ * and draws the returned text (or skips draw on empty). The chip
+ * deliberately reads as a positive payout ("you'll get +N% on
+ * this send") rather than a chain-state label ("chain x N"); the
+ * chain-state label is already on the hearts label.
+ */
+export function chainBonusChip(player: object, npcId: string, day: number): string {
+  const pendingChain = previewChainLength(player, npcId, day);
+  const mult = chainBonusMultiplier(pendingChain);
+  if (mult <= 1) return '';
+  const pct = Math.round((mult - 1) * 100);
+  return `+${pct}% hearts`;
+}
+
 // ---------------------------------------------------------------------
 // Chain-tier dawn brag — one-shot celebratory dawn-toast tail the
 // morning AFTER the player's active chain crossed into a new bonus

@@ -10,6 +10,7 @@ import { CANDIDATES } from '../game/hearts';
 import { pickBestGift } from '../game/gifting';
 import {
   OWL_POST_FEE,
+  chainBonusChip,
   dispatchOwl,
   owlCandidateIds,
   owlFluencyTierColor,
@@ -32,6 +33,12 @@ const TEXT = '#F5E9D4';
 const DIM = 'rgba(245, 233, 212, 0.45)';
 const GOLD = '#F0C24A';
 const HINT = 'rgba(245, 233, 212, 0.55)';
+/**
+ * Bonus payout chip color — warm sage green, visually distinct from
+ * the GOLD fee chip on the opposite end of the row. Reads as a
+ * positive payout (the same tone the cart-rumor savings chip uses).
+ */
+const BONUS_GREEN = '#8FCC6A';
 
 export class OwlMenu {
   private opened = false;
@@ -204,6 +211,24 @@ export class OwlMenu {
         }
       }
       ctx.fillText(heartsLine, rowX + 10, rowY + 28);
+      // Per-NPC chain-bonus payout chip — surfaces the heart-points
+      // multiplier the player would lock in if they sent NOW. Drawn
+      // in green to read as a positive payout and visually distinct
+      // from the gold-tinted fee chip on the opposite end of the row.
+      // Skipped when the preview chain is below the bonus floor so
+      // casual recipients keep a clean row.
+      if (typeof day === 'number') {
+        const bonusChip = chainBonusChip(player, id, day);
+        if (bonusChip) {
+          // Measure the hearts line so the bonus chip lands just after
+          // it without overlapping; small left padding keeps the two
+          // labels readable. ctx is already at 11px monospace from
+          // the hearts label paint.
+          const heartsW = ctx.measureText(heartsLine).width;
+          ctx.fillStyle = BONUS_GREEN;
+          ctx.fillText(bonusChip, rowX + 10 + heartsW + 14, rowY + 28);
+        }
+      }
       // Per-NPC fee chip — surfaces the tier-discounted price so the
       // player can SEE the savings before pressing Enter. Drawn on
       // the row's right edge under the gift label. The chip turns
