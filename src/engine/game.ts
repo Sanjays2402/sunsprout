@@ -1078,7 +1078,9 @@ export class Game {
         refillStamina(this.world.player, this.time.day);
         // Snapshot today's mining haul into lastRun + clear the
         // running tally. The next dawn toast will read lastRun.
-        resetMineHaul(this.world.player);
+        // Pass the day so the bestRun ribbon captures `countDay` /
+        // `goldDay` when a new record falls.
+        resetMineHaul(this.world.player, this.time.day);
         this.sleepSummary.open(out.summary);
         if (this.storage) saveToStorage(this, this.storage);
       } else if (out.kind === 'not-at-farmhouse') {

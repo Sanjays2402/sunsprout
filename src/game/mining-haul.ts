@@ -49,6 +49,27 @@ export interface MineHaulState {
    * lazy reader fills it on first read.
    */
   lifetimeCounts?: Partial<Record<GemKey, number>>;
+  /**
+   * All-time heaviest single-run record. Captured at sleep time when
+   * the just-completed run beats either the count OR the gold record
+   * (independently — a pure-iron grind can hold the gold record while
+   * a multi-copper run holds the count record). Optional because older
+   * saves predate it; the lazy reader fills it on first read.
+   *
+   * The recorded `day` is the in-game day the run was captured (i.e.
+   * the day the player slept), so the ribbon can read "best run ever:
+   * 14 gems on day 23" without keeping a separate timestamp field.
+   */
+  bestRun?: {
+    /** Highest total count ever recorded for one run. */
+    count: number;
+    /** Day of the count-leader run. */
+    countDay: number;
+    /** Highest total gold value ever recorded for one run. */
+    gold: number;
+    /** Day of the gold-leader run. */
+    goldDay: number;
+  };
 }
 
 /** Threshold for the lifetime-mining achievement / "Rockhound II". */
@@ -137,11 +158,21 @@ export function lifetimeMiningMilestoneReached(state: MineHaulState): boolean {
  * tally. Called from the sleep path so "yesterday's haul" reads
  * the run the player just slept off, not the one they're starting.
  *
+ * Also updates the all-time `bestRun` ribbon when the just-completed
+ * run beats either the count or gold record (independently). The
+ * `day` arg is captured into bestRun.countDay / goldDay so the
+ * ribbon line can name the day the record was set. Defaults to 0
+ * for callers that pre-date the day-aware path — older saves and
+ * unit fixtures keep working with no behavioral change.
+ *
  * Returns the previous run's totals as a convenience to callers that
  * want to surface a "you mined N gems for Xg yesterday" toast right
  * after sleep without a second helper call.
  */
-export function resetMineHaul(player: Player): {
+export function resetMineHaul(
+  player: Player,
+  day: number = 0,
+): {
   counts: Partial<Record<GemKey, number>>;
   gold: number;
   total: number;
@@ -152,6 +183,20 @@ export function resetMineHaul(player: Player): {
   const total = haulCount(state);
   state.lastRun = { counts, gold };
   state.counts = {};
+  // Update the all-time ribbon. Skip on empty runs so a sleep on a
+  // no-mining day doesn't reset the day field of a real record.
+  if (total > 0 || gold > 0) {
+    const ribbon = state.bestRun ?? { count: 0, countDay: 0, gold: 0, goldDay: 0 };
+    if (total > ribbon.count) {
+      ribbon.count = total;
+      ribbon.countDay = day;
+    }
+    if (gold > ribbon.gold) {
+      ribbon.gold = gold;
+      ribbon.goldDay = day;
+    }
+    state.bestRun = ribbon;
+  }
   return { counts, gold, total };
 }
 
@@ -161,6 +206,12 @@ export function resetMineHaul(player: Player): {
  * stays uncluttered on quiet days.
  *
  * Wording: "Yesterday's haul: 3 copper, 1 ruby (worth 164g)."
+ *
+ * When the just-recapped run BEAT either the count or gold record
+ * (matching state.bestRun.countDay / goldDay on day-aware callers),
+ * the line gains a " - best run ever!" suffix so the player gets
+ * direct feedback that a record fell. Pure tail — silent on every
+ * other dawn so a normal day doesn't carry the brag.
  */
 export function haulYesterdayLine(state: MineHaulState): string {
   const { counts, gold } = state.lastRun;
@@ -173,7 +224,51 @@ export function haulYesterdayLine(state: MineHaulState): string {
     const c = counts[k] ?? 0;
     if (c > 0) parts.push(`${c} ${GEMS[k].name.toLowerCase()}`);
   }
-  return `Yesterday's mine haul: ${parts.join(', ')} (worth ${gold}g).`;
+  const base = `Yesterday's mine haul: ${parts.join(', ')} (worth ${gold}g).`;
+  // Record tail — only when the just-recapped lastRun matches the
+  // current best on either dimension. We use exact equality (not
+  // >=) so the tail fires only when a NEW record was just captured
+  // by resetMineHaul; reading the same lastRun on a subsequent
+  // dawn (after another sleep that didn't move the bar) stays
+  // quiet. count and gold are checked independently so a
+  // pure-iron grind that breaks the gold record without touching
+  // the count record still fires the celebration.
+  const best = state.bestRun;
+  if (best && (best.count === total || best.gold === gold)) {
+    const tag =
+      best.count === total && best.gold === gold
+        ? 'best run ever — count + gold!'
+        : best.count === total
+          ? 'best run ever for count!'
+          : 'best run ever for gold!';
+    return `${base} - ${tag}`;
+  }
+  return base;
+}
+
+/**
+ * Pretty all-time ribbon line — surfaces the current bestRun record
+ * regardless of whether yesterday's run beat it. Useful as a passive
+ * stat line on a stats panel or the lore Gems tab footer. Returns
+ * the empty string when the player has never recorded a run, so a
+ * fresh save reads quiet.
+ *
+ * Wording:
+ *   - same run holds both records:    "best run: 14 gems / 510g (day 23)"
+ *   - split records:                   "best run: 14 gems (day 23) / 510g (day 31)"
+ */
+export function haulBestRunLine(state: MineHaulState): string {
+  const best = state.bestRun;
+  if (!best || (best.count === 0 && best.gold === 0)) return '';
+  // Treat "day 0" as "unknown day" — fall back to a no-day variant so
+  // older saves that captured a ribbon before the day field existed
+  // still read sensibly.
+  const countDayTag = best.countDay > 0 ? ` (day ${best.countDay})` : '';
+  const goldDayTag = best.goldDay > 0 ? ` (day ${best.goldDay})` : '';
+  if (best.countDay === best.goldDay) {
+    return `best run: ${best.count} gem${best.count === 1 ? '' : 's'} / ${best.gold}g${countDayTag}`;
+  }
+  return `best run: ${best.count} gem${best.count === 1 ? '' : 's'}${countDayTag} / ${best.gold}g${goldDayTag}`;
 }
 
 /**

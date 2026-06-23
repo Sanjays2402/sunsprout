@@ -24,7 +24,7 @@ import { CROPS } from './crops';
 import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
-import { getMineHaul, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
+import { getMineHaul, haulBestRunLine, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
 import { owlStampLine, owlStampsFor } from './owl-post';
 
 /** Category labels — listed in panel display order. */
@@ -237,22 +237,29 @@ export function loreCompletion(player: Player): number {
  * a guard.
  *
  * Wording (Gems):
- *   "career: 142 gems / 3,820g"  when the player has mined anything
- *   "career: 0 gems"             when the lifetime ledger is empty
+ *   "career: 142 gems / 3,820g  -  best run: 14 gems / 510g (day 23)"
+ *   "career: 142 gems / 3,820g"                        (no run on record)
+ *   "career: 0 gems"                                   (lifetime ledger empty)
  *
- * Pulled out as a pure formatter so the lore-panel UI doesn't grow
- * a mining-haul import just to draw a footer.
+ * The best-run ribbon tail surfaces only when the player has actually
+ * captured a run (bestRun.count > 0 or bestRun.gold > 0) so a save
+ * that has lifetime gems from inventory-bumps but never slept after
+ * mining doesn't get a misleading "best run: 0 gems" footer.
+ *
+ * Pulled out as a pure formatter so the lore-panel UI doesn't grow a
+ * mining-haul import just to draw a footer.
  */
 export function loreTabFooter(player: Player, category: LoreCategory): string {
   if (category !== 'Gems') return '';
   const state = getMineHaul(player);
   const count = lifetimeHaulCount(state);
   const gold = lifetimeHaulGold(state);
-  if (count === 0) return 'career: 0 gems';
-  // Pretty-format the gold with thousands separators so big-haul saves
-  // read cleanly without scientific shorthand.
-  const goldStr = gold.toLocaleString('en-US');
-  return `career: ${count} gem${count === 1 ? '' : 's'} / ${goldStr}g`;
+  const careerLine = count === 0
+    ? 'career: 0 gems'
+    : `career: ${count} gem${count === 1 ? '' : 's'} / ${gold.toLocaleString('en-US')}g`;
+  const ribbon = haulBestRunLine(state);
+  if (ribbon === '') return careerLine;
+  return `${careerLine}  -  ${ribbon}`;
 }
 
 // ---------------------------------------------------------------------

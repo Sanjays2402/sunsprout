@@ -313,6 +313,7 @@ export function serializeGame(game: Game): SaveSnapshot {
               gold: getMineHaul(p).lastRun.gold,
             },
             lifetimeCounts: { ...(getMineHaul(p).lifetimeCounts ?? {}) },
+            bestRun: getMineHaul(p).bestRun ? { ...getMineHaul(p).bestRun! } : undefined,
           }
         : undefined,
       rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
@@ -542,6 +543,10 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     cur.lifetimeCounts = snap.player.mineHaul.lifetimeCounts
       ? { ...snap.player.mineHaul.lifetimeCounts }
       : {};
+    // Older saves predate the bestRun ribbon — leave undefined and
+    // the lazy reader will keep it that way until the next sleep
+    // captures a record.
+    cur.bestRun = snap.player.mineHaul.bestRun ? { ...snap.player.mineHaul.bestRun } : undefined;
   }
   // Rumor history — restore the ring buffer of past headliners + the
   // bought flag so the cart-menu can keep showing accurate skipped/
