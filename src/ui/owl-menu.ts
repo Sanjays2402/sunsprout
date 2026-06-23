@@ -12,6 +12,7 @@ import {
   OWL_POST_FEE,
   dispatchOwl,
   owlCandidateIds,
+  owlPostFeeFor,
   type OwlPostOutcome,
 } from '../game/owl-post';
 import type { TimeOfDay } from '../game/time';
@@ -79,9 +80,16 @@ export class OwlMenu {
   }
 
   confirm(player: Player, day: number, time?: TimeOfDay): OwlPostOutcome {
+    // Snapshot the fee BEFORE dispatchOwl so the toast reports the
+    // tier-discounted price the player actually paid. dispatchOwl bumps
+    // the stamp book AFTER the gift lands, so reading the fee before
+    // the call captures the pre-stamp tier (the tier the discount was
+    // applied at). Without this snapshot the toast would over-report
+    // the cost by occasionally tipping into a freshly-crossed tier.
+    const fee = owlPostFeeFor(player, this.selectedId());
     const out = dispatchOwl(player, this.selectedId(), day, time);
     if (out.kind === 'sent') {
-      this.setFlash(`Owl sent to ${out.npcName} (-${OWL_POST_FEE}g).`);
+      this.setFlash(`Owl sent to ${out.npcName} (-${fee}g).`);
     } else if (out.kind === 'not-enough-gold') {
       this.setFlash(`Need ${out.need}g (have ${out.have}g).`);
     } else if (out.kind === 'already-today') {

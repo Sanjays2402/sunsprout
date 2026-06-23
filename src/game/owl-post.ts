@@ -24,6 +24,41 @@ import { attemptAutoGift, type GiftOutcome } from './gifting';
 /** Flat courier fee per dispatch. Deducted before the gift is picked. */
 export const OWL_POST_FEE = 40;
 
+/**
+ * Per-NPC fluency tier discount on the owl-post fee. The owl learns
+ * the route — every time you send a courier to the same recipient,
+ * the next dispatch costs a little less. The discount is keyed off
+ * the per-NPC fluency tier so it ladders cleanly with the lore Folk
+ * tab label:
+ *   - 0..4 stamps      no discount (full 40g)
+ *   - 5..14 stamps     10% off  -> 36g
+ *   - 15..24 stamps    20% off  -> 32g
+ *   - >=25 stamps      30% off  -> 28g
+ * Tuning intent: every tier is a noticeable but modest cut; the
+ * favorite-courier tier never goes below ~70% of the original so
+ * the owl economy stays anchored. The discount auto-rounds UP so a
+ * pricing math change can't accidentally drive the fee to 0.
+ */
+export const OWL_POST_TIER_DISCOUNT_PCT: Record<string, number> = {
+  'occasional pen pal': 10,
+  'regular pen pal': 20,
+  'favorite courier': 30,
+};
+
+/**
+ * Returns the actual fee for dispatching an owl to `npcId` — the base
+ * OWL_POST_FEE minus the per-NPC fluency-tier discount. Pure read:
+ * doesn't bump stamps or take gold, just computes the price.
+ *
+ * Rounded UP so the discount can never push the fee below 1g.
+ */
+export function owlPostFeeFor(player: object, npcId: string): number {
+  const tier = owlFluencyTier(player, npcId);
+  const pct = OWL_POST_TIER_DISCOUNT_PCT[tier] ?? 0;
+  if (pct <= 0) return OWL_POST_FEE;
+  return Math.max(1, Math.ceil(OWL_POST_FEE * (1 - pct / 100)));
+}
+
 /** Returns the stable list of candidate ids (alphabetical for menu order). */
 export function owlCandidateIds(): string[] {
   return Object.keys(CANDIDATES).sort();
@@ -41,10 +76,16 @@ export type OwlPostOutcome =
  * Dispatch the owl to deliver a gift to `npcId`. Returns a detailed
  * outcome so the UI can surface a precise toast.
  *
- * On success, OWL_POST_FEE is deducted, the best-taste gift is removed
- * from inventory, and the candidate's hearts row is incremented exactly
- * like a face-to-face gift. Failure (no candidate, no inventory, gift
- * already given today) leaves the player's gold untouched.
+ * On success, the per-NPC fee (`owlPostFeeFor`) is deducted, the
+ * best-taste gift is removed from inventory, and the candidate's
+ * hearts row is incremented exactly like a face-to-face gift. The fee
+ * tiers down based on lifetime owl stamps to this recipient so a
+ * fluent courier path costs less per send than a fresh one.
+ *
+ * Failure (no candidate, no inventory, gift already given today)
+ * leaves the player's gold untouched. The fee is computed BEFORE the
+ * gold check so an under-fee player gets accurate `need` / `have` on
+ * the outcome.
  */
 export function dispatchOwl(
   player: Player,
@@ -54,8 +95,9 @@ export function dispatchOwl(
 ): OwlPostOutcome {
   const def = CANDIDATES[npcId];
   if (!def) return { kind: 'not-candidate' };
-  if (player.gold < OWL_POST_FEE) {
-    return { kind: 'not-enough-gold', need: OWL_POST_FEE, have: player.gold };
+  const fee = owlPostFeeFor(player, npcId);
+  if (player.gold < fee) {
+    return { kind: 'not-enough-gold', need: fee, have: player.gold };
   }
   // Reuse the existing auto-gift pipeline — same taste ranking, same
   // per-day gate, same heart math. The owl is just a delivery method.
@@ -71,7 +113,10 @@ export function dispatchOwl(
   }
   // gift.kind === 'gifted' — only NOW do we charge the fee, so a wasted
   // press (already-today / no-items) doesn't drain the player's purse.
-  player.gold -= OWL_POST_FEE;
+  // Use the tier-discounted fee so a favorite courier path pays the
+  // reduced rate. Recompute right before the deduction so the same
+  // value the gold-check used is the value charged.
+  player.gold -= fee;
   // Stamp the lifetime owl-post tally so the lore Folk tab can
   // surface "owl posts: N" per recipient and the player can audit
   // their long-distance friendship across the save.
