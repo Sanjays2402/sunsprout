@@ -314,6 +314,12 @@ export function serializeGame(game: Game): SaveSnapshot {
             },
             lifetimeCounts: { ...(getMineHaul(p).lifetimeCounts ?? {}) },
             bestRun: getMineHaul(p).bestRun ? { ...getMineHaul(p).bestRun! } : undefined,
+            // One-shot deep-vein brag flags — carry both so a save
+            // reloaded mid-pending-state surfaces the brag at the next
+            // dawn rather than swallowing it, and a save reloaded
+            // after the brag already fired stays silent.
+            deepVeinBragPending: getMineHaul(p).deepVeinBragPending === true,
+            deepVeinBragFired: getMineHaul(p).deepVeinBragFired === true,
           }
         : undefined,
       rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
@@ -547,6 +553,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // the lazy reader will keep it that way until the next sleep
     // captures a record.
     cur.bestRun = snap.player.mineHaul.bestRun ? { ...snap.player.mineHaul.bestRun } : undefined;
+    // Deep-vein one-shot brag flags — older saves predate them so
+    // backfill false via === true coercion. The composer reads
+    // deepVeinBragPending and bumps deepVeinBragFired on first read.
+    cur.deepVeinBragPending = snap.player.mineHaul.deepVeinBragPending === true;
+    cur.deepVeinBragFired = snap.player.mineHaul.deepVeinBragFired === true;
   }
   // Rumor history — restore the ring buffer of past headliners + the
   // bought flag so the cart-menu can keep showing accurate skipped/

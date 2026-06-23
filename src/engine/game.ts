@@ -178,6 +178,7 @@ import {
   milestoneToastLine,
   crossedGoldMilestone,
   goldMilestoneToastLine,
+  deepVeinDawnBrag,
 } from '../game/mining-haul';
 import {
   pickaxeTier,
@@ -840,6 +841,13 @@ export class Game {
       // second dawn doesn't repeat the nag. Survives reload via the
       // persisted ledger flags.
       const compostNudge = compostHalfwayDawnNudge(this.world.player);
+      // Deep Vein dawn brag — one-shot celebratory tail the morning
+      // after the player's bestRun crossed a deep-vein threshold for
+      // the first time. The helper bumps a flag on the mining-haul
+      // state so a re-call returns empty; reload persistence carries
+      // the flag through so a player who already saw the brag doesn't
+      // get it again after a save/load.
+      const deepVeinBrag = deepVeinDawnBrag(getMineHaul(this.world.player));
       // Compose the dawn headline through the generic assembler so the
       // chain of optional tails reads as a single array push rather
       // than a string-concat ladder. New tails added below just slot
@@ -848,6 +856,7 @@ export class Game {
         pondOverflow,
         haulRecap,
         compostNudge,
+        deepVeinBrag,
       ]);
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.

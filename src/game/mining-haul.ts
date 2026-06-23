@@ -70,6 +70,27 @@ export interface MineHaulState {
     /** Day of the gold-leader run. */
     goldDay: number;
   };
+  /**
+   * One-shot sticky flag: set to true inside resetMineHaul the FIRST
+   * time a recap promotes bestRun past either deep-vein threshold.
+   * The dawn-toast composer reads this flag, surfaces a celebratory
+   * "Deep Vein unlocked" tail, and bumps `deepVeinBragFired` to keep
+   * the brag from repeating on subsequent dawns.
+   *
+   * Two separate flags so the composer can decide "is the brag
+   * pending?" (`deepVeinBragPending`) without reading or mutating
+   * the "already fired" state, and the morning-after compose can
+   * one-shot it cleanly. Optional because older saves predate them;
+   * the lazy reader fills them in on first read.
+   */
+  deepVeinBragPending?: boolean;
+  /**
+   * Set the morning the brag tail fires. Stays true forever so a
+   * future cap-promoting run doesn't fire the brag again — once the
+   * player has been told "Deep Vein unlocked" the achievement is
+   * theirs, and a bigger record afterward just lives in haulBestRunLine.
+   */
+  deepVeinBragFired?: boolean;
 }
 
 /** Threshold for the lifetime-mining achievement / "Rockhound II". */
@@ -216,6 +237,12 @@ export function resetMineHaul(
   // no-mining day doesn't reset the day field of a real record.
   if (total > 0 || gold > 0) {
     const ribbon = state.bestRun ?? { count: 0, countDay: 0, gold: 0, goldDay: 0 };
+    // Capture the pre-update threshold state so we can detect a FRESH
+    // crossing — the brag tail fires only the first time bestRun moves
+    // past either deep-vein threshold, so a player who is well past the
+    // bar and breaks their own record AGAIN doesn't re-fire the brag.
+    const wasPastDeepVein =
+      ribbon.count >= DEEP_VEIN_COUNT || ribbon.gold >= DEEP_VEIN_GOLD;
     if (total > ribbon.count) {
       ribbon.count = total;
       ribbon.countDay = day;
@@ -225,6 +252,15 @@ export function resetMineHaul(
       ribbon.goldDay = day;
     }
     state.bestRun = ribbon;
+    // Fresh deep-vein crossing — set the one-shot pending flag if the
+    // brag hasn't already fired before. The dawn composer reads + bumps
+    // deepVeinBragFired separately so a save reloaded after the brag
+    // fired stays quiet.
+    const nowPastDeepVein =
+      ribbon.count >= DEEP_VEIN_COUNT || ribbon.gold >= DEEP_VEIN_GOLD;
+    if (!wasPastDeepVein && nowPastDeepVein && !state.deepVeinBragFired) {
+      state.deepVeinBragPending = true;
+    }
   }
   return { counts, gold, total };
 }
@@ -512,3 +548,62 @@ export function goldMilestoneToastLine(
   const gold = haulGold(state);
   return `${GOLD_MILESTONE_LABEL[milestone]}! Haul value: ${gold}g.`;
 }
+
+// ---------------------------------------------------------------------
+// Deep Vein dawn brag — one-shot celebratory tail the morning AFTER
+// the player's bestRun crossed either deep-vein threshold for the
+// first time. The badge gets granted by tickAchievements every-frame
+// and posts its own "Achievement unlocked" toast, but that single
+// toast competes with the dawn-toast composition AND doesn't give the
+// player the specific composition that earned it. The dawn brag is a
+// dedicated tail naming the gem-count and gold value of the record
+// run, surfaced on the dawn-toast chain so it lives alongside the
+// haulYesterdayLine + ribbon brag rather than racing against them.
+//
+// Design: the flag is set inside resetMineHaul on the sleep that
+// captures the fresh crossing, so the SAME dawn that surfaces the
+// haulYesterdayLine + "best run ever!" brag also surfaces the deep-
+// vein brag tail. One-shot: bumps deepVeinBragFired so re-reading
+// the helper after the brag has fired returns the empty string.
+// ---------------------------------------------------------------------
+
+/**
+ * Returns the deep-vein dawn-brag tail, or the empty string if there's
+ * no fresh crossing to celebrate. ONE-SHOT — bumps `deepVeinBragFired`
+ * on the state as a side effect, so a re-call returns empty.
+ *
+ * Wording (depends on which axis hit first):
+ *   count-only crossing:  "Deep Vein unlocked — N gems pulled out in one run."
+ *   gold-only crossing:   "Deep Vein unlocked — Ng of ore in one run."
+ *   both axes at once:    "Deep Vein unlocked — N gems / Ng in one run."
+ *
+ * The composer naming the SPECIFIC numbers from the just-captured
+ * bestRun is the whole point of having a dedicated tail rather than
+ * relying on the generic "Achievement unlocked" toast: the player
+ * gets to see the run that did it. Reads bestRun.count + .gold off
+ * the state — never re-derives them from the inventory or lastRun,
+ * which would be wrong on a "best gold run dwarfed the count run"
+ * split-record save where the deep-vein bar was crossed via gold.
+ */
+export function deepVeinDawnBrag(state: MineHaulState): string {
+  if (!state.deepVeinBragPending) return '';
+  // Clear the pending flag whether or not the brag actually surfaces
+  // text — a corrupted state with `bragPending=true` but no bestRun
+  // still resets cleanly so it doesn't haunt subsequent dawns.
+  state.deepVeinBragPending = false;
+  state.deepVeinBragFired = true;
+  const best = state.bestRun;
+  if (!best) return '';
+  const countHit = best.count >= DEEP_VEIN_COUNT;
+  const goldHit = best.gold >= DEEP_VEIN_GOLD;
+  if (countHit && goldHit) {
+    return `Deep Vein unlocked - ${best.count} gems / ${best.gold}g in one run.`;
+  }
+  if (countHit) {
+    return `Deep Vein unlocked - ${best.count} gem${best.count === 1 ? '' : 's'} pulled out in one run.`;
+  }
+  // gold-only crossing — name only the gold so the player knows which
+  // axis tripped the bar (a 3-ruby trip might be only 4 gems but 1500g).
+  return `Deep Vein unlocked - ${best.gold}g of ore in one run.`;
+}
+
