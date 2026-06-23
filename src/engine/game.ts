@@ -305,6 +305,7 @@ import {
   getComposts,
   placeCompost,
 } from '../game/compost';
+import { assembleDawnToast } from '../game/dawn-toast';
 import { drawBarks, tickBarks } from '../game/npc-barks';
 import {
   STORM_SHELTER_INVENTORY_KEY,
@@ -839,10 +840,15 @@ export class Game {
       // second dawn doesn't repeat the nag. Survives reload via the
       // persisted ledger flags.
       const compostNudge = compostHalfwayDawnNudge(this.world.player);
-      let headline = headlineBase;
-      if (pondOverflow) headline = `${headline} · ${pondOverflow}`;
-      if (haulRecap) headline = `${headline} · ${haulRecap}`;
-      if (compostNudge) headline = `${headline} · ${compostNudge}`;
+      // Compose the dawn headline through the generic assembler so the
+      // chain of optional tails reads as a single array push rather
+      // than a string-concat ladder. New tails added below just slot
+      // into the array (no more growing if-tail-then-append branches).
+      const headline = assembleDawnToast(headlineBase, [
+        pondOverflow,
+        haulRecap,
+        compostNudge,
+      ]);
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {
