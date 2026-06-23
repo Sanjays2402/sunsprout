@@ -472,18 +472,73 @@ export function pulperMilestoneReached(player: object): boolean {
 }
 
 /**
+ * Halfway threshold for the compost-master nudge — once
+ * lifetimeRecycledGold crosses this, the journal line gains a
+ * "(Xg to the badge)" tail so the player can see the runway.
+ *
+ * Tuned at exactly half the milestone so the nudge feels like a
+ * \"you're halfway there\" carrot, not a \"oh you're nearly there\"
+ * panic. The nudge auto-disappears once the badge is earned
+ * (>= COMPOST_MASTER_MILESTONE_GOLD) — at that point the journal
+ * line just reads the lifetime totals without the goading tail.
+ */
+export const COMPOST_MASTER_NUDGE_MIN_GOLD = COMPOST_MASTER_MILESTONE_GOLD / 2;
+
+/**
+ * Symmetric halfway threshold for the pulper nudge — once
+ * lifetimeBagsApplied crosses this, the journal line gains a
+ * "(N bags to badge)" tail. Tuned at exactly the compost-master
+ * milestone so the pulper nudge starts firing the same moment the
+ * compost-master nudge ends. The two nudges therefore ladder cleanly:
+ * the journal always shows at most one \"to badge\" tail.
+ */
+export const PULPER_NUDGE_MIN_BAGS = COMPOST_MASTER_MILESTONE_GOLD;
+
+/**
  * Pretty status line for the crop journal — surfaces lifetime recycled
  * gold + bags applied. Returns the empty string when the player has
  * never applied a bag so the journal doesn't surface a "0g recycled"
  * row on a fresh save.
  *
  * Wording: "compost master: 128g recycled across 47 bags."
+ *
+ * Halfway nudges append a single \"to badge\" tail:
+ *
+ *   - 50g <= recycled < 100g           "compost master: 78g recycled across 28 bags. (22g to the badge)"
+ *   - 100g <= bagsApplied < 500g       "compost master: 142g recycled across 234 bags. (266 bags to the pulper badge)"
+ *
+ * Only one tail fires at a time — the compost-master nudge takes
+ * priority while it's eligible (it's the earlier milestone). Once the
+ * player crosses the compost-master gold threshold, the pulper nudge
+ * starts surfacing the bag-count runway. After both are earned the
+ * line goes back to a clean \"lifetime totals\" recap.
  */
 export function compostLedgerLine(player: object): string {
   const ledger = getCompostLedger(player);
   if (ledger.lifetimeBagsApplied === 0) return '';
   const goldStr = ledger.lifetimeRecycledGold.toLocaleString('en-US');
-  return `compost master: ${goldStr}g recycled across ${ledger.lifetimeBagsApplied} bag${ledger.lifetimeBagsApplied === 1 ? '' : 's'}.`;
+  const base = `compost master: ${goldStr}g recycled across ${ledger.lifetimeBagsApplied} bag${ledger.lifetimeBagsApplied === 1 ? '' : 's'}.`;
+  // Compost-master halfway nudge — runs from 50g up to (but not
+  // including) the 100g milestone. Tail names the remaining gold.
+  if (
+    ledger.lifetimeRecycledGold >= COMPOST_MASTER_NUDGE_MIN_GOLD &&
+    ledger.lifetimeRecycledGold < COMPOST_MASTER_MILESTONE_GOLD
+  ) {
+    const remaining = COMPOST_MASTER_MILESTONE_GOLD - ledger.lifetimeRecycledGold;
+    return `${base} (${remaining}g to the badge)`;
+  }
+  // Pulper halfway nudge — starts only AFTER compost-master is earned
+  // so the two tails never compete. Runs from 100 bags up to (but not
+  // including) the 500-bag milestone.
+  if (
+    ledger.lifetimeRecycledGold >= COMPOST_MASTER_MILESTONE_GOLD &&
+    ledger.lifetimeBagsApplied >= PULPER_NUDGE_MIN_BAGS &&
+    ledger.lifetimeBagsApplied < PULPER_MILESTONE_BAGS
+  ) {
+    const remaining = PULPER_MILESTONE_BAGS - ledger.lifetimeBagsApplied;
+    return `${base} (${remaining} bag${remaining === 1 ? '' : 's'} to the pulper badge)`;
+  }
+  return base;
 }
 
 // ---------------------------------------------------------------------
