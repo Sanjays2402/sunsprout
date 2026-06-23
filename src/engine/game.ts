@@ -171,10 +171,13 @@ import {
   getMineHaul,
   haulYesterdayLine,
   haulCount,
+  haulGold,
   recordMined,
   resetMineHaul,
   crossedMilestone,
   milestoneToastLine,
+  crossedGoldMilestone,
+  goldMilestoneToastLine,
 } from '../game/mining-haul';
 import {
   pickaxeTier,
@@ -1883,8 +1886,10 @@ export class Game {
             // sleep. Tally resets via resetMineHaul() in the sleep
             // branch.
             const haulPre = haulCount(getMineHaul(p));
+            const goldPre = haulGold(getMineHaul(p));
             recordMined(p, gem);
             const haulPost = haulCount(getMineHaul(p));
+            const goldPost = haulGold(getMineHaul(p));
             // Mid-run milestone callout — if the bump crossed 3, 6,
             // or 10 gems this run, append a celebratory tail to the
             // strike toast so the player feels the run building.
@@ -1894,14 +1899,24 @@ export class Game {
             const milestoneTail = tier !== null
               ? `  -  ${milestoneToastLine(getMineHaul(p), tier)}`
               : '';
+            // Mid-run GOLD milestone callout — parallel to the count
+            // tier above, so a low-count / high-value haul (pure
+            // iron / cave ruby spike) still surfaces a celebration
+            // as the haul value swells. Both tails can fire on a
+            // single strike when a rare gem crosses both bars; the
+            // gold tail follows the count tail in display order.
+            const goldTier = crossedGoldMilestone(goldPre, goldPost);
+            const goldMilestoneTail = goldTier !== null
+              ? `  -  ${goldMilestoneToastLine(getMineHaul(p), goldTier)}`
+              : '';
             this.checkQuests({ kind: 'mine', gemKey: gem });
             const bonus = strikeBonus(grade);
             if (bonus > 0) {
               p.gold += bonus;
               logGold(p, bonus, `mining ${def.name}`, this.time.day);
-              this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g${milestoneTail}`);
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name} +${bonus}g${milestoneTail}${goldMilestoneTail}`);
             } else {
-              this.setToast(`${strikeLabel(grade)} +1 ${def.name}${milestoneTail}`);
+              this.setToast(`${strikeLabel(grade)} +1 ${def.name}${milestoneTail}${goldMilestoneTail}`);
             }
           }
         } else if (this.pickaxe.state === 'idle') {

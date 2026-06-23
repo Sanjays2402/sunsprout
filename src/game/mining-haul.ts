@@ -251,3 +251,78 @@ export function milestoneToastLine(
   const status = haulStatusLine(state);
   return `${MILESTONE_LABEL[milestone]}! ${status}`;
 }
+
+// ---------------------------------------------------------------------
+// Mid-run GOLD milestone callouts — pair the count milestones above
+// with a parallel gold-value tier so a pure-iron grind (low count,
+// high gold) still surfaces a celebration as the haul value swells.
+//
+// Why the gold pair: the count milestones are great for "I'm still
+// in the cave, gimme dopamine" — but a player striking iron after
+// iron after iron can spend a long stretch under 3 gems while the
+// gold value runs past 200g. The gold callout closes that gap so
+// "fat haul, ALL of it copper" and "fat haul, two cave rubies"
+// both light up the strike toast.
+//
+// The two milestone systems are independent — a single strike CAN
+// cross both the count tier AND the gold tier in the same bump
+// (rare gem on the 6th-gem strike). The engine layer composes both
+// tails onto the strike toast; the gold tail follows the count tail
+// so display order matches "count first, value second".
+//
+// Tiers tuned around the median per-gem sell value (copper=12g) so
+// 100g lands roughly when the count tier 6 fires for a balanced
+// haul; 250g lands when the haul is rich with iron/silver; 500g
+// captures the late-game "ruby spike" most pure-quantity haul
+// graphs never reach.
+// ---------------------------------------------------------------------
+
+/** Tier thresholds — haul gold value. Stable order, smallest first. */
+export const MINING_RUN_GOLD_MILESTONES = [100, 250, 500] as const;
+export type MiningRunGoldMilestone = (typeof MINING_RUN_GOLD_MILESTONES)[number];
+
+/** Per-tier label injected into the gold-milestone toast. */
+const GOLD_MILESTONE_LABEL: Record<MiningRunGoldMilestone, string> = {
+  100: 'Pockets clinking',
+  250: 'Now we\'re cooking',
+  500: 'Cart\'s full',
+};
+
+/**
+ * True iff (prev, next) brackets one of MINING_RUN_GOLD_MILESTONES — i.e.
+ * the player has just crossed a gold-value milestone this strike. Returns
+ * the crossed tier or null. When multiple tiers are crossed in a single
+ * bump (rare gem lifts the value over two tiers at once), returns the
+ * HIGHEST crossed tier so the celebration matches the biggest leap.
+ *
+ * Pure — doesn't read state, doesn't bump counts.
+ */
+export function crossedGoldMilestone(
+  prev: number,
+  next: number,
+): MiningRunGoldMilestone | null {
+  let hit: MiningRunGoldMilestone | null = null;
+  for (const tier of MINING_RUN_GOLD_MILESTONES) {
+    if (prev < tier && next >= tier) hit = tier;
+  }
+  return hit;
+}
+
+/**
+ * Pretty toast for a gold milestone cross. Pairs the label with the
+ * current haul gold value so the player sees both "Pockets clinking!"
+ * and "haul value: 124g" in one message. Returns the empty string
+ * when no tier crossed.
+ *
+ * Wording is deliberately distinct from the count tiers ("solid
+ * start" / "fat haul") so when both fire at once the player sees
+ * two clearly different celebrations rather than redundant phrasing.
+ */
+export function goldMilestoneToastLine(
+  state: MineHaulState,
+  milestone: MiningRunGoldMilestone | null,
+): string {
+  if (milestone === null) return '';
+  const gold = haulGold(state);
+  return `${GOLD_MILESTONE_LABEL[milestone]}! Haul value: ${gold}g.`;
+}
