@@ -12,6 +12,7 @@ import {
   buildLoreRows,
   loreCompletion,
   loreProgress,
+  loreTabDetailLine,
   loreTabFooter,
   nextRumorFilter,
   rumorFilterLabel,
@@ -125,7 +126,13 @@ export class LorePanel {
     if (!this.opened) return;
     const rows = this.rowsForTab(player);
     const visibleN = Math.min(VISIBLE_ROWS, rows.length);
-    const h = 88 + visibleN * ROW_H + 22;
+    // Reserve an extra footer row when the Gems tab has a per-gem
+    // composition breakdown to surface beneath the career + ribbon
+    // header. The detail line draws right above the career footer.
+    const tabFooter = loreTabFooter(player, this.tab);
+    const tabDetail = loreTabDetailLine(player, this.tab);
+    const detailExtra = tabDetail.length > 0 ? 14 : 0;
+    const h = 88 + visibleN * ROW_H + 22 + detailExtra;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -205,12 +212,20 @@ export class LorePanel {
     // return an empty string and skip the draw. Sits just above the
     // scroll indicator + bottom hint so it doesn't compete with the
     // row strip.
-    const tabFooter = loreTabFooter(player, this.tab);
     if (tabFooter.length > 0) {
       ctx.fillStyle = ROW_PIP_ON;
       ctx.font = 'bold 10px ui-monospace, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(tabFooter, x + PANEL_W / 2, y + h - 44);
+      ctx.fillText(tabFooter, x + PANEL_W / 2, y + h - 44 - detailExtra);
+    }
+    // Per-tab secondary detail line — currently the Gems tab surfaces
+    // a per-gem breakdown of the bestRun composition right under the
+    // career + ribbon footer. Empty on other tabs / non-record saves.
+    if (tabDetail.length > 0) {
+      ctx.fillStyle = HINT;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(tabDetail, x + PANEL_W / 2, y + h - 44);
     }
     // Rumors-tab filter chip — only meaningful on the Rumors tab; the
     // chip surfaces even on 'all' so the player has a visible reminder

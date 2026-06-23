@@ -313,7 +313,21 @@ export function serializeGame(game: Game): SaveSnapshot {
               gold: getMineHaul(p).lastRun.gold,
             },
             lifetimeCounts: { ...(getMineHaul(p).lifetimeCounts ?? {}) },
-            bestRun: getMineHaul(p).bestRun ? { ...getMineHaul(p).bestRun! } : undefined,
+            bestRun: getMineHaul(p).bestRun
+              ? {
+                  ...getMineHaul(p).bestRun!,
+                  // Deep-copy the composition maps so the snapshot
+                  // doesn't share a reference with the live state —
+                  // a future record promotion would otherwise mutate
+                  // an already-serialised payload.
+                  countComposition: getMineHaul(p).bestRun!.countComposition
+                    ? { ...getMineHaul(p).bestRun!.countComposition }
+                    : undefined,
+                  goldComposition: getMineHaul(p).bestRun!.goldComposition
+                    ? { ...getMineHaul(p).bestRun!.goldComposition }
+                    : undefined,
+                }
+              : undefined,
             // One-shot deep-vein brag flags — carry both so a save
             // reloaded mid-pending-state surfaces the brag at the next
             // dawn rather than swallowing it, and a save reloaded
@@ -551,8 +565,19 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
       : {};
     // Older saves predate the bestRun ribbon — leave undefined and
     // the lazy reader will keep it that way until the next sleep
-    // captures a record.
-    cur.bestRun = snap.player.mineHaul.bestRun ? { ...snap.player.mineHaul.bestRun } : undefined;
+    // captures a record. Deep-copy the composition maps so the
+    // restored state doesn't share refs with the snapshot payload.
+    cur.bestRun = snap.player.mineHaul.bestRun
+      ? {
+          ...snap.player.mineHaul.bestRun,
+          countComposition: snap.player.mineHaul.bestRun.countComposition
+            ? { ...snap.player.mineHaul.bestRun.countComposition }
+            : undefined,
+          goldComposition: snap.player.mineHaul.bestRun.goldComposition
+            ? { ...snap.player.mineHaul.bestRun.goldComposition }
+            : undefined,
+        }
+      : undefined;
     // Deep-vein one-shot brag flags — older saves predate them so
     // backfill false via === true coercion. The composer reads
     // deepVeinBragPending and bumps deepVeinBragFired on first read.

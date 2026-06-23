@@ -65,10 +65,24 @@ export interface MineHaulState {
     count: number;
     /** Day of the count-leader run. */
     countDay: number;
+    /**
+     * Per-gem composition of the count-leader run. Lets the lore
+     * Gems tab footer surface a breakdown ("best run was 4 copper,
+     * 3 ruby, 2 emerald") rather than the bare aggregate. Optional
+     * because older saves predate it — lazy reader fills the existing
+     * `count` total but leaves `countComposition` undefined.
+     */
+    countComposition?: Partial<Record<GemKey, number>>;
     /** Highest total gold value ever recorded for one run. */
     gold: number;
     /** Day of the gold-leader run. */
     goldDay: number;
+    /**
+     * Per-gem composition of the gold-leader run. Same lazy-backfill
+     * contract as countComposition — older saves keep `gold` but
+     * leave `goldComposition` undefined.
+     */
+    goldComposition?: Partial<Record<GemKey, number>>;
   };
   /**
    * One-shot sticky flag: set to true inside resetMineHaul the FIRST
@@ -246,10 +260,15 @@ export function resetMineHaul(
     if (total > ribbon.count) {
       ribbon.count = total;
       ribbon.countDay = day;
+      // Snapshot the composition so the lore Gems-tab footer can
+      // surface a per-gem breakdown of the count-leader run rather
+      // than just the aggregate.
+      ribbon.countComposition = { ...counts };
     }
     if (gold > ribbon.gold) {
       ribbon.gold = gold;
       ribbon.goldDay = day;
+      ribbon.goldComposition = { ...counts };
     }
     state.bestRun = ribbon;
     // Fresh deep-vein crossing — set the one-shot pending flag if the
@@ -606,4 +625,87 @@ export function deepVeinDawnBrag(state: MineHaulState): string {
   // axis tripped the bar (a 3-ruby trip might be only 4 gems but 1500g).
   return `Deep Vein unlocked - ${best.gold}g of ore in one run.`;
 }
+
+// ---------------------------------------------------------------------
+// Best-run composition formatter — surfaces the per-gem breakdown of
+// the captured bestRun ribbon for the lore Gems-tab footer. The
+// breakdown lives alongside the aggregate haulBestRunLine: the
+// aggregate reads "best run: 14 gems / 510g (day 23)", the breakdown
+// reads "made of: 4 copper, 3 ruby, 2 emerald" so the player gets
+// both the headline and the receipts.
+//
+// Two compositions are tracked independently — countComposition for
+// the count-leader run and goldComposition for the gold-leader run.
+// They might be the same run (most common) or two different runs
+// (split-record save). The formatter prefers the count-leader when
+// both axes share a day; on a split-record save it shows the
+// count-leader breakdown so the "fat haul" composition is the
+// surfaced one (the player can still see the gold record's day from
+// haulBestRunLine).
+// ---------------------------------------------------------------------
+
+/**
+ * Returns a pretty per-gem breakdown of the bestRun composition, or
+ * the empty string when no record has been captured yet OR the
+ * composition wasn't snapshotted (older saves predate the
+ * composition fields). Wording:
+ *
+ *   "made of: 4 copper, 3 ruby, 2 emerald"
+ *
+ * Walks GEM_KEYS in catalog order so the line reads consistently
+ * across calls (no key-iteration order surprises). Pure — doesn't
+ * mutate state.
+ */
+export function bestRunCompositionLine(state: MineHaulState): string {
+  const best = state.bestRun;
+  if (!best) return '';
+  // Prefer the count-leader composition; fall back to the gold-leader
+  // if the count-leader's composition wasn't snapshotted (e.g. older
+  // save with a count record from before the composition field
+  // existed). Empty when both are missing.
+  const comp = best.countComposition ?? best.goldComposition;
+  if (!comp) return '';
+  const parts: string[] = [];
+  for (const k of GEM_KEYS) {
+    const c = comp[k] ?? 0;
+    if (c > 0) parts.push(`${c} ${GEMS[k].name.toLowerCase()}`);
+  }
+  if (parts.length === 0) return '';
+  return `made of: ${parts.join(', ')}`;
+}
+
+/**
+ * Returns the split-record composition line, surfacing BOTH the
+ * count-leader composition AND the gold-leader composition when the
+ * two records were set on different days (countDay !== goldDay).
+ * Empty string when the two records were set on the same day (only
+ * one composition exists) OR when no record is captured.
+ *
+ * Wording on a split-record save:
+ *
+ *   "count run: 8 copper, 4 iron · gold run: 1 ruby, 1 emerald"
+ *
+ * Useful for the journal page where the player can see why a 3-gem
+ * "gold run" outweighs a 12-gem "count run" — the breakdown shows
+ * the gem mix that drove each record.
+ */
+export function bestRunSplitCompositionLine(state: MineHaulState): string {
+  const best = state.bestRun;
+  if (!best) return '';
+  if (best.countDay === best.goldDay) return '';
+  const countComp = best.countComposition;
+  const goldComp = best.goldComposition;
+  if (!countComp || !goldComp) return '';
+  const countParts: string[] = [];
+  const goldParts: string[] = [];
+  for (const k of GEM_KEYS) {
+    const cc = countComp[k] ?? 0;
+    if (cc > 0) countParts.push(`${cc} ${GEMS[k].name.toLowerCase()}`);
+    const gc = goldComp[k] ?? 0;
+    if (gc > 0) goldParts.push(`${gc} ${GEMS[k].name.toLowerCase()}`);
+  }
+  if (countParts.length === 0 || goldParts.length === 0) return '';
+  return `count run: ${countParts.join(', ')} - gold run: ${goldParts.join(', ')}`;
+}
+
 

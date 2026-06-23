@@ -243,7 +243,7 @@ describe('persistence — bestRun round-trips', () => {
     recordMined(game.world.player, 'iron');
     resetMineHaul(game.world.player, 9);
     const snap = serializeGame(game);
-    expect(snap.player.mineHaul?.bestRun).toEqual({
+    expect(snap.player.mineHaul?.bestRun).toMatchObject({
       count: 2,
       countDay: 9,
       gold: 2 * GEMS.iron.sellPrice,
@@ -254,7 +254,7 @@ describe('persistence — bestRun round-trips', () => {
       time: new TimeOfDay(),
     } as unknown as Game;
     applySnapshot(game2, snap);
-    expect(getMineHaul(game2.world.player).bestRun).toEqual({
+    expect(getMineHaul(game2.world.player).bestRun).toMatchObject({
       count: 2,
       countDay: 9,
       gold: 2 * GEMS.iron.sellPrice,

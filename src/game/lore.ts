@@ -24,7 +24,7 @@ import { CROPS } from './crops';
 import { CANDIDATES, getHearts } from './hearts';
 import { buildJournal } from './crop-journal';
 import { getRumorHistory, type RumorHistoryEntry } from './cart-rumor';
-import { getMineHaul, haulBestRunLine, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
+import { getMineHaul, haulBestRunLine, bestRunCompositionLine, bestRunSplitCompositionLine, lifetimeHaulCount, lifetimeHaulGold } from './mining-haul';
 import { owlStampLine, owlStampsFor } from './owl-post';
 
 /** Category labels — listed in panel display order. */
@@ -260,6 +260,36 @@ export function loreTabFooter(player: Player, category: LoreCategory): string {
   const ribbon = haulBestRunLine(state);
   if (ribbon === '') return careerLine;
   return `${careerLine}  -  ${ribbon}`;
+}
+
+/**
+ * Optional secondary detail line for a lore tab — currently the Gems
+ * tab surfaces a per-gem breakdown of the bestRun composition under
+ * the career + ribbon header. Returns the empty string when there's
+ * nothing extra to surface so the panel can skip the draw without a
+ * guard.
+ *
+ * Wording (Gems):
+ *   single-record save:   "made of: 4 copper, 3 ruby, 2 emerald"
+ *   split-record save:    "count run: 8 copper, 4 iron - gold run: 1 ruby, 1 emerald"
+ *   no record yet:        ""
+ *   older save (no comp): ""
+ *
+ * Composition is captured at sleep time inside resetMineHaul on the
+ * dawn a record falls; older saves predating the composition fields
+ * keep the bare aggregate (lore-tab footer) and silently skip this
+ * secondary line.
+ */
+export function loreTabDetailLine(player: Player, category: LoreCategory): string {
+  if (category !== 'Gems') return '';
+  const state = getMineHaul(player);
+  // Split-record path takes priority — when the count + gold leaders
+  // were set on different days, the breakdown is more interesting
+  // (two distinct runs, different gem mixes). Falls back to the
+  // single-composition line when both axes share a day.
+  const split = bestRunSplitCompositionLine(state);
+  if (split !== '') return split;
+  return bestRunCompositionLine(state);
 }
 
 // ---------------------------------------------------------------------
