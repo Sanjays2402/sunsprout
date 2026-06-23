@@ -431,3 +431,50 @@ export const FESTIVAL_REGULAR_MILESTONE = 4;
 export function festivalRegularMilestoneReached(player: Player): boolean {
   return tournamentCareer(player).entries >= FESTIVAL_REGULAR_MILESTONE;
 }
+
+// ---------------------------------------------------------------------
+// Tournament Champion achievement — career gold-ribbon milestone that
+// lights up once the player has cleared the gold tier on 3 different
+// seasonal tournaments. Distinct from Festival Regular (which counts
+// raw entries regardless of tier) — Champion is for the player who
+// has rounded out the "actually won gold" half of the calendar.
+//
+// 3 / 4 seasons is the sweet spot: requires a real grind (gold tier
+// is the highest threshold at 18, vs bronze at 3), but isn't the
+// all-four sweep that would be a perfectionist run gate. Tournament
+// entries are slot-capped (one per (season,kind) for the save), so
+// `ribbons.gold` can never exceed 4 — making 3 a meaningful but
+// achievable target.
+//
+// Pure lazy-ledger pattern: reads tournamentCareer().ribbons.gold
+// off the existing entries map. No new persisted field, no new
+// per-day counter, no extra serialize hook. The achievements catalog
+// auto-checks it every day rollover.
+// ---------------------------------------------------------------------
+
+/**
+ * Career gold-ribbon threshold for the `tournament-champion`
+ * achievement. Tuned at 3 because:
+ *   - 1 gold ribbon = the lucky-day starter
+ *   - 2 gold ribbons = a solid two-season run
+ *   - 3 gold ribbons = "champion across the calendar" — a deliberate
+ *     campaign across most of the year
+ *   - 4 gold ribbons = the perfectionist sweep; rare, but a 4-bar
+ *     would gate too many players out of the badge
+ *
+ * 3 reads cleanly against the natural ceiling (4 = one gold per
+ * seasonal slot) so a save that's done its homework lights it up
+ * without needing the literal-impossible "every single season at
+ * gold tier" run.
+ */
+export const TOURNAMENT_CHAMPION_GOLD_RIBBONS = 3;
+
+/**
+ * True iff the player has cleared the gold tier at least
+ * TOURNAMENT_CHAMPION_GOLD_RIBBONS times across the save. Reads off
+ * the existing tournamentCareer().ribbons.gold aggregate — no new
+ * persisted counter to maintain.
+ */
+export function tournamentChampionMilestoneReached(player: Player): boolean {
+  return tournamentCareer(player).ribbons.gold >= TOURNAMENT_CHAMPION_GOLD_RIBBONS;
+}

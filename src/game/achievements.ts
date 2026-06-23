@@ -51,6 +51,8 @@ import {
 import {
   festivalRegularMilestoneReached,
   FESTIVAL_REGULAR_MILESTONE,
+  tournamentChampionMilestoneReached,
+  TOURNAMENT_CHAMPION_GOLD_RIBBONS,
 } from './tournament';
 
 /** Identifier — stable strings so persisted records survive rebalances. */
@@ -76,7 +78,8 @@ export type AchievementId =
   | 'fluent-with-the-owl'
   | 'pulper'
   | 'deep-vein'
-  | 'festival-regular';
+  | 'festival-regular'
+  | 'tournament-champion';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -260,6 +263,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Enter every seasonal village tournament at least once (${FESTIVAL_REGULAR_MILESTONE} total).`,
     done: `Showed up to every seasonal tournament — flower show, fishing derby, harvest weigh-in, and cook-off.`,
     check: (p) => festivalRegularMilestoneReached(p),
+  },
+  {
+    id: 'tournament-champion',
+    name: 'Tournament Champion',
+    hint: `Win the gold ribbon at ${TOURNAMENT_CHAMPION_GOLD_RIBBONS} different seasonal tournaments.`,
+    done: `Cleared the gold ribbon at ${TOURNAMENT_CHAMPION_GOLD_RIBBONS}+ seasonal tournaments — three quarters of the calendar at the top tier.`,
+    check: (p) => tournamentChampionMilestoneReached(p),
   },
 ];
 
