@@ -66,7 +66,26 @@ export function owlCandidateIds(): string[] {
 
 /** Outcome of an owl-post dispatch. */
 export type OwlPostOutcome =
-  | { kind: 'sent'; npcId: string; npcName: string; gift: GiftOutcome }
+  | {
+      kind: 'sent';
+      npcId: string;
+      npcName: string;
+      gift: GiftOutcome;
+      /**
+       * Active letter-chain length AFTER this dispatch (always >= 1
+       * because the just-landed send counts as today's link). 1 on a
+       * fresh streak or after a break; ramps as the player mails the
+       * same recipient on consecutive days.
+       */
+      chainLength: number;
+      /**
+       * Heart-point multiplier the chain applied to this send. 1 means
+       * no bonus (single-day streak); >1 means the chain crossed a
+       * tier and the gift carried bonus points. Always matches
+       * `chainBonusMultiplier(chainLength)`.
+       */
+      chainMultiplier: number;
+    }
   | { kind: 'not-enough-gold'; need: number; have: number }
   | { kind: 'not-candidate' }
   | { kind: 'already-today'; npcName: string }
@@ -99,9 +118,19 @@ export function dispatchOwl(
   if (player.gold < fee) {
     return { kind: 'not-enough-gold', need: fee, have: player.gold };
   }
+  // Snapshot the chain length the player would land at BEFORE the
+  // gift is attempted — we need to know the bonus multiplier to pass
+  // into attemptAutoGift so the heart-points award reflects the chain.
+  // The chain is only ACTUALLY bumped after the gift lands (so a
+  // failed dispatch never advances the streak).
+  const pendingChainLength = previewChainLength(player, npcId, day);
+  const chainMult = chainBonusMultiplier(pendingChainLength);
   // Reuse the existing auto-gift pipeline — same taste ranking, same
   // per-day gate, same heart math. The owl is just a delivery method.
-  const gift = attemptAutoGift(player, npcId, day, time);
+  // The chain multiplier rides as the extraMultiplier on top of any
+  // birthday bonus so a chain-7 send on a birthday still earns the
+  // 8x birthday * 1.3x chain compounded points.
+  const gift = attemptAutoGift(player, npcId, day, time, chainMult);
   if (gift.kind === 'already-today') {
     return { kind: 'already-today', npcName: def.name };
   }
@@ -121,7 +150,20 @@ export function dispatchOwl(
   // surface "owl posts: N" per recipient and the player can audit
   // their long-distance friendship across the save.
   recordOwlStamp(player, npcId);
-  return { kind: 'sent', npcId, npcName: def.name, gift };
+  // Advance the active letter chain — same npcId + next day extends
+  // the streak, anything else resets it to 1. We bump AFTER the gift
+  // lands so a failed send (no-items / already-today / not-candidate)
+  // never advances the streak. The returned length is what we
+  // surface on the outcome so the toast can read "letter chain x N".
+  const chainLength = recordOwlChain(player, npcId, day);
+  return {
+    kind: 'sent',
+    npcId,
+    npcName: def.name,
+    gift,
+    chainLength,
+    chainMultiplier: chainMult,
+  };
 }
 
 // ---------------------------------------------------------------------
@@ -144,6 +186,23 @@ export function dispatchOwl(
 export interface OwlStampBook {
   /** Map of npcId → lifetime owl-posts sent. Missing = 0. */
   counts: Record<string, number>;
+  /**
+   * Active letter-chain state — the most recent NPC the player has
+   * been mailing CONSECUTIVE days. Reset whenever the player skips a
+   * day OR mails a different recipient. Optional so older saves
+   * backfill cleanly via the lazy reader.
+   *
+   * `npcId` = which NPC is the active streak target; null means no
+   * active chain. `length` = how many consecutive days the chain has
+   * landed (always >= 1 when npcId is non-null). `lastDay` = the day
+   * of the most recent dispatch in the chain; the chain breaks the
+   * moment `currentDay > lastDay + 1`.
+   */
+  chain?: {
+    npcId: string | null;
+    length: number;
+    lastDay: number;
+  };
 }
 
 /** Lazy reader on Player. */
@@ -174,6 +233,142 @@ export function totalOwlStamps(player: object): number {
   let n = 0;
   for (const v of Object.values(getOwlStamps(player).counts)) n += v;
   return n;
+}
+
+// ---------------------------------------------------------------------
+// Owl-post letter chain — consecutive-day bonus for mailing the SAME
+// recipient day after day. The chain tracks the most recent NPC the
+// player has been mailing and ramps a small heart-points multiplier
+// on each successive landed send. A chain breaks the moment the
+// player skips a day OR switches recipients; the multiplier resets to
+// 1x on the next send.
+//
+// Tier table (length AFTER the just-landed send -> heart multiplier):
+//   1            1.00x   no bonus on a fresh streak
+//   2..3         1.10x   "starting to feel like a routine"
+//   4..6         1.20x   "the owl knows the door"
+//   7+           1.30x   "favorite pen pal" — top tier
+//
+// Tuning intent: the cap (1.3x) is below the courtship-bouquet's
+// universal-love bonus so a real in-person grind still outpaces a
+// pure owl strategy. The 7-day cliff for the top tier ladders cleanly
+// with a one-week commitment — anyone who bothers mailing daily for
+// a full week earns the routine premium.
+// ---------------------------------------------------------------------
+
+/**
+ * Chain-tier thresholds (length, multiplier). Stored in ascending
+ * length so the lookup walks left-to-right and the highest matching
+ * tier wins. `length` here is the chain length AFTER the just-landed
+ * send (so `length=1` is the floor — the first send of a chain is
+ * still that chain's first link).
+ */
+export const OWL_CHAIN_TIERS: ReadonlyArray<{ length: number; multiplier: number }> = [
+  { length: 1, multiplier: 1.0 },
+  { length: 2, multiplier: 1.1 },
+  { length: 4, multiplier: 1.2 },
+  { length: 7, multiplier: 1.3 },
+];
+
+/**
+ * Returns the heart-point multiplier for a chain of length `length`.
+ * Returns 1.0 for non-positive lengths so a freshly-broken chain or
+ * a fresh save reads as "no bonus". Pure read.
+ */
+export function chainBonusMultiplier(length: number): number {
+  if (length <= 0) return 1;
+  let mult = 1;
+  for (const tier of OWL_CHAIN_TIERS) {
+    if (length >= tier.length) mult = tier.multiplier;
+  }
+  return mult;
+}
+
+/** Lazy reader for the active chain state. Always returns a fresh
+ * "no chain" object when the book has never recorded one so the
+ * caller doesn't have to guard. Mutating the returned object also
+ * mutates the underlying book (the reader returns the live ref). */
+export function getOwlChain(player: object): {
+  npcId: string | null;
+  length: number;
+  lastDay: number;
+} {
+  const book = getOwlStamps(player);
+  if (!book.chain) {
+    book.chain = { npcId: null, length: 0, lastDay: -1 };
+  }
+  return book.chain;
+}
+
+/**
+ * The chain length the player would land at IF they sent an owl to
+ * `npcId` on `day`. Does NOT mutate state — useful for surfacing the
+ * pending chain length in the owl menu before the player confirms.
+ *
+ * Rules:
+ *   - Active chain on same npcId + day == lastDay+1  ->  length + 1
+ *   - Active chain on same npcId + day == lastDay    ->  length (already today, no bump)
+ *   - Active chain on different npcId                ->  1 (new chain)
+ *   - Active chain on same npcId + skipped a day     ->  1 (chain breaks)
+ *   - No active chain                                ->  1 (fresh start)
+ */
+export function previewChainLength(
+  player: object,
+  npcId: string,
+  day: number,
+): number {
+  const chain = getOwlChain(player);
+  if (chain.npcId === npcId) {
+    if (day === chain.lastDay) return chain.length;
+    if (day === chain.lastDay + 1) return chain.length + 1;
+  }
+  return 1;
+}
+
+/**
+ * Returns the active chain length when the active chain target is
+ * `npcId`. Returns 0 when no chain is active OR the chain target is
+ * a different NPC. Used by the lore Folk row chain-indicator tail —
+ * surfaces only when the player is actively riding a chain with the
+ * one we're describing.
+ *
+ * Pure read; doesn't bump or break the chain.
+ */
+export function activeChainLength(player: object, npcId: string): number {
+  const chain = getOwlChain(player);
+  return chain.npcId === npcId ? chain.length : 0;
+}
+
+/**
+ * Bump the chain on a confirmed dispatch. Returns the chain length
+ * AFTER the bump (always >= 1). Idempotent on same-day re-call: a
+ * second send on the same day to the same NPC (which can't actually
+ * happen via dispatchOwl thanks to the per-day gate, but defending
+ * against it keeps the contract clean) leaves the length unchanged.
+ *
+ * Side effect: writes into `OwlStampBook.chain`. Called from
+ * dispatchOwl right after the lifetime stamp.
+ */
+export function recordOwlChain(
+  player: object,
+  npcId: string,
+  day: number,
+): number {
+  const chain = getOwlChain(player);
+  if (chain.npcId === npcId) {
+    if (day === chain.lastDay) return chain.length;
+    if (day === chain.lastDay + 1) {
+      chain.length += 1;
+      chain.lastDay = day;
+      return chain.length;
+    }
+  }
+  // Either new recipient, or skipped a day, or fresh save — start
+  // (or reset) the chain at length 1.
+  chain.npcId = npcId;
+  chain.length = 1;
+  chain.lastDay = day;
+  return 1;
 }
 
 /**

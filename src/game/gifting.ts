@@ -85,12 +85,20 @@ export function pickBestGift(
  *
  * Pass `time` to apply the birthday multiplier (8x on the candidate's
  * birthday). When omitted, the gift carries no bonus.
+ *
+ * Pass `extraMultiplier` to layer an additional caller-supplied bonus
+ * on top of the birthday multiplier (e.g. the owl-post letter-chain
+ * stacks a 1.1x / 1.2x / 1.3x multiplier on consecutive-day sends).
+ * The two multipliers compose: a birthday gift sent inside a chain
+ * earns birthday * chain. Defaults to 1 so existing callers behave
+ * exactly as before.
  */
 export function attemptAutoGift(
   player: Player,
   npcId: string,
   day: number,
   time?: TimeOfDay,
+  extraMultiplier: number = 1,
 ): GiftOutcome {
   if (!CANDIDATES[npcId]) return { kind: 'not-candidate' };
   if (!player.hearts) return { kind: 'not-candidate' };
@@ -101,7 +109,8 @@ export function attemptAutoGift(
   }
   const key = pickBestGift(player.inventory, npcId);
   if (!key) return { kind: 'no-items' };
-  const mult = time ? giftMultiplier(npcId, time) : 1;
+  const birthdayMult = time ? giftMultiplier(npcId, time) : 1;
+  const mult = birthdayMult * extraMultiplier;
   const result = giveGift(player.hearts, npcId, key, day, mult);
   if (!result.accepted) {
     // Shouldn't happen because we gated above, but stay safe.

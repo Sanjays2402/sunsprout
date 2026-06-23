@@ -229,6 +229,7 @@ import {
   placeScarecrow,
 } from '../game/scarecrow';
 import { OwlMenu } from '../ui/owl-menu';
+import { owlPostFeeFor } from '../game/owl-post';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -1818,9 +1819,18 @@ export class Game {
         } else if (i.has('enter') || i.has(' ')) {
           const out = this.owlMenu.confirm(this.world.player, this.time.day, this.time);
           if (out.kind === 'sent') {
-            logGold(this.world.player, -40, `owl post: ${out.npcName}`, this.time.day);
+            // Log the ACTUAL fee paid (tier-discounted). dispatchOwl
+            // deducted owlPostFeeFor(player, npcId) — the menu's
+            // confirm() snapshot has the same value. Without this
+            // recompute the money log would over-report fees for
+            // discounted (regular / favorite) tier sends.
+            const feePaid = owlPostFeeFor(this.world.player, out.npcId);
+            logGold(this.world.player, -feePaid, `owl post: ${out.npcName}`, this.time.day);
             // attemptAutoGift already credited hearts; surface a toast
-            // matching the existing in-person gift feel.
+            // matching the existing in-person gift feel. The chain
+            // tail is appended only when the chain hit a bonus tier
+            // (chainMultiplier > 1) so a 1-day fresh streak doesn't
+            // surface noise on every send.
             if (out.gift.kind === 'gifted') {
               const tasteLine =
                 out.gift.result.taste === 'loved'
@@ -1828,7 +1838,11 @@ export class Game {
                   : out.gift.result.taste === 'liked'
                     ? 'smiles, charmed'
                     : 'nods politely';
-              this.setToast(`Owl post: ${out.npcName} ${tasteLine}. +${out.gift.result.pointsApplied} pts.`);
+              const chainTail =
+                out.chainMultiplier > 1
+                  ? ` Letter chain x${out.chainLength} (+${Math.round((out.chainMultiplier - 1) * 100)}%).`
+                  : '';
+              this.setToast(`Owl post: ${out.npcName} ${tasteLine}. +${out.gift.result.pointsApplied} pts.${chainTail}`);
             }
           } else if (out.kind === 'not-enough-gold') {
             this.setToast(`Need ${out.need}g (have ${out.have}g).`);
