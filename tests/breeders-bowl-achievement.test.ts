@@ -74,7 +74,7 @@ describe('breeders-bowl in the achievements catalog', () => {
     expect(isEarned(w.player, 'breeders-bowl')).toBe(true);
   });
 
-  it('catalog size grew by 1 (now 18 badges)', () => {
-    expect(ACHIEVEMENTS.length).toBe(18);
+  it('catalog size grew by 1 (now 19 badges; breeders-bowl was 18, fluent-with-the-owl is 19)', () => {
+    expect(ACHIEVEMENTS.length).toBe(19);
   });
 });

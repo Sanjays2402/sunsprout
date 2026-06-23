@@ -132,6 +132,24 @@ export function totalOwlStamps(player: object): number {
 }
 
 /**
+ * Lifetime owl-post milestone for the `fluent-with-the-owl` achievement.
+ * Tuned to feel like a real \"the village owl knows your handwriting\"
+ * commitment — 25 dispatches is roughly a full season of daily owls,
+ * or a couple of late-game gift sprints when the player is racing
+ * heart milestones with the village across the bridge.
+ *
+ * One-liner predicate so the achievements catalog stays a list of
+ * read-only checks; no engine-side counter to maintain — the lazy
+ * OwlStampBook on Player.owlStamps already accrues from dispatchOwl.
+ */
+export const OWL_FLUENT_MILESTONE = 25;
+
+/** True iff total lifetime owl dispatches has crossed OWL_FLUENT_MILESTONE. */
+export function owlFluentMilestoneReached(player: object): boolean {
+  return totalOwlStamps(player) >= OWL_FLUENT_MILESTONE;
+}
+
+/**
  * Pretty per-NPC line for the lore Folk tab. Returns the empty string
  * when the player has never sent an owl to this NPC so the Folk row
  * description stays compact for in-person friendships.

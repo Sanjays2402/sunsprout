@@ -39,6 +39,10 @@ import {
   compostMasterMilestoneReached,
   COMPOST_MASTER_MILESTONE_GOLD,
 } from './compost';
+import {
+  owlFluentMilestoneReached,
+  OWL_FLUENT_MILESTONE,
+} from './owl-post';
 
 /** Identifier — stable strings so persisted records survive rebalances. */
 export type AchievementId =
@@ -59,7 +63,8 @@ export type AchievementId =
   | 'farm-decorator'
   | 'cave-veteran'
   | 'compost-master'
-  | 'breeders-bowl';
+  | 'breeders-bowl'
+  | 'fluent-with-the-owl';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -215,6 +220,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Cook ${BREEDERS_BOWL_MILESTONE} premium (breeder-egg) dishes.`,
     done: `Plated ${BREEDERS_BOWL_MILESTONE}+ premium dishes from breeder eggs.`,
     check: (p) => breedersBowlMilestoneReached(p),
+  },
+  {
+    id: 'fluent-with-the-owl',
+    name: 'Fluent with the Owl',
+    hint: `Dispatch ${OWL_FLUENT_MILESTONE} owl-post gifts across the village.`,
+    done: `Sent ${OWL_FLUENT_MILESTONE}+ owl-post gifts — the owl knows your handwriting now.`,
+    check: (p) => owlFluentMilestoneReached(p),
   },
 ];
 
