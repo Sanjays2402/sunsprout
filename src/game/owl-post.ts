@@ -149,15 +149,68 @@ export function owlFluentMilestoneReached(player: object): boolean {
   return totalOwlStamps(player) >= OWL_FLUENT_MILESTONE;
 }
 
+// ---------------------------------------------------------------------
+// Per-NPC fluency tiers — qualitative tag based on how many owl posts
+// the player has ever dispatched to one recipient. Surfaced on the
+// lore Folk row description so the player can see at a glance which
+// friendships are owl-heavy ("favorite courier") vs. casually-mailed
+// ("occasional pen pal").
+//
+// Tiers parallel the catalog-wide OWL_FLUENT_MILESTONE achievement
+// without duplicating its grant logic: this is just a label on the
+// row, not an unlock. The "favorite" tier deliberately matches the
+// global fluency milestone (25) so a fluent-with-the-owl badge run
+// also lights up at least one per-NPC favorite tag.
+// ---------------------------------------------------------------------
+
+/** Per-NPC stamp thresholds, smallest first. Stable order. */
+export const OWL_FLUENCY_TIERS = [
+  { min: 5, label: 'occasional pen pal' },
+  { min: 15, label: 'regular pen pal' },
+  { min: OWL_FLUENT_MILESTONE, label: 'favorite courier' },
+] as const;
+
+/**
+ * Returns the highest tier label whose `min` is <= the player's owl
+ * stamps to this NPC. Returns the empty string when the player hasn't
+ * crossed the first tier so the Folk row stays clean for casual
+ * single-owl friendships.
+ *
+ * Pure read — doesn't bump stamps.
+ */
+export function owlFluencyTier(player: object, npcId: string): string {
+  const n = owlStampsFor(player, npcId);
+  let label = '';
+  for (const tier of OWL_FLUENCY_TIERS) {
+    if (n >= tier.min) label = tier.label;
+  }
+  return label;
+}
+
 /**
  * Pretty per-NPC line for the lore Folk tab. Returns the empty string
  * when the player has never sent an owl to this NPC so the Folk row
  * description stays compact for in-person friendships.
  *
- * Wording: "Owl posts: 4."
+ * Wording:
+ *   - 0 stamps:              ""
+ *   - 1..4 stamps:           "Owl posts: 3."
+ *   - 5..14 stamps:          "Owl posts: 7 (occasional pen pal)."
+ *   - 15..24 stamps:         "Owl posts: 18 (regular pen pal)."
+ *   - >=25 stamps:           "Owl posts: 42 (favorite courier)."
+ *
+ * The tier label is appended ONLY when the player has crossed a tier;
+ * a casual pen-friend (1-4 stamps) keeps the plain count line so the
+ * tag doesn't broadcast \"barely sent any\" on every Folk row that has
+ * one owl on record. The tier tag plays the same role here that the
+ * compost-master journal nudge plays for the compost ledger — a
+ * passive, per-recipient \"how owl-fluent are you with THIS one\"
+ * label on top of the global \"fluent-with-the-owl\" badge.
  */
 export function owlStampLine(player: object, npcId: string): string {
   const n = owlStampsFor(player, npcId);
   if (n === 0) return '';
-  return `Owl posts: ${n}.`;
+  const tier = owlFluencyTier(player, npcId);
+  if (tier === '') return `Owl posts: ${n}.`;
+  return `Owl posts: ${n} (${tier}).`;
 }
