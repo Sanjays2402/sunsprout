@@ -32,17 +32,75 @@
  * compostNudge third, deepVeinBrag fourth" sequence by argument order.
  *
  * Pure: doesn't mutate its inputs, doesn't depend on time or state.
+ *
+ * Two call shapes:
+ *   1. Flat array of tails (the original signature) — every tail joined
+ *      with the same " · " separator.
+ *   2. Grouped object `{system, achievement}` — system tails join with
+ *      " · " (the regular dawn-toast rhythm), achievement tails join
+ *      WITH EACH OTHER using " • " (a slightly denser bullet) so the
+ *      whole achievement cluster reads as one celebratory chip
+ *      separated from the system block by a single " · ".
+ *
+ * The grouped form exists to keep the dawn toast readable as tail count
+ * climbs past 7. With every tail using " · " the morning toast becomes
+ * a wall of equal-weight phrases; the bullet separator inside the
+ * achievement group visually packages the brags as a single celebratory
+ * burst ("you earned X • and Y • and Z") instead of seven peers.
+ *
+ * Empty groups are skipped cleanly: a dawn with only system tails
+ * (no fresh brags) reads identically to the flat-form result, and
+ * a dawn with only achievement tails skips the leading " · " that
+ * would otherwise paint between the headline and the lone brag chip.
  */
 export function assembleDawnToast(
   headline: string,
-  tails: ReadonlyArray<string | null | undefined>,
+  tails:
+    | ReadonlyArray<string | null | undefined>
+    | DawnToastTailGroups,
 ): string {
+  if (Array.isArray(tails)) {
+    let out = headline;
+    for (const tail of tails) {
+      if (!tail) continue;
+      out = `${out} · ${tail}`;
+    }
+    return out;
+  }
+  // Grouped form — system tails first (regular separator), then the
+  // achievement cluster as one " · "-attached chip whose internals
+  // use the bullet separator.
+  const groups = tails as DawnToastTailGroups;
   let out = headline;
-  for (const tail of tails) {
-    if (!tail) continue;
-    out = `${out} · ${tail}`;
+  for (const sys of groups.system ?? []) {
+    if (!sys) continue;
+    out = `${out} · ${sys}`;
+  }
+  const achievementTails = (groups.achievement ?? []).filter((t): t is string => !!t);
+  if (achievementTails.length > 0) {
+    out = `${out} · ${achievementTails.join(' • ')}`;
   }
   return out;
+}
+
+/**
+ * Two-bucket tail input for the grouped assembleDawnToast() call shape.
+ * `system` tails are operational signals (pond overflow, haul recap,
+ * passive nudges) — they read as one-per-day status lines and join
+ * with the regular " · " dawn rhythm. `achievement` tails are
+ * celebratory brags (deep-vein unlocked, sash earned, chain tier
+ * crossed) — they cluster together using " • " so a morning that
+ * lands two or three brags at once reads as one celebration burst
+ * rather than three peer phrases.
+ *
+ * Either bucket may be omitted or empty — the composer skips missing
+ * groups cleanly without painting dangling separators.
+ */
+export interface DawnToastTailGroups {
+  /** Operational / informational tails — joined with " · ". */
+  system?: ReadonlyArray<string | null | undefined>;
+  /** Celebratory brag tails — joined with " • " inside one " · " chip. */
+  achievement?: ReadonlyArray<string | null | undefined>;
 }
 
 // ---------------------------------------------------------------------

@@ -876,18 +876,16 @@ export class Game {
       // compost batches move the counter.
       const rareMasterBrag = rareMasterDawnBrag(this.world.player);
       // Compose the dawn headline through the generic assembler so the
-      // chain of optional tails reads as a single array push rather
-      // than a string-concat ladder. New tails added below just slot
-      // into the array (no more growing if-tail-then-append branches).
-      const headline = assembleDawnToast(headlineBase, [
-        pondOverflow,
-        haulRecap,
-        compostNudge,
-        deepVeinBrag,
-        chainTierBrag,
-        sashBrag,
-        rareMasterBrag,
-      ]);
+      // chain of optional tails reads as a single grouped push rather
+      // than a string-concat ladder. Tails are split into two groups so
+      // the achievement-tier brags read as ONE celebration cluster
+      // ("Deep Vein unlocked • Sash earned • Chain in regular tier")
+      // rather than seven peer phrases — keeps the dawn toast scannable
+      // as the brag set grows.
+      const headline = assembleDawnToast(headlineBase, {
+        system: [pondOverflow, haulRecap, compostNudge],
+        achievement: [deepVeinBrag, chainTierBrag, sashBrag, rareMasterBrag],
+      });
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
       if (this.storage && getSettings(this.world.player).autoSave) {
