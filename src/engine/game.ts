@@ -179,6 +179,7 @@ import {
   crossedGoldMilestone,
   goldMilestoneToastLine,
   deepVeinDawnBrag,
+  splitRecordDawnBrag,
 } from '../game/mining-haul';
 import {
   pickaxeTier,
@@ -882,8 +883,14 @@ export class Game {
       // once, but a separate chain to a DIFFERENT recipient hitting
       // the same threshold later fires its own brag. Slots as the 8th
       // tail on the achievement-cluster — first new tail added since
-      // the tail-grouping refactor lands this batch.
+      // tail-grouping refactor lands this batch.
       const chainRecipientBrag = chainRecipientDawnBrag(this.world.player);
+      // Split-record dawn brag — one-shot tail the morning AFTER the
+      // mining bestRun transitions from a same-day record (one run
+      // holds both leaderboards) into a split-record state (countDay
+      // !== goldDay, two different runs hold the two records). Surfaces
+      // the "your career has two specialised paths now" moment.
+      const splitRecordBrag = splitRecordDawnBrag(getMineHaul(this.world.player));
       // Compose the dawn headline through the generic assembler so the
       // chain of optional tails reads as a single grouped push rather
       // than a string-concat ladder. Tails are split into two groups so
@@ -899,6 +906,7 @@ export class Game {
           sashBrag,
           rareMasterBrag,
           chainRecipientBrag,
+          splitRecordBrag,
         ],
       });
       this.setToast(headline);

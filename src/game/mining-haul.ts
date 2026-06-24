@@ -106,6 +106,42 @@ export interface MineHaulState {
    * theirs, and a bigger record afterward just lives in haulBestRunLine.
    */
   deepVeinBragFired?: boolean;
+  /**
+   * One-shot "your mining records just diverged onto two different
+   * days" arm — set inside resetMineHaul the FIRST time bestRun
+   * transitions from a same-day record (countDay === goldDay, i.e.
+   * one run holds both leaderboards) into a split-record state
+   * (countDay !== goldDay, i.e. two different runs hold the two
+   * records).
+   *
+   * Why a separate brag rather than tucking the split-record signal
+   * into the existing "best run ever!" tail: the split-record state
+   * is a STRATEGIC milestone — it means the player has built up two
+   * meaningfully distinct mining run shapes (a fat-quantity grind
+   * and a value-density trip). The existing record-fell tail fires
+   * on EVERY record bump, so the split-record moment would get
+   * buried inside the normal record-fell celebration. A dedicated
+   * one-shot brag the morning after the divergence first happens
+   * surfaces the moment the player's mining career splits into two
+   * strategies.
+   *
+   * Optional + lazy-backfill so older saves (single-day records OR
+   * already-split records that pre-date the flag) backfill cleanly.
+   * The pre-flag check inside resetMineHaul guards against a save
+   * that was ALREADY split on first migration arming the brag — we
+   * only arm on the dawn the split FIRST happens during play.
+   */
+  splitRecordBragPending?: boolean;
+  /**
+   * Audit flag set the morning the split-record brag fires for the
+   * first time. Stays true forever so a future records-merge-back
+   * (when a new single run blows past both records and re-unifies
+   * them on the same day) followed by another split doesn't re-fire
+   * the brag — once the player has been told "your mining career
+   * has two specialised paths now," that observation has been made.
+   * Optional + lazy-backfill on first read.
+   */
+  splitRecordBragFired?: boolean;
 }
 
 /** Threshold for the lifetime-mining achievement / "Rockhound II". */
@@ -258,6 +294,14 @@ export function resetMineHaul(
     // bar and breaks their own record AGAIN doesn't re-fire the brag.
     const wasPastDeepVein =
       ribbon.count >= DEEP_VEIN_COUNT || ribbon.gold >= DEEP_VEIN_GOLD;
+    // Capture the pre-update split-record state too. A "split-record"
+    // is when countDay !== goldDay AND both fields are non-zero (a
+    // fresh save with both at 0 is not a "split" — neither record has
+    // been set yet). We only arm splitRecordBragPending on the FIRST
+    // transition from same-day to split, so a record that's already
+    // split before this resetMineHaul call doesn't re-arm.
+    const wasSplit =
+      ribbon.count > 0 && ribbon.gold > 0 && ribbon.countDay !== ribbon.goldDay;
     if (total > ribbon.count) {
       ribbon.count = total;
       ribbon.countDay = day;
@@ -280,6 +324,15 @@ export function resetMineHaul(
       ribbon.count >= DEEP_VEIN_COUNT || ribbon.gold >= DEEP_VEIN_GOLD;
     if (!wasPastDeepVein && nowPastDeepVein && !state.deepVeinBragFired) {
       state.deepVeinBragPending = true;
+    }
+    // Fresh split-record state — arm the brag iff we just transitioned
+    // from same-day records to split-day records AND both records are
+    // non-zero (i.e. a real record exists on each axis). The
+    // splitRecordBragFired audit gates re-firing.
+    const nowSplit =
+      ribbon.count > 0 && ribbon.gold > 0 && ribbon.countDay !== ribbon.goldDay;
+    if (!wasSplit && nowSplit && !state.splitRecordBragFired) {
+      state.splitRecordBragPending = true;
     }
   }
   return { counts, gold, total };
@@ -625,6 +678,56 @@ export function deepVeinDawnBrag(state: MineHaulState): string {
       // which axis tripped the bar (a 3-ruby trip might be only 4
       // gems but 1500g).
       return `Deep Vein unlocked - ${best.gold}g of ore in one run.`;
+    },
+  );
+}
+
+// ---------------------------------------------------------------------
+// Split-record dawn brag — one-shot celebratory tail the morning AFTER
+// the player's bestRun transitions from a same-day record (one run
+// holds both count + gold leaderboards) into a split-record state
+// (countDay !== goldDay, two different runs hold the two records).
+//
+// The split-record state is a STRATEGIC milestone: it means the player
+// has built up two meaningfully distinct mining run shapes — a fat-
+// quantity grind (many copper, lots of total ore) holds the count
+// record, while a value-density trip (one ruby, one emerald, few
+// strikes) holds the gold record. The dedicated brag fires once on
+// the dawn the two records diverge for the first time, surfacing the
+// "your mining career has two specialisations now" observation.
+//
+// Wording: "Split mining records - count run on day N, gold run on day M."
+//
+// One-shot via the generic oneShotBrag helper. splitRecordBragFired
+// stays true forever so a future merge-back (one new fat run that
+// blows past both records) followed by another split doesn't
+// re-fire — once the player has been told their career has split
+// strategies, that observation has been made.
+// ---------------------------------------------------------------------
+
+/**
+ * Returns the split-record dawn-brag tail, or the empty string if there's
+ * no fresh split-record crossing to celebrate. ONE-SHOT — clears
+ * splitRecordBragPending and sets splitRecordBragFired so a re-call
+ * returns empty.
+ *
+ * Wording: "Split mining records - count run on day N, gold run on day M."
+ *
+ * Returns the empty string when:
+ *   - splitRecordBragPending is falsy (no fresh transition)
+ *   - bestRun is somehow missing (defensive — the arming logic only
+ *     fires when bestRun is present, but the read-side check defends
+ *     against a save with a stale pending flag and a wiped record)
+ */
+export function splitRecordDawnBrag(state: MineHaulState): string {
+  return oneShotBrag(
+    state as unknown as Record<string, unknown>,
+    'splitRecordBragPending',
+    'splitRecordBragFired',
+    () => {
+      const best = state.bestRun;
+      if (!best) return '';
+      return `Split mining records - count run on day ${best.countDay}, gold run on day ${best.goldDay}.`;
     },
   );
 }

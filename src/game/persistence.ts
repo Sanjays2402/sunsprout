@@ -334,6 +334,12 @@ export function serializeGame(game: Game): SaveSnapshot {
             // after the brag already fired stays silent.
             deepVeinBragPending: getMineHaul(p).deepVeinBragPending === true,
             deepVeinBragFired: getMineHaul(p).deepVeinBragFired === true,
+            // One-shot split-record brag flags — same shape as the
+            // deep-vein pair. Round-trips the pending arm so a player
+            // who just split their records and quit before sleep sees
+            // the brag the next dawn after reload.
+            splitRecordBragPending: getMineHaul(p).splitRecordBragPending === true,
+            splitRecordBragFired: getMineHaul(p).splitRecordBragFired === true,
           }
         : undefined,
       rumorHistory: (p as Player & { rumorHistory?: RumorHistoryState }).rumorHistory
@@ -623,6 +629,11 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // deepVeinBragPending and bumps deepVeinBragFired on first read.
     cur.deepVeinBragPending = snap.player.mineHaul.deepVeinBragPending === true;
     cur.deepVeinBragFired = snap.player.mineHaul.deepVeinBragFired === true;
+    // Split-record one-shot brag flags — older saves predate them so
+    // backfill false via === true coercion. The composer reads
+    // splitRecordBragPending and bumps splitRecordBragFired on first read.
+    cur.splitRecordBragPending = snap.player.mineHaul.splitRecordBragPending === true;
+    cur.splitRecordBragFired = snap.player.mineHaul.splitRecordBragFired === true;
   }
   // Rumor history — restore the ring buffer of past headliners + the
   // bought flag so the cart-menu can keep showing accurate skipped/
