@@ -355,6 +355,7 @@ export function serializeGame(game: Game): SaveSnapshot {
             // it again. Older saves backfill via the optional reader.
             masterNudgeDawnFired: getCompostLedger(p).masterNudgeDawnFired,
             pulperNudgeDawnFired: getCompostLedger(p).pulperNudgeDawnFired,
+            rareMasterNudgeDawnFired: getCompostLedger(p).rareMasterNudgeDawnFired,
             // Sash + rare-master one-shot brag flags — carry both the
             // pending-arm and the fired-audit across reload. Undefined
             // when not armed / not fired so older saves backfill
@@ -635,6 +636,7 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // (without these fields) backfill false via the optional reader.
     cur.masterNudgeDawnFired = snap.player.compostLedger.masterNudgeDawnFired === true;
     cur.pulperNudgeDawnFired = snap.player.compostLedger.pulperNudgeDawnFired === true;
+    cur.rareMasterNudgeDawnFired = snap.player.compostLedger.rareMasterNudgeDawnFired === true;
     // Carry the sash + rare-master dawn-brag one-shot flags. Pending
     // is undefined when not armed (preserve sentinel); fired is
     // coerced via === true so older saves without the field land

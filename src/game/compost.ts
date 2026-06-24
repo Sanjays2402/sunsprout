@@ -455,6 +455,13 @@ export interface CompostLedgerState {
    */
   pulperNudgeDawnFired?: boolean;
   /**
+   * Symmetric one-shot for the rare-master dawn nudge — true once the
+   * dawn-toast has surfaced "Halfway to Rare Master". Mirrors the
+   * master/pulper sticky-flag pattern. Optional for older saves; the
+   * lazy reader backfills false.
+   */
+  rareMasterNudgeDawnFired?: boolean;
+  /**
    * One-shot sticky flag: set inside recordApplied the FIRST time the
    * lifetimeRecycledGold crosses the compost-master-sash milestone
    * (250g). The dawn-toast composer reads + clears it the next
@@ -673,6 +680,28 @@ export const COMPOST_MASTER_SASH_NUDGE_MIN_GOLD = COMPOST_MASTER_MILESTONE_GOLD;
  */
 export const PULPER_NUDGE_MIN_BAGS = COMPOST_MASTER_MILESTONE_GOLD;
 
+/**
+ * Halfway threshold for the rare-master nudge — once
+ * lifetimeRareBagsApplied crosses this, the journal line gains a
+ * "(N rare bags to the rare-master badge)" tail. Tuned at exactly
+ * half the rare-master milestone (50 rare bags) so the nudge feels
+ * like a "you're halfway there" carrot without overlapping any
+ * other rung. The rare-bag axis is orthogonal to gold-recycled and
+ * total-bags-applied, so this rung doesn't compete with the
+ * compost-master / sash / pulper rungs for the [50, 100) window.
+ *
+ * Why a separate ladder rung rather than baking it into one of the
+ * existing rungs: the rare-master achievement reads off a SEPARATE
+ * counter (lifetimeRareBagsApplied vs lifetimeBagsApplied), and a
+ * player can hit the rare-master nudge floor while their compost-
+ * master/sash/pulper rungs are at very different positions on the
+ * ladder. Treating it as its own rung is the simplest possible
+ * shape, and it validates the ladderNudge refactor a third time
+ * (sash rung last tick, this rung this tick) — the helper keeps
+ * scaling without growing ternary branches in compostLedgerLine.
+ */
+export const RARE_MASTER_NUDGE_MIN_BAGS = RARE_MASTER_MILESTONE_BAGS / 2;
+
 // ---------------------------------------------------------------------
 // LadderNudge — generic pure helper for "halfway to badge" tails.
 //
@@ -785,6 +814,23 @@ export function compostLedgerLine(player: object): string {
       readout: (remaining) => `(${remaining}g to the sash)`,
     },
     {
+      // Rare-master rung — reads the SEPARATE rare-bag counter so the
+      // gating axis is orthogonal to gold-recycled. Lights up at
+      // RARE_MASTER_NUDGE_MIN_BAGS=50 and runs until the badge is
+      // earned at RARE_MASTER_MILESTONE_BAGS=100. No prereq — a
+      // player who pulled off 50 rare bags before crossing the
+      // sash/master gold threshold still gets the nudge (the rare
+      // axis is its own grind). Slotted BEFORE the pulper rung so
+      // a player past the sash + halfway-rare sees the rare nudge
+      // first (rare bags are gated behind the per-season rare-day
+      // window so they're the harder grind to advertise).
+      value: ledger.lifetimeRareBagsApplied ?? 0,
+      floor: RARE_MASTER_NUDGE_MIN_BAGS,
+      milestone: RARE_MASTER_MILESTONE_BAGS,
+      readout: (remaining) =>
+        `(${remaining} rare bag${remaining === 1 ? '' : 's'} to the rare-master badge)`,
+    },
+    {
       value: ledger.lifetimeBagsApplied,
       floor: PULPER_NUDGE_MIN_BAGS,
       milestone: PULPER_MILESTONE_BAGS,
@@ -847,6 +893,19 @@ export function compostHalfwayDawnNudge(player: object): string {
     prereq: () => !ledger.masterNudgeDawnFired,
     readout: (remaining) => `Halfway to Compost Master - ${remaining}g to go.`,
   };
+  const rareMasterNudge: LadderNudgeRung = {
+    // Rare-master dawn nudge — orthogonal to the gold rungs, reads
+    // off the SEPARATE rare-bag counter. Sticky one-shot via the
+    // rareMasterNudgeDawnFired flag, same shape as the gold-rung
+    // nudges. Prereq + fired-flag gate keeps the nudge from
+    // re-emitting after the first dawn it fires.
+    value: ledger.lifetimeRareBagsApplied ?? 0,
+    floor: RARE_MASTER_NUDGE_MIN_BAGS,
+    milestone: RARE_MASTER_MILESTONE_BAGS,
+    prereq: () => !ledger.rareMasterNudgeDawnFired,
+    readout: (remaining) =>
+      `Halfway to Rare Master - ${remaining} rare bag${remaining === 1 ? '' : 's'} to go.`,
+  };
   const pulperNudge: LadderNudgeRung = {
     value: ledger.lifetimeBagsApplied,
     floor: PULPER_NUDGE_MIN_BAGS,
@@ -863,6 +922,11 @@ export function compostHalfwayDawnNudge(player: object): string {
   // ourselves here using the same predicate semantics.
   const rungs: Array<{ rung: LadderNudgeRung; onFire: () => void }> = [
     { rung: masterNudge, onFire: () => { ledger.masterNudgeDawnFired = true; } },
+    // Rare-master rung sits between master and pulper so it fires
+    // before pulper when both eligible — matches the journal-line
+    // priority. Slotted AFTER master because the master nudge is the
+    // earlier badge in the player's progression.
+    { rung: rareMasterNudge, onFire: () => { ledger.rareMasterNudgeDawnFired = true; } },
     { rung: pulperNudge, onFire: () => { ledger.pulperNudgeDawnFired = true; } },
   ];
   for (const { rung, onFire } of rungs) {
