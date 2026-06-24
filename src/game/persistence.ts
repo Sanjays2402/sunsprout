@@ -379,6 +379,17 @@ export function serializeGame(game: Game): SaveSnapshot {
             // swallowing it. Undefined when not armed so older saves
             // backfill cleanly via the lazy reader.
             chainTierBragPending: getOwlStamps(p).chainTierBragPending,
+            chainTierBragFired: getOwlStamps(p).chainTierBragFired,
+            // Chain-recipient brag fields — pending carries the npcId
+            // of the just-crossed pen pal, fired is the audit flag for
+            // "this brag has played at least once" + the per-recipient
+            // map keys the celebrated NPCs so a second 25-day chain to
+            // the same recipient stays quiet on reload.
+            chainRecipientBragPending: getOwlStamps(p).chainRecipientBragPending,
+            chainRecipientBragFired: getOwlStamps(p).chainRecipientBragFired,
+            chainRecipientFired: getOwlStamps(p).chainRecipientFired
+              ? { ...getOwlStamps(p).chainRecipientFired! }
+              : undefined,
           }
         : undefined,
       npcInvites: (p as Player & { npcInvites?: Array<{ npcId: string; season: 0 | 1 | 2 | 3; day: number; x: number; y: number; flavor: string; postedDay: number }> }).npcInvites
@@ -666,6 +677,22 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // the next morning on a fresh boot. Undefined when not armed.
     if (snap.player.owlStamps.chainTierBragPending !== undefined) {
       cur.chainTierBragPending = snap.player.owlStamps.chainTierBragPending;
+    }
+    if (snap.player.owlStamps.chainTierBragFired === true) {
+      cur.chainTierBragFired = true;
+    }
+    // Chain-recipient brag fields — pending carries the npcId, fired
+    // is the audit flag, fired-map records each celebrated recipient.
+    // === coercion on the boolean so a stale JSON `"true"` string
+    // doesn't leak in.
+    if (snap.player.owlStamps.chainRecipientBragPending !== undefined) {
+      cur.chainRecipientBragPending = snap.player.owlStamps.chainRecipientBragPending;
+    }
+    if (snap.player.owlStamps.chainRecipientBragFired === true) {
+      cur.chainRecipientBragFired = true;
+    }
+    if (snap.player.owlStamps.chainRecipientFired) {
+      cur.chainRecipientFired = { ...snap.player.owlStamps.chainRecipientFired };
     }
   }
   if (snap.player.npcInvites) {

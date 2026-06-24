@@ -229,7 +229,7 @@ import {
   placeScarecrow,
 } from '../game/scarecrow';
 import { OwlMenu } from '../ui/owl-menu';
-import { chainTierDawnBrag, owlPostFeeFor } from '../game/owl-post';
+import { chainTierDawnBrag, chainRecipientDawnBrag, owlPostFeeFor } from '../game/owl-post';
 import { drawCartSprite } from '../render/cart-sprite';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
@@ -875,6 +875,15 @@ export class Game {
       // a regular-bag grind doesn't fire it; only rare-day-finished
       // compost batches move the counter.
       const rareMasterBrag = rareMasterDawnBrag(this.world.player);
+      // Chain-recipient dawn brag — one-shot celebratory tail the
+      // morning AFTER the active chain reaches
+      // OWL_CHAIN_RECIPIENT_BRAG_LENGTH (25) consecutive days with one
+      // specific NPC. Per-recipient sticky: each NPC earns the brag
+      // once, but a separate chain to a DIFFERENT recipient hitting
+      // the same threshold later fires its own brag. Slots as the 8th
+      // tail on the achievement-cluster — first new tail added since
+      // the tail-grouping refactor lands this batch.
+      const chainRecipientBrag = chainRecipientDawnBrag(this.world.player);
       // Compose the dawn headline through the generic assembler so the
       // chain of optional tails reads as a single grouped push rather
       // than a string-concat ladder. Tails are split into two groups so
@@ -884,7 +893,13 @@ export class Game {
       // as the brag set grows.
       const headline = assembleDawnToast(headlineBase, {
         system: [pondOverflow, haulRecap, compostNudge],
-        achievement: [deepVeinBrag, chainTierBrag, sashBrag, rareMasterBrag],
+        achievement: [
+          deepVeinBrag,
+          chainTierBrag,
+          sashBrag,
+          rareMasterBrag,
+          chainRecipientBrag,
+        ],
       });
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.

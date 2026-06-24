@@ -258,6 +258,45 @@ export interface OwlStampBook {
    * crossing-day and the next-morning compose.
    */
   chainTierBragPending?: number;
+  /**
+   * Set the morning the chain-tier brag fires. Stays true forever so
+   * a chain that bumps the tier table edge again (no-op move) doesn't
+   * re-fire the brag. Optional + lazy-backfill on first read.
+   */
+  chainTierBragFired?: boolean;
+  /**
+   * One-shot "this recipient just became your owl-mail companion"
+   * arm — set inside recordOwlChain the FIRST time the active chain
+   * length reaches OWL_CHAIN_RECIPIENT_BRAG_LENGTH (a full month of
+   * daily owls to one NPC). Stores the recipient's npcId so the dawn
+   * composer can name them in the brag.
+   *
+   * Carrying the npcId here (rather than just a boolean flag) means
+   * a chain reset between the crossing day and the next dawn — the
+   * player skips a day or switches recipients — still surfaces the
+   * brag with the right name. The brag celebrates the achievement,
+   * not the live state.
+   *
+   * Cleared by chainRecipientDawnBrag the morning it fires.
+   */
+  chainRecipientBragPending?: string;
+  /**
+   * Audit flag set the morning chainRecipientDawnBrag fires for the
+   * FIRST time across the save. Stays true forever so a subsequent
+   * 25-day chain to a DIFFERENT recipient still fires its own brag
+   * (we key the per-recipient brag off chainRecipientFired below).
+   * Optional + lazy-backfill on first read.
+   */
+  chainRecipientBragFired?: boolean;
+  /**
+   * Per-recipient "we've fired the brag for this NPC" audit map. A
+   * player who builds a 25-day chain with Maple gets the brag once;
+   * if they later build a 25-day chain with a DIFFERENT recipient,
+   * the new recipient earns its own brag (each long-term pen pal is
+   * a separate milestone). A second 25-day chain to the SAME
+   * recipient stays quiet — we don't re-fire on repeat.
+   */
+  chainRecipientFired?: Record<string, boolean>;
 }
 
 /** Lazy reader on Player. */
@@ -432,6 +471,7 @@ export function recordOwlChain(
       // remains the single source of truth for what counts as a
       // crossing.
       maybeArmChainTierBrag(player, prev, chain.length);
+      maybeArmChainRecipientBrag(player, npcId, chain.length);
       return chain.length;
     }
   }
@@ -459,6 +499,45 @@ function maybeArmChainTierBrag(player: object, prev: number, next: number): void
   if (nextMult > prevMult) {
     getOwlStamps(player).chainTierBragPending = nextMult;
   }
+}
+
+/**
+ * Threshold for the chain-recipient dawn brag — fires once when a chain
+ * length reaches this many consecutive days to one specific NPC.
+ *
+ * Tuned at 25 to mirror OWL_FLUENT_MILESTONE (the global lifetime
+ * stamp count for the `fluent-with-the-owl` achievement). 25 days is
+ * a full month of daily owls to ONE recipient — a real "this NPC is
+ * your pen pal" milestone, not just a passing routine. Far enough
+ * past the existing chain-tier ladder (1.1x at 2, 1.2x at 4, 1.3x at
+ * 7) that the player has been at the top bonus tier for nearly three
+ * weeks before this brag fires; it celebrates COMMITMENT rather than
+ * just hitting a multiplier.
+ */
+export const OWL_CHAIN_RECIPIENT_BRAG_LENGTH = 25;
+
+/**
+ * Helper used by recordOwlChain — arms chainRecipientBragPending iff
+ * the active chain length just reached OWL_CHAIN_RECIPIENT_BRAG_LENGTH
+ * AND the chain-recipient brag hasn't already fired for THIS NPC.
+ *
+ * Per-NPC bookkeeping: a player who builds a 25-day chain with Maple,
+ * then breaks it, then builds a NEW 25-day chain with Pip gets the
+ * brag a second time (different recipient = different milestone).
+ * A second 25-day run to the SAME recipient stays quiet (we've
+ * already celebrated that pen pal — no repeat fanfare).
+ *
+ * Stores the recipient's npcId in chainRecipientBragPending so the
+ * dawn composer can name them by name without re-reading the chain
+ * (which might have already reset by the time the brag fires).
+ */
+function maybeArmChainRecipientBrag(player: object, npcId: string, length: number): void {
+  if (length < OWL_CHAIN_RECIPIENT_BRAG_LENGTH) return;
+  const book = getOwlStamps(player);
+  if (!book.chainRecipientFired) book.chainRecipientFired = {};
+  if (book.chainRecipientFired[npcId]) return;
+  // First time hitting the threshold WITH this recipient — arm.
+  book.chainRecipientBragPending = npcId;
 }
 
 /**
@@ -723,7 +802,7 @@ export function chainTierDawnBrag(player: object): string {
   return oneShotBrag(
     book as unknown as Record<string, unknown>,
     'chainTierBragPending',
-    null,
+    'chainTierBragFired',
     (pending) => {
       // Pin the multiplier to one decimal so floating-point quirks
       // (1.2999...) don't miss the label table. The table is keyed
@@ -733,6 +812,70 @@ export function chainTierDawnBrag(player: object): string {
       if (!label) return '';
       const pct = Math.round(((pending as number) - 1) * 100);
       return `Your owl chain is in the ${label} tier now (+${pct}%).`;
+    },
+  );
+}
+
+// ---------------------------------------------------------------------
+// Chain-recipient dawn brag — one-shot celebratory dawn-toast tail the
+// morning AFTER the player's active chain reaches
+// OWL_CHAIN_RECIPIENT_BRAG_LENGTH (25) consecutive days WITH ONE
+// SPECIFIC RECIPIENT. Mirrors the chain-tier-brag shape but keyed off
+// per-NPC commitment rather than the tier multiplier ladder.
+//
+// Per-recipient firing: each NPC gets ONE brag the first time the
+// player builds a 25-day chain with them. A second 25-day chain to
+// the same recipient stays quiet (we already celebrated that pen
+// pal); a separate 25-day chain to a DIFFERENT recipient earns its
+// own brag (each long-term pen pal is its own milestone).
+//
+// Pending field carries the npcId so the dawn-toast composer can
+// name the recipient by their CANDIDATES display name without needing
+// to re-read the live chain (which might have reset between the
+// crossing day and the next dawn). The brag celebrates the
+// crossing that HAPPENED, not the state today.
+// ---------------------------------------------------------------------
+
+/**
+ * Returns the chain-recipient dawn-brag tail, or the empty string when
+ * there's no fresh recipient-crossing to celebrate. ONE-SHOT: clears
+ * chainRecipientBragPending, marks chainRecipientFired[npcId] = true
+ * on the book, and (on first ever fire across the save) sets the
+ * top-level chainRecipientBragFired audit flag.
+ *
+ * Wording: "Pip is your owl-mail companion now — 25 days in a row."
+ *
+ * Returns empty when:
+ *   - chainRecipientBragPending is falsy (no fresh crossing)
+ *   - the pending npcId doesn't map to a known CANDIDATES entry (defensive
+ *     against a corrupted save — the helper still clears the pending
+ *     flag so the bad state doesn't haunt subsequent dawns)
+ *
+ * Per-NPC sticky semantics: maybeArmChainRecipientBrag arms the flag
+ * ONLY when the per-recipient fired map doesn't yet have the npcId,
+ * so a player who reaches 25 days with Maple, breaks the chain,
+ * then builds another 25-day chain with Maple gets no second brag
+ * (the audit map records "this recipient is celebrated").
+ */
+export function chainRecipientDawnBrag(player: object): string {
+  const book = getOwlStamps(player);
+  return oneShotBrag(
+    book as unknown as Record<string, unknown>,
+    'chainRecipientBragPending',
+    'chainRecipientBragFired',
+    (pending) => {
+      const npcId = pending as string;
+      const def = CANDIDATES[npcId];
+      if (!def) return '';
+      // Mark THIS recipient as celebrated so a second 25-day chain
+      // to the same NPC later doesn't re-fire. The top-level
+      // chainRecipientBragFired audit flag is set by oneShotBrag
+      // independently — that one stays true forever after the very
+      // first brag, while THIS map grows over time as new pen pals
+      // hit the threshold.
+      if (!book.chainRecipientFired) book.chainRecipientFired = {};
+      book.chainRecipientFired[npcId] = true;
+      return `${def.name} is your owl-mail companion now - ${OWL_CHAIN_RECIPIENT_BRAG_LENGTH} days in a row.`;
     },
   );
 }
