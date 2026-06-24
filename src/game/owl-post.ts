@@ -642,6 +642,25 @@ export function chainBonusChip(player: object, npcId: string, day: number): stri
   return `+${pct}% hearts`;
 }
 
+/**
+ * Returns true iff `npcId` is the current active chain target. Pure
+ * read — doesn't bump or break the chain. Useful for UI surfaces
+ * that want to distinguish the chain-target row visually beyond
+ * just the row-position sort (active row floats to row 0 via
+ * owlCandidateIdsForMenu).
+ *
+ * Returns false when no chain is active (chain.npcId === null).
+ * Length-1 chains still return true — even a freshly-started chain
+ * represents the player's active intent ("I sent an owl to Maple
+ * yesterday, I'm probably mailing Maple today"), so the halo /
+ * distinguisher should light up at length 1 just as it does at
+ * length 7.
+ */
+export function isActiveChainTarget(player: object, npcId: string): boolean {
+  const chain = getOwlChain(player);
+  return chain.npcId === npcId;
+}
+
 // ---------------------------------------------------------------------
 // Chain-tier dawn brag — one-shot celebratory dawn-toast tail the
 // morning AFTER the player's active chain crossed into a new bonus

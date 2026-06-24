@@ -12,6 +12,7 @@ import {
   OWL_POST_FEE,
   chainBonusChip,
   dispatchOwl,
+  isActiveChainTarget,
   owlCandidateIds,
   owlCandidateIdsForMenu,
   owlFluencyTierColor,
@@ -40,6 +41,16 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
  * positive payout (the same tone the cart-rumor savings chip uses).
  */
 const BONUS_GREEN = '#8FCC6A';
+/**
+ * Active-chain row halo color — same warm sage as the BONUS_GREEN
+ * chip so the player's eye reads the halo + the chain bonus chip as
+ * the same visual language ("this row is your active streak"). Used
+ * only on the chain-target row (length >= 1 — even a freshly-started
+ * length-1 chain gets the halo because it still represents the
+ * player's active intent). Drawn at 60% alpha so it doesn't drown
+ * out the selected-row tint when both apply at once.
+ */
+const CHAIN_HALO = 'rgba(143, 204, 106, 0.6)';
 
 export class OwlMenu {
   private opened = false;
@@ -191,8 +202,23 @@ export class OwlMenu {
       const selected = i === this.index;
       ctx.fillStyle = selected ? ROW_BG_SELECTED : ROW_BG;
       ctx.fillRect(rowX, rowY, rowW, rowH);
-      ctx.strokeStyle = selected ? BORDER : ROW_BORDER;
-      ctx.lineWidth = selected ? 2 : 1;
+      // Active-chain row halo — distinct outline tint so the player
+      // sees AT A GLANCE which row is their active streak target,
+      // independent of the row-position sort that hoists it to row 0.
+      // The halo color matches the chain-bonus chip green so the two
+      // visual cues read as the same language ("this row is your
+      // active streak"). When the row is ALSO selected, the halo
+      // overrides the BORDER outline so the player gets the strongest
+      // possible signal — selected + active chain = both indicators
+      // collapse into one bold sage outline rather than a stack.
+      const isChainTarget = isActiveChainTarget(player, id);
+      if (isChainTarget) {
+        ctx.strokeStyle = CHAIN_HALO;
+        ctx.lineWidth = 2;
+      } else {
+        ctx.strokeStyle = selected ? BORDER : ROW_BORDER;
+        ctx.lineWidth = selected ? 2 : 1;
+      }
       ctx.strokeRect(rowX + 0.5, rowY + 0.5, rowW - 1, rowH - 1);
 
       ctx.font = 'bold 13px ui-monospace, monospace';
