@@ -10,6 +10,7 @@ import { CANDIDATES } from '../game/hearts';
 import { pickBestGift } from '../game/gifting';
 import {
   OWL_POST_FEE,
+  activeChainCountdownChip,
   chainBonusChip,
   dispatchOwl,
   isActiveChainTarget,
@@ -282,6 +283,29 @@ export class OwlMenu {
           const heartsW = ctx.measureText(heartsLine).width;
           ctx.fillStyle = BONUS_GREEN;
           ctx.fillText(bonusChip, rowX + 10 + heartsW + 14, rowY + 28);
+        }
+        // Active-chain countdown chip — surfaces the CURRENT chain
+        // length (not the previewed-next length) on the active chain
+        // target row. Reinforces the halo signal with an explicit
+        // numeric count so the player reads "you're on a 3-day streak
+        // with Maple" without having to do the +1 math the bonus chip
+        // would require. Drawn in BONUS_GREEN (same sage as the halo
+        // and bonus chip) so all three visual cues read as the same
+        // "active streak" language. Length-1 streaks DO get the chip
+        // because chainBonusChip doesn't fire there — this fills the
+        // "streak exists but no bonus yet" gap. Drawn next to the
+        // chain bonus chip when both are showing; alone when only the
+        // streak chip applies.
+        const streakChip = activeChainCountdownChip(player, id, day);
+        if (streakChip) {
+          const heartsW = ctx.measureText(heartsLine).width;
+          // Bonus chip width measurement so the streak chip doesn't
+          // overlap when both fire (length >= 2). Pass empty string
+          // when no bonus chip so the offset collapses cleanly.
+          const bonusChip = chainBonusChip(player, id, day);
+          const bonusOffset = bonusChip ? ctx.measureText(bonusChip).width + 10 : 0;
+          ctx.fillStyle = BONUS_GREEN;
+          ctx.fillText(streakChip, rowX + 10 + heartsW + 14 + bonusOffset, rowY + 28);
         }
       }
       // Per-NPC fee chip — surfaces the tier-discounted price so the

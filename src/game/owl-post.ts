@@ -740,6 +740,52 @@ export function isActiveChainTarget(player: object, npcId: string): boolean {
   return chain.npcId === npcId;
 }
 
+/**
+ * Compact "Nd streak" chip for the owl-menu active-chain-target row.
+ * Surfaces the CURRENT chain length (not the previewed-next length) so
+ * the player can read at a glance how many consecutive days of mailing
+ * they're already riding. The chip uses a "d" suffix (days) rather
+ * than spelling out "days" so it stays narrow enough to share a row
+ * with the existing hearts label + chain-bonus chip without crowding.
+ *
+ * Returns the empty string when:
+ *   - `npcId` is not the active chain target (different recipient or
+ *     no chain active)
+ *   - the active chain has been broken since the last dispatch
+ *     (chain.lastDay + 1 < day — a skipped day already invalidates
+ *     the streak by the time the menu renders)
+ *
+ * Pure read — doesn't bump or break the chain.
+ *
+ * Length-1 chains DO get the chip. A freshly-started chain at length
+ * 1 represents the player's active intent ("I sent yesterday, I plan
+ * to send today") and the chip reinforces the existing halo signal
+ * with the explicit count. The chain-bonus chip only kicks in at
+ * length 2+, so this chip fills the length-1 "streak exists but no
+ * bonus yet" gap.
+ *
+ * Wording: "1d streak" / "3d streak" / "12d streak"
+ *
+ * Pure helper so the owl-menu UI doesn't have to know about chain
+ * internals — it just calls activeChainCountdownChip() and draws
+ * the returned text (or skips draw on empty).
+ */
+export function activeChainCountdownChip(
+  player: object,
+  npcId: string,
+  day: number,
+): string {
+  const chain = getOwlChain(player);
+  if (chain.npcId !== npcId) return '';
+  if (chain.length <= 0) return '';
+  // Chain is broken if more than one day has passed since the last
+  // dispatch — the previewChainLength path would reset to 1, so the
+  // "Nd streak" chip would be misleading if it kept showing the old
+  // length. Match the chain-break semantics from recordOwlChain.
+  if (day > chain.lastDay + 1) return '';
+  return `${chain.length}d streak`;
+}
+
 // ---------------------------------------------------------------------
 // Chain-tier dawn brag — one-shot celebratory dawn-toast tail the
 // morning AFTER the player's active chain crossed into a new bonus
