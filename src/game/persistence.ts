@@ -355,6 +355,15 @@ export function serializeGame(game: Game): SaveSnapshot {
             // it again. Older saves backfill via the optional reader.
             masterNudgeDawnFired: getCompostLedger(p).masterNudgeDawnFired,
             pulperNudgeDawnFired: getCompostLedger(p).pulperNudgeDawnFired,
+            // Sash + rare-master one-shot brag flags — carry both the
+            // pending-arm and the fired-audit across reload. Undefined
+            // when not armed / not fired so older saves backfill
+            // cleanly. The composer reads pending and bumps fired on
+            // first read.
+            sashBragPending: getCompostLedger(p).sashBragPending,
+            sashBragFired: getCompostLedger(p).sashBragFired,
+            rareMasterBragPending: getCompostLedger(p).rareMasterBragPending,
+            rareMasterBragFired: getCompostLedger(p).rareMasterBragFired,
           }
         : undefined,
       owlStamps: (p as Player & { owlStamps?: OwlStampBook }).owlStamps
@@ -626,6 +635,18 @@ export function applySnapshot(game: Game, snap: SaveSnapshot): boolean {
     // (without these fields) backfill false via the optional reader.
     cur.masterNudgeDawnFired = snap.player.compostLedger.masterNudgeDawnFired === true;
     cur.pulperNudgeDawnFired = snap.player.compostLedger.pulperNudgeDawnFired === true;
+    // Carry the sash + rare-master dawn-brag one-shot flags. Pending
+    // is undefined when not armed (preserve sentinel); fired is
+    // coerced via === true so older saves without the field land
+    // as false.
+    if (snap.player.compostLedger.sashBragPending !== undefined) {
+      cur.sashBragPending = snap.player.compostLedger.sashBragPending;
+    }
+    cur.sashBragFired = snap.player.compostLedger.sashBragFired === true;
+    if (snap.player.compostLedger.rareMasterBragPending !== undefined) {
+      cur.rareMasterBragPending = snap.player.compostLedger.rareMasterBragPending;
+    }
+    cur.rareMasterBragFired = snap.player.compostLedger.rareMasterBragFired === true;
   }
   if (snap.player.owlStamps) {
     const cur = getOwlStamps(p);

@@ -22,6 +22,7 @@ import type { World, Tile } from '../world/world';
 import type { FarmCrop } from './farming';
 import { cropAt } from './farming';
 import { CROP_KEYS } from './crops';
+import { oneShotBrag } from './dawn-toast';
 
 /** Inventory key for an unplaced bin from Maple's shop. */
 export const COMPOST_BIN_INVENTORY_KEY = 'compost-bin';
@@ -453,6 +454,42 @@ export interface CompostLedgerState {
    * for older saves; the lazy reader backfills false.
    */
   pulperNudgeDawnFired?: boolean;
+  /**
+   * One-shot sticky flag: set inside recordApplied the FIRST time the
+   * lifetimeRecycledGold crosses the compost-master-sash milestone
+   * (250g). The dawn-toast composer reads + clears it the next
+   * morning, surfacing a celebratory "Sash earned" tail. Survives
+   * reload via persistence (optional-undefined sentinel). Mirrors
+   * the deep-vein / chain-tier sticky-flag dawn-brag pattern; runs
+   * through the generic oneShotBrag helper.
+   *
+   * Two separate flags so the composer can decide "is the brag
+   * pending?" (sashBragPending) without reading or mutating the
+   * "already fired" state, and the morning-after compose can
+   * one-shot it cleanly. Optional because older saves predate them;
+   * the lazy reader fills them in on first read.
+   */
+  sashBragPending?: boolean;
+  /**
+   * Set the morning the sash brag tail fires. Stays true forever so
+   * a future re-crossing (which can't happen with the monotonic
+   * lifetimeRecycledGold counter, but defending against the case
+   * keeps the contract clean) doesn't re-fire the brag.
+   */
+  sashBragFired?: boolean;
+  /**
+   * Symmetric one-shot for the rare-master dawn brag — set inside
+   * recordApplied(player, _, rare=true) the FIRST time
+   * lifetimeRareBagsApplied crosses the rare-master milestone (100).
+   * Same one-shot semantics as sashBragPending. Optional for older
+   * saves; the lazy reader backfills cleanly.
+   */
+  rareMasterBragPending?: boolean;
+  /**
+   * Set the morning the rare-master brag tail fires. Stays true
+   * forever so a future re-crossing doesn't re-fire the brag.
+   */
+  rareMasterBragFired?: boolean;
 }
 
 /** Gold milestone for the `compost-master` achievement. */
@@ -482,10 +519,34 @@ export function getCompostLedger(player: object): CompostLedgerState {
  */
 export function recordApplied(player: object, recycledGold: number, rare: boolean = false): number {
   const ledger = getCompostLedger(player);
+  // Snapshot the pre-bump totals so we can detect a FRESH crossing
+  // for each one-shot dawn-brag flag below. Without the snapshot a
+  // player who lands exactly on the milestone could see the brag
+  // re-arm on every subsequent apply.
+  const wasPastSash = ledger.lifetimeRecycledGold >= COMPOST_MASTER_SASH_MILESTONE_GOLD;
+  const wasPastRareMaster =
+    (ledger.lifetimeRareBagsApplied ?? 0) >= RARE_MASTER_MILESTONE_BAGS;
   ledger.lifetimeBagsApplied += 1;
   ledger.lifetimeRecycledGold += recycledGold;
   if (rare) {
     ledger.lifetimeRareBagsApplied = (ledger.lifetimeRareBagsApplied ?? 0) + 1;
+  }
+  // Sash dawn-brag arm — fires only on the FIRST crossing of the sash
+  // milestone, and only when the brag has never fired before. Survives
+  // reload via persistence (optional sentinel).
+  const nowPastSash = ledger.lifetimeRecycledGold >= COMPOST_MASTER_SASH_MILESTONE_GOLD;
+  if (!wasPastSash && nowPastSash && !ledger.sashBragFired) {
+    ledger.sashBragPending = true;
+  }
+  // Rare-master dawn-brag arm — symmetric, but reads off
+  // lifetimeRareBagsApplied. Only bumps when the just-applied bag
+  // was rare (a regular apply never moves the rare counter).
+  if (rare) {
+    const nowPastRareMaster =
+      (ledger.lifetimeRareBagsApplied ?? 0) >= RARE_MASTER_MILESTONE_BAGS;
+    if (!wasPastRareMaster && nowPastRareMaster && !ledger.rareMasterBragFired) {
+      ledger.rareMasterBragPending = true;
+    }
   }
   return ledger.lifetimeRecycledGold;
 }
@@ -812,6 +873,78 @@ export function compostHalfwayDawnNudge(player: object): string {
     return rung.readout(rung.milestone - rung.value);
   }
   return '';
+}
+
+// ---------------------------------------------------------------------
+// Compost-master-sash dawn brag — one-shot celebratory dawn-toast tail
+// the morning AFTER lifetimeRecycledGold crosses the sash milestone
+// (250g) for the first time. Mirrors the deep-vein / chain-tier
+// sticky-flag pattern and rides the generic oneShotBrag helper so the
+// pending/fired bookkeeping is shared across every "you just earned X"
+// dawn tail in tree.
+//
+// Why a separate tail rather than relying on the generic "Achievement
+// unlocked" toast that already fires on every newly-earned badge: the
+// generic toast names only the achievement id ("Achievement unlocked:
+// compost-master-sash") which reads as a system message; the dedicated
+// dawn-brag wording carries the warmth of a recap ("you've recycled
+// 252g now — the sash is yours") that lands as a celebration rather
+// than a notification.
+// ---------------------------------------------------------------------
+
+/**
+ * Returns the compost-master-sash dawn-brag tail, or the empty string
+ * if there's no fresh sash crossing to celebrate. ONE-SHOT — bumps
+ * `sashBragFired` on the ledger as a side effect, so a re-call
+ * returns empty. Survives reload via persistence.
+ *
+ * Wording: "Compost Sash earned - Xg recycled across N bags."
+ *
+ * Reads the LIVE lifetimeRecycledGold / lifetimeBagsApplied off the
+ * ledger so the brag names the current totals at brag-fire time, not
+ * the totals at the moment of crossing. This is deliberate: if a
+ * player crosses the sash on day 5 with 251g, applies one more bag
+ * before sleep that pushes to 252g, then sleeps and reads the brag
+ * on day 6, the brag should read "252g" because that's the player's
+ * current state. The crossing-moment totals are an implementation
+ * detail; the player only cares about "what does it say now".
+ */
+export function compostMasterSashDawnBrag(player: object): string {
+  const ledger = getCompostLedger(player);
+  return oneShotBrag(
+    ledger as unknown as Record<string, unknown>,
+    'sashBragPending',
+    'sashBragFired',
+    () => {
+      const goldStr = ledger.lifetimeRecycledGold.toLocaleString('en-US');
+      const bags = ledger.lifetimeBagsApplied;
+      return `Compost Sash earned - ${goldStr}g recycled across ${bags} bag${bags === 1 ? '' : 's'}.`;
+    },
+  );
+}
+
+/**
+ * Returns the rare-master dawn-brag tail, or the empty string if
+ * there's no fresh rare-master crossing to celebrate. ONE-SHOT —
+ * bumps `rareMasterBragFired` on the ledger as a side effect, so a
+ * re-call returns empty. Survives reload via persistence.
+ *
+ * Wording: "Rare Master earned - N rare bags applied across the seasons."
+ *
+ * Reads the LIVE lifetimeRareBagsApplied off the ledger (same as
+ * sash brag rationale).
+ */
+export function rareMasterDawnBrag(player: object): string {
+  const ledger = getCompostLedger(player);
+  return oneShotBrag(
+    ledger as unknown as Record<string, unknown>,
+    'rareMasterBragPending',
+    'rareMasterBragFired',
+    () => {
+      const rare = ledger.lifetimeRareBagsApplied ?? 0;
+      return `Rare Master earned - ${rare} rare bag${rare === 1 ? '' : 's'} applied across the seasons.`;
+    },
+  );
 }
 
 // ---------------------------------------------------------------------

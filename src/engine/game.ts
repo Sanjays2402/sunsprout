@@ -300,12 +300,14 @@ import {
   applyFertilizer,
   canPlaceCompost,
   compostHalfwayDawnNudge,
+  compostMasterSashDawnBrag,
   compostStatusLine,
   compostTick,
   depositCrops,
   drawCompostSprite,
   getComposts,
   placeCompost,
+  rareMasterDawnBrag,
 } from '../game/compost';
 import { assembleDawnToast } from '../game/dawn-toast';
 import { drawBarks, tickBarks } from '../game/npc-barks';
@@ -859,6 +861,20 @@ export class Game {
       // celebration: it fires once per crossing even if the chain
       // itself has reset since the crossing day.
       const chainTierBrag = chainTierDawnBrag(this.world.player);
+      // Compost-master-sash dawn brag — one-shot celebratory tail the
+      // morning AFTER lifetimeRecycledGold crosses the sash milestone
+      // (250g). Same sticky-flag dawn-brag pattern as deep-vein and
+      // chain-tier; rides the generic oneShotBrag helper. Survives
+      // reload via persistence so a player who crossed the sash just
+      // before quitting still sees the brag the next morning on
+      // fresh boot.
+      const sashBrag = compostMasterSashDawnBrag(this.world.player);
+      // Rare-master dawn brag — symmetric one-shot tail the morning
+      // AFTER lifetimeRareBagsApplied crosses the rare-master
+      // milestone (100). Reads off the separate rare-bag counter so
+      // a regular-bag grind doesn't fire it; only rare-day-finished
+      // compost batches move the counter.
+      const rareMasterBrag = rareMasterDawnBrag(this.world.player);
       // Compose the dawn headline through the generic assembler so the
       // chain of optional tails reads as a single array push rather
       // than a string-concat ladder. New tails added below just slot
@@ -869,6 +885,8 @@ export class Game {
         compostNudge,
         deepVeinBrag,
         chainTierBrag,
+        sashBrag,
+        rareMasterBrag,
       ]);
       this.setToast(headline);
       // Auto-save snapshot at every day rollover — gated by settings.
