@@ -147,6 +147,23 @@ export interface MineHaulState {
 /** Threshold for the lifetime-mining achievement / "Rockhound II". */
 export const LIFETIME_MINING_MILESTONE = 100;
 
+/**
+ * Per-gem floor for the `vein-connoisseur` achievement — the player
+ * must have mined AT LEAST this many of EVERY gem type to earn the
+ * badge.
+ *
+ * Tuned at 10 so the milestone reads as "you've worked every vein the
+ * cave has to offer," not just "you got lucky once." 10 of each
+ * across the five gem types (copper / iron / silver / gold / ruby) =
+ * 50 total — half the LIFETIME_MINING_MILESTONE cave-veteran bar, so
+ * a player chasing this badge can earn it while still tracking
+ * toward cave-veteran. The threshold is per-gem rather than total
+ * because the existing cave-veteran badge already covers the total-
+ * mining grind; this badge specifically rewards BREADTH of the
+ * mining work — you can't shortcut it with a one-gem grind.
+ */
+export const VEIN_CONNOISSEUR_PER_GEM = 10;
+
 /** Lazy reader on the Player. */
 export function getMineHaul(player: Player): MineHaulState {
   const p = player as Player & { mineHaul?: MineHaulState };
@@ -223,6 +240,26 @@ export function lifetimeHaulGold(state: MineHaulState): number {
  */
 export function lifetimeMiningMilestoneReached(state: MineHaulState): boolean {
   return lifetimeHaulCount(state) >= LIFETIME_MINING_MILESTONE;
+}
+
+/**
+ * True iff the lifetime tally has reached VEIN_CONNOISSEUR_PER_GEM of
+ * EVERY gem type. Reads the existing lifetimeCounts map populated by
+ * recordMined — no new persisted state. Backfills via the lazy reader
+ * (lifetimeCounts is initialized to an empty object on first read),
+ * so older saves walk this predicate cleanly and return false until
+ * the player has earned enough of every gem.
+ *
+ * Lazy-ledger pattern — same shape as cave-veteran (lifetime total),
+ * deep-vein (single-run records), and the compost / owl / cooking
+ * lifetime predicates. Wired into the achievements catalog.
+ */
+export function veinConnoisseurMilestoneReached(state: MineHaulState): boolean {
+  const life = state.lifetimeCounts ?? {};
+  for (const k of GEM_KEYS) {
+    if ((life[k] ?? 0) < VEIN_CONNOISSEUR_PER_GEM) return false;
+  }
+  return true;
 }
 
 /**

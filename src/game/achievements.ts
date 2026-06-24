@@ -37,6 +37,8 @@ import {
   deepVeinMilestoneReached,
   DEEP_VEIN_COUNT,
   DEEP_VEIN_GOLD,
+  veinConnoisseurMilestoneReached,
+  VEIN_CONNOISSEUR_PER_GEM,
 } from './mining-haul';
 import {
   compostMasterMilestoneReached,
@@ -85,7 +87,8 @@ export type AchievementId =
   | 'festival-regular'
   | 'tournament-champion'
   | 'compost-master-sash'
-  | 'rare-master';
+  | 'rare-master'
+  | 'vein-connoisseur';
 
 export interface AchievementDef {
   id: AchievementId;
@@ -290,6 +293,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     hint: `Apply ${RARE_MASTER_MILESTONE_BAGS} RARE fertilizer bags — only mintable on each season's rare-day.`,
     done: `Applied ${RARE_MASTER_MILESTONE_BAGS}+ rare fertilizer bags — you've mastered the rare-day compost timing.`,
     check: (p) => rareMasterMilestoneReached(p),
+  },
+  {
+    id: 'vein-connoisseur',
+    name: 'Vein Connoisseur',
+    hint: `Mine ${VEIN_CONNOISSEUR_PER_GEM} of every gem type across your career.`,
+    done: `Pulled ${VEIN_CONNOISSEUR_PER_GEM}+ of every gem out of the cave — copper, iron, silver, gold, and ruby.`,
+    check: (p) => veinConnoisseurMilestoneReached(getMineHaul(p)),
   },
 ];
 
