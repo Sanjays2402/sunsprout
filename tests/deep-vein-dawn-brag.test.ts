@@ -153,7 +153,11 @@ describe('deepVeinDawnBrag — one-shot semantics', () => {
     resetMineHaul(w.player, 4);
     deepVeinDawnBrag(getMineHaul(w.player));
     expect(getMineHaul(w.player).deepVeinBragFired).toBe(true);
-    expect(getMineHaul(w.player).deepVeinBragPending).toBe(false);
+    // Pending flag is cleared (undefined or false — both falsy are
+    // acceptable contracts for a ?: boolean field). Persistence
+    // coerces via `=== true` so the in-memory shape doesn't need to
+    // be strict-equal-false.
+    expect(getMineHaul(w.player).deepVeinBragPending).toBeFalsy();
   });
 });
 

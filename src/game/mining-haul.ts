@@ -22,6 +22,7 @@
 import type { Player } from '../world/world';
 import type { GemKey } from './gems';
 import { GEMS, GEM_KEYS } from './gems';
+import { oneShotBrag } from './dawn-toast';
 
 /** Per-(GemKey) tally of how many of that gem the player has mined this run. */
 export interface MineHaulState {
@@ -605,25 +606,27 @@ export function goldMilestoneToastLine(
  * split-record save where the deep-vein bar was crossed via gold.
  */
 export function deepVeinDawnBrag(state: MineHaulState): string {
-  if (!state.deepVeinBragPending) return '';
-  // Clear the pending flag whether or not the brag actually surfaces
-  // text — a corrupted state with `bragPending=true` but no bestRun
-  // still resets cleanly so it doesn't haunt subsequent dawns.
-  state.deepVeinBragPending = false;
-  state.deepVeinBragFired = true;
-  const best = state.bestRun;
-  if (!best) return '';
-  const countHit = best.count >= DEEP_VEIN_COUNT;
-  const goldHit = best.gold >= DEEP_VEIN_GOLD;
-  if (countHit && goldHit) {
-    return `Deep Vein unlocked - ${best.count} gems / ${best.gold}g in one run.`;
-  }
-  if (countHit) {
-    return `Deep Vein unlocked - ${best.count} gem${best.count === 1 ? '' : 's'} pulled out in one run.`;
-  }
-  // gold-only crossing — name only the gold so the player knows which
-  // axis tripped the bar (a 3-ruby trip might be only 4 gems but 1500g).
-  return `Deep Vein unlocked - ${best.gold}g of ore in one run.`;
+  return oneShotBrag(
+    state as unknown as Record<string, unknown>,
+    'deepVeinBragPending',
+    'deepVeinBragFired',
+    () => {
+      const best = state.bestRun;
+      if (!best) return '';
+      const countHit = best.count >= DEEP_VEIN_COUNT;
+      const goldHit = best.gold >= DEEP_VEIN_GOLD;
+      if (countHit && goldHit) {
+        return `Deep Vein unlocked - ${best.count} gems / ${best.gold}g in one run.`;
+      }
+      if (countHit) {
+        return `Deep Vein unlocked - ${best.count} gem${best.count === 1 ? '' : 's'} pulled out in one run.`;
+      }
+      // gold-only crossing — name only the gold so the player knows
+      // which axis tripped the bar (a 3-ruby trip might be only 4
+      // gems but 1500g).
+      return `Deep Vein unlocked - ${best.gold}g of ore in one run.`;
+    },
+  );
 }
 
 // ---------------------------------------------------------------------

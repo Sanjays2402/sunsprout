@@ -20,6 +20,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from './time';
 import { CANDIDATES } from './hearts';
 import { attemptAutoGift, type GiftOutcome } from './gifting';
+import { oneShotBrag } from './dawn-toast';
 
 /** Flat courier fee per dispatch. Deducted before the gift is picked. */
 export const OWL_POST_FEE = 40;
@@ -700,18 +701,19 @@ export const OWL_CHAIN_TIER_LABEL: Record<string, string> = {
  */
 export function chainTierDawnBrag(player: object): string {
   const book = getOwlStamps(player);
-  const pending = book.chainTierBragPending;
-  if (!pending) return '';
-  // Clear the pending flag whether or not the brag actually surfaces
-  // text — a corrupted pending value with no matching label still
-  // resets cleanly so it doesn't haunt subsequent dawns.
-  book.chainTierBragPending = undefined;
-  // Pin the multiplier to one decimal so floating-point quirks (1.2999...)
-  // don't miss the label table. The table is keyed by the canonical
-  // strings '1.1' / '1.2' / '1.3'.
-  const key = pending.toFixed(1);
-  const label = OWL_CHAIN_TIER_LABEL[key];
-  if (!label) return '';
-  const pct = Math.round((pending - 1) * 100);
-  return `Your owl chain is in the ${label} tier now (+${pct}%).`;
+  return oneShotBrag(
+    book as unknown as Record<string, unknown>,
+    'chainTierBragPending',
+    null,
+    (pending) => {
+      // Pin the multiplier to one decimal so floating-point quirks
+      // (1.2999...) don't miss the label table. The table is keyed
+      // by the canonical strings '1.1' / '1.2' / '1.3'.
+      const key = (pending as number).toFixed(1);
+      const label = OWL_CHAIN_TIER_LABEL[key];
+      if (!label) return '';
+      const pct = Math.round(((pending as number) - 1) * 100);
+      return `Your owl chain is in the ${label} tier now (+${pct}%).`;
+    },
+  );
 }
