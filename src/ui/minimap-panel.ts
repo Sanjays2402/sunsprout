@@ -13,8 +13,11 @@ import {
   minimapTileColors,
   minimapPings,
   projectTile,
+  playerDotRingAlpha,
+  pingRing,
   type MinimapMarker,
   type MinimapPing,
+  type PingRing,
 } from '../game/minimap';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
@@ -71,6 +74,7 @@ export class MinimapPanel {
     time: TimeOfDay,
     canvasW: number,
     canvasH: number,
+    reduceMotion: boolean = false,
   ): void {
     if (!this.opened) return;
     const panelW = MAP_W + PAD * 2;
@@ -96,7 +100,7 @@ export class MinimapPanel {
 
     const mapX = x + PAD;
     const mapY = y + 36;
-    this.drawMap(ctx, world, player, time, mapX, mapY);
+    this.drawMap(ctx, world, player, time, mapX, mapY, reduceMotion);
 
     // Legend below the map.
     this.drawLegend(ctx, world, mapX, mapY + MAP_H + 8);
@@ -115,6 +119,7 @@ export class MinimapPanel {
     time: TimeOfDay,
     mapX: number,
     mapY: number,
+    reduceMotion: boolean,
   ): void {
     const colors = minimapTileColors(world);
     const { cellW, cellH } = projectTile(0, 0, world.width, world.height, MAP_W, MAP_H);
@@ -145,19 +150,21 @@ export class MinimapPanel {
 
     // Action pings — pulsing rings on tiles that need the player right
     // now (quest turn-in, open cart, live tournament). Drawn over the
-    // landmark pips but under the player dot.
+    // landmark pips but under the player dot. Under reduceMotion the
+    // expanding ring is dropped (a steady inner dot still marks the spot).
     const pings = minimapPings(player, time);
+    const ring = pingRing(this.pulseMs, reduceMotion);
     for (const p of pings) {
-      this.drawPing(ctx, p, mapX, mapY, cellW, cellH);
+      this.drawPing(ctx, p, mapX, mapY, cellW, cellH, ring);
     }
 
     // Player dot — pulsing ring so the eye finds "you are here" fast.
+    // Holds a steady mid-bright ring under reduceMotion.
     const p = world.player;
     const dx = mapX + p.x * cellW;
     const dy = mapY + p.y * cellH;
-    const pulse = 0.5 + 0.5 * Math.sin((this.pulseMs / 1200) * Math.PI * 2);
     ctx.fillStyle = PLAYER_RING;
-    ctx.globalAlpha = 0.35 + 0.4 * pulse;
+    ctx.globalAlpha = playerDotRingAlpha(this.pulseMs, reduceMotion);
     ctx.beginPath();
     ctx.arc(dx, dy, 5, 0, Math.PI * 2);
     ctx.fill();
@@ -202,25 +209,28 @@ export class MinimapPanel {
     mapY: number,
     cellW: number,
     cellH: number,
+    ring: PingRing,
   ): void {
     const cx = mapX + p.tx * cellW + cellW / 2;
     const cy = mapY + p.ty * cellH + cellH / 2;
-    // Expanding ring: radius + alpha breathe on the shared pulse clock so
-    // the eye is drawn to the spot without a hard flash.
-    const phase = (this.pulseMs / 1200) % 1;
-    const radius = 4 + phase * 7;
     ctx.save();
-    ctx.globalAlpha = 0.75 * (1 - phase);
-    ctx.strokeStyle = p.color;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-    ctx.stroke();
-    // Solid inner dot keeps the marker readable at the trough of the pulse.
+    // Expanding ring: radius + alpha breathe on the shared pulse clock so
+    // the eye is drawn to the spot without a hard flash. Dropped entirely
+    // under reduceMotion (ring.showRing === false).
+    if (ring.showRing) {
+      ctx.globalAlpha = ring.ringAlpha;
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ring.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    // Solid inner dot keeps the marker readable at the trough of the pulse
+    // (and is the ONLY cue under reduceMotion, so it's drawn a touch larger).
     ctx.globalAlpha = 0.9;
     ctx.fillStyle = p.color;
     ctx.beginPath();
-    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.arc(cx, cy, ring.dotRadius, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }

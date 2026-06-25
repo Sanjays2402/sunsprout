@@ -9,7 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { SEASONS } from '../game/time';
 import { CROPS, CROP_KEYS, drawCropSprite } from '../game/crops';
-import { seedWarnLevel, seedWarnPulse, SEED_WARN_COLOR } from '../game/hotbar';
+import { seedWarnLevel, seedWarnIntensity, SEED_WARN_COLOR } from '../game/hotbar';
 import type { Quest } from '../game/quests';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
@@ -87,6 +87,7 @@ function drawHotbar(
   canvasW: number,
   canvasH: number,
   nowMs: number,
+  reduceMotion: boolean,
 ): void {
   const slotSize = 48;
   const gap = 6;
@@ -125,7 +126,7 @@ function drawHotbar(
       // selection border; the warning rides on top as an overlay stroke.
       const level = seedWarnLevel(count);
       if (level !== 'none') {
-        const pulse = seedWarnPulse(level, nowMs);
+        const pulse = seedWarnIntensity(level, nowMs, reduceMotion);
         ctx.save();
         ctx.globalAlpha = pulse;
         ctx.strokeStyle = SEED_WARN_COLOR;
@@ -223,11 +224,12 @@ export function drawHUD(
   canvasH: number,
   hudScale: number = 1.0,
   nowMs: number = 0,
+  reduceMotion: boolean = false,
 ): void {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   drawTopBar(ctx, player, time, canvasW, hudScale);
-  drawHotbar(ctx, player, canvasW, canvasH, nowMs);
+  drawHotbar(ctx, player, canvasW, canvasH, nowMs, reduceMotion);
   drawQuestPanel(ctx, player, hudScale);
   ctx.restore();
 }

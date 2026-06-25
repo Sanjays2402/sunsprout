@@ -48,5 +48,36 @@ export function seedWarnPulse(level: SeedWarnLevel, nowMs: number): number {
   return floor + (1 - floor) * breathe;
 }
 
+/**
+ * Steady (non-animated) intensity for a warning border when the player
+ * has asked for reduced motion. Returns a constant per level — no sine,
+ * no clock — so the amber border still clearly marks the slot but holds
+ * still. 'empty' sits brighter than 'low' to preserve the urgency
+ * ordering. Mirrors how the rain/snow overlays skip animating under
+ * reduceMotion while still conveying their state.
+ */
+export const SEED_STEADY_LOW = 0.7;
+export const SEED_STEADY_EMPTY = 0.9;
+
+export function seedWarnSteady(level: SeedWarnLevel): number {
+  if (level === 'empty') return SEED_STEADY_EMPTY;
+  if (level === 'low') return SEED_STEADY_LOW;
+  return 0;
+}
+
+/**
+ * The border intensity to actually draw for a slot, picking the steady
+ * value under reduceMotion and the animated breathe otherwise. The single
+ * entry point the widget calls so the motion decision lives here, tested,
+ * not in the canvas layer.
+ */
+export function seedWarnIntensity(
+  level: SeedWarnLevel,
+  nowMs: number,
+  reduceMotion: boolean,
+): number {
+  return reduceMotion ? seedWarnSteady(level) : seedWarnPulse(level, nowMs);
+}
+
 /** Amber the warning border lerps toward. Shared by widget + tests. */
 export const SEED_WARN_COLOR = '#F0A828';

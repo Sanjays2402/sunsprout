@@ -4,8 +4,12 @@ import { describe, it, expect } from 'vitest';
 import {
   seedWarnLevel,
   seedWarnPulse,
+  seedWarnSteady,
+  seedWarnIntensity,
   SEED_LOW_THRESHOLD,
   SEED_PULSE_PERIOD_MS,
+  SEED_STEADY_LOW,
+  SEED_STEADY_EMPTY,
   SEED_WARN_COLOR,
 } from '../src/game/hotbar';
 
@@ -68,5 +72,52 @@ describe('seedWarnPulse', () => {
 describe('SEED_WARN_COLOR', () => {
   it('is a hex colour with no emoji', () => {
     expect(SEED_WARN_COLOR).toMatch(/^#[0-9A-Fa-f]{6}$/);
+  });
+});
+
+describe('seedWarnSteady — reduce-motion intensity', () => {
+  it('is silent with no warning', () => {
+    expect(seedWarnSteady('none')).toBe(0);
+  });
+
+  it('marks low + empty with steady, visible constants', () => {
+    expect(seedWarnSteady('low')).toBe(SEED_STEADY_LOW);
+    expect(seedWarnSteady('empty')).toBe(SEED_STEADY_EMPTY);
+    // Both clearly visible.
+    expect(SEED_STEADY_LOW).toBeGreaterThan(0.5);
+    expect(SEED_STEADY_EMPTY).toBeGreaterThan(0.5);
+  });
+
+  it('keeps empty brighter than low (urgency ordering preserved)', () => {
+    expect(seedWarnSteady('empty')).toBeGreaterThan(seedWarnSteady('low'));
+  });
+});
+
+describe('seedWarnIntensity — motion router', () => {
+  it('routes to the animated breathe when motion is on', () => {
+    for (const level of ['low', 'empty'] as const) {
+      for (const ms of [0, 250, 600]) {
+        expect(seedWarnIntensity(level, ms, false)).toBe(seedWarnPulse(level, ms));
+      }
+    }
+  });
+
+  it('routes to the steady value when reduceMotion is on', () => {
+    for (const level of ['low', 'empty'] as const) {
+      expect(seedWarnIntensity(level, 12345, true)).toBe(seedWarnSteady(level));
+    }
+  });
+
+  it('is time-invariant under reduceMotion (no animation)', () => {
+    const a = seedWarnIntensity('empty', 0, true);
+    const b = seedWarnIntensity('empty', SEED_PULSE_PERIOD_MS / 2, true);
+    const c = seedWarnIntensity('empty', SEED_PULSE_PERIOD_MS, true);
+    expect(a).toBe(b);
+    expect(b).toBe(c);
+  });
+
+  it('stays silent for a healthy slot regardless of motion setting', () => {
+    expect(seedWarnIntensity('none', 100, false)).toBe(0);
+    expect(seedWarnIntensity('none', 100, true)).toBe(0);
   });
 });

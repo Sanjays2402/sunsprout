@@ -168,3 +168,60 @@ export function minimapPings(player: Player, time: TimeOfDay): MinimapPing[] {
 
   return pings;
 }
+
+// ---------------------------------------------------------------------
+// Pulse helpers — the minimap's two animated cues (the "you are here"
+// player-dot ring and the action-ping expanding rings) breathe on a
+// shared clock. These pure helpers own the breathe math so the widget
+// stays a thin draw layer AND so reduce-motion gating is unit-testable:
+// when the player has asked for calm, the cues hold a steady, readable
+// state instead of pulsing (mirroring how the rain/snow overlays already
+// skip entirely under reduceMotion).
+// ---------------------------------------------------------------------
+
+/** Period of the shared minimap pulse clock (ms). */
+export const MINIMAP_PULSE_PERIOD_MS = 1200;
+
+/**
+ * Alpha for the player-dot "you are here" ring at clock `pulseMs`. With
+ * motion on it breathes 0.35..0.75; with reduceMotion it holds a steady
+ * mid-bright 0.55 so the dot is still clearly marked without animating.
+ */
+export function playerDotRingAlpha(pulseMs: number, reduceMotion: boolean): number {
+  if (reduceMotion) return 0.55;
+  const pulse = 0.5 + 0.5 * Math.sin((pulseMs / MINIMAP_PULSE_PERIOD_MS) * Math.PI * 2);
+  return 0.35 + 0.4 * pulse;
+}
+
+/** The animated expanding ring of an action ping. */
+export interface PingRing {
+  /** Expanding ring radius in px (0 when the ring is suppressed). */
+  radius: number;
+  /** Expanding ring stroke alpha (0 when suppressed). */
+  ringAlpha: number;
+  /** Whether to draw the expanding ring at all. */
+  showRing: boolean;
+  /** Radius of the always-drawn solid inner dot (px). */
+  dotRadius: number;
+}
+
+/**
+ * Resolve the ping's ring geometry at clock `pulseMs`. With motion on the
+ * ring expands (radius 4..11) and fades (alpha 0.75..0) on the phase, with
+ * a small 2px solid inner dot keeping the spot readable at the trough.
+ * With reduceMotion the expanding ring is dropped entirely and the inner
+ * dot grows to 3px so the location is still clearly marked — no animation,
+ * but the player who asked for calm still sees WHERE to act.
+ */
+export function pingRing(pulseMs: number, reduceMotion: boolean): PingRing {
+  if (reduceMotion) {
+    return { radius: 0, ringAlpha: 0, showRing: false, dotRadius: 3 };
+  }
+  const phase = (pulseMs / MINIMAP_PULSE_PERIOD_MS) % 1;
+  return {
+    radius: 4 + phase * 7,
+    ringAlpha: 0.75 * (1 - phase),
+    showRing: true,
+    dotRadius: 2,
+  };
+}

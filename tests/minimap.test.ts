@@ -6,7 +6,10 @@ import {
   minimapMarkers,
   minimapTileColors,
   projectTile,
+  playerDotRingAlpha,
+  pingRing,
   MINIMAP_TILE_COLORS,
+  MINIMAP_PULSE_PERIOD_MS,
 } from '../src/game/minimap';
 
 describe('minimapTileColors', () => {
@@ -97,5 +100,61 @@ describe('projectTile', () => {
     const big = projectTile(10, 10, 40, 30, 400, 300);
     expect(big.px).toBeCloseTo(small.px * 2, 5);
     expect(big.py).toBeCloseTo(small.py * 2, 5);
+  });
+});
+
+describe('playerDotRingAlpha — reduce-motion gate', () => {
+  it('breathes within a bounded band across a full period with motion on', () => {
+    let min = Infinity;
+    let max = -Infinity;
+    for (let ms = 0; ms <= MINIMAP_PULSE_PERIOD_MS; ms += 13) {
+      const a = playerDotRingAlpha(ms, false);
+      min = Math.min(min, a);
+      max = Math.max(max, a);
+      expect(a).toBeGreaterThanOrEqual(0);
+      expect(a).toBeLessThanOrEqual(1);
+    }
+    // The ring actually animates (a non-trivial spread).
+    expect(max - min).toBeGreaterThan(0.3);
+  });
+
+  it('holds a single steady value under reduceMotion (no animation)', () => {
+    const samples = [0, 100, 600, 900, 1200, 5000].map((ms) =>
+      playerDotRingAlpha(ms, true),
+    );
+    for (const s of samples) {
+      expect(s).toBe(samples[0]);
+    }
+    // Steady value is clearly visible (mid-bright).
+    expect(samples[0]).toBe(0.55);
+  });
+});
+
+describe('pingRing — reduce-motion gate', () => {
+  it('expands + fades on the phase with motion on', () => {
+    const start = pingRing(0, false);
+    const mid = pingRing(MINIMAP_PULSE_PERIOD_MS / 2, false);
+    expect(start.showRing).toBe(true);
+    // Radius grows across the phase.
+    expect(mid.radius).toBeGreaterThan(start.radius);
+    // Alpha fades across the phase.
+    expect(mid.ringAlpha).toBeLessThan(start.ringAlpha);
+    // The inner dot stays small while the ring carries the motion.
+    expect(start.dotRadius).toBe(2);
+  });
+
+  it('drops the expanding ring entirely under reduceMotion', () => {
+    const r = pingRing(300, true);
+    expect(r.showRing).toBe(false);
+    expect(r.radius).toBe(0);
+    expect(r.ringAlpha).toBe(0);
+    // The solid inner dot grows so the spot is still clearly marked.
+    expect(r.dotRadius).toBe(3);
+  });
+
+  it('is steady across time under reduceMotion', () => {
+    const a = pingRing(0, true);
+    const b = pingRing(750, true);
+    expect(a).toEqual(b);
   });
 });
