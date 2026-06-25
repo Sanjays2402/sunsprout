@@ -5,6 +5,7 @@ import {
   skyDialState,
   daylightMinutesLeft,
   phaseLabelFor,
+  skyWeatherStyle,
   DAY_HOURS,
   NIGHT_HOURS,
 } from '../src/game/sky-dial';
@@ -110,5 +111,38 @@ describe('phaseLabelFor', () => {
 describe('window constants', () => {
   it('day + night hours sum to 24', () => {
     expect(DAY_HOURS + NIGHT_HOURS).toBe(24);
+  });
+});
+
+describe('skyWeatherStyle', () => {
+  it('leaves the body bright on a clear day', () => {
+    for (const w of ['sunny', 'cloudy'] as const) {
+      const s = skyWeatherStyle(w);
+      expect(s.dimmed).toBe(false);
+      expect(s.cloud).toBe(false);
+      expect(s.storm).toBe(false);
+    }
+  });
+
+  it('dims + clouds the body when it rains', () => {
+    const s = skyWeatherStyle('rain');
+    expect(s.dimmed).toBe(true);
+    expect(s.cloud).toBe(true);
+    expect(s.storm).toBe(false);
+  });
+
+  it('flags storms for the heavier cloud tint', () => {
+    const s = skyWeatherStyle('storm');
+    expect(s.dimmed).toBe(true);
+    expect(s.cloud).toBe(true);
+    expect(s.storm).toBe(true);
+  });
+
+  it('cloud always implies dimmed (the two cues travel together)', () => {
+    for (const w of ['sunny', 'cloudy', 'rain', 'storm'] as const) {
+      const s = skyWeatherStyle(w);
+      if (s.cloud) expect(s.dimmed).toBe(true);
+      if (s.storm) expect(s.cloud).toBe(true);
+    }
   });
 });

@@ -12,6 +12,7 @@
 // when it's "night".
 
 import { DAY_START, DAY_END } from './time';
+import type { Weather } from './weather';
 
 export type CelestialBody = 'sun' | 'moon';
 
@@ -102,4 +103,32 @@ export function daylightMinutesLeft(hour: number, minute: number = 0): number {
   const h = hourOf(hour, minute);
   if (h >= DAY_END || h < DAY_START) return 0;
   return Math.round((DAY_END - h) * 60);
+}
+
+/**
+ * How the current weather should colour the sky dial. Sunny / cloudy
+ * leave the body bright; rain / storm dim + grey it and ask the widget
+ * to tuck a small cloud glyph over the body so the at-a-glance widget
+ * also reads the sky. `dimmed` drives an alpha knock-down on the body
+ * colour, `cloud` whether to draw the overcast puff.
+ *
+ * Pure — a weather kind in, a small render hint out. Keeps the widget's
+ * branch trivial and unit-testable without a canvas.
+ */
+export interface SkyWeatherStyle {
+  /** True when the body should render greyed + dimmed (rain/storm). */
+  dimmed: boolean;
+  /** True when a small cloud glyph should overlay the body. */
+  cloud: boolean;
+  /** True for storms specifically — the widget tints the cloud darker. */
+  storm: boolean;
+}
+
+export function skyWeatherStyle(weather: Weather): SkyWeatherStyle {
+  const wet = weather === 'rain' || weather === 'storm';
+  return {
+    dimmed: wet,
+    cloud: wet,
+    storm: weather === 'storm',
+  };
 }

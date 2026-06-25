@@ -8,7 +8,8 @@
 // drawing layer — all the placement math comes from sky-dial.ts.
 
 import type { TimeOfDay } from '../game/time';
-import { skyDialState, daylightMinutesLeft } from '../game/sky-dial';
+import { skyDialState, daylightMinutesLeft, skyWeatherStyle } from '../game/sky-dial';
+import { weatherToday } from '../game/weather';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -19,6 +20,9 @@ const SUN_CORE = '#F7D070';
 const SUN_RAY = '#F5B94A';
 const MOON_CORE = '#E8ECF5';
 const MOON_SHADOW = '#9FB0D0';
+const CLOUD_LIGHT = '#C7CDDA';
+const CLOUD_DARK = '#8C93A6';
+const CLOUD_STORM = '#6A7186';
 
 const WIDTH = 132;
 const HEIGHT = 40;
@@ -77,10 +81,19 @@ export function drawSkyDial(
   // Body position.
   const bx = Math.floor(arcLeft + state.arcT * arcSpan);
   const by = Math.floor(baseY - state.altitude * arcHeight);
+  // Weather tie-in: rain / storm dim + grey the body and tuck a small
+  // cloud over it so the dial reads the sky, not just the clock.
+  const weather = skyWeatherStyle(weatherToday(time));
+  ctx.save();
+  if (weather.dimmed) ctx.globalAlpha = 0.5;
   if (state.body === 'sun') {
     drawSun(ctx, bx, by);
   } else {
     drawMoon(ctx, bx, by);
+  }
+  ctx.restore();
+  if (weather.cloud) {
+    drawCloud(ctx, bx, by, weather.storm);
   }
 
   // Caption: phase word + daylight-left readout.
@@ -128,4 +141,29 @@ function drawMoon(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
   ctx.fillStyle = MOON_SHADOW;
   ctx.fillRect(cx, cy - 3, 3, 7);
   ctx.fillRect(cx + 1, cy - 2, 2, 5);
+}
+
+/**
+ * Small overcast puff tucked over the body so a rainy / stormy day reads
+ * at a glance. Offset down-right of the body centre so the dimmed sun /
+ * moon still peeks out behind it. Storms get a darker, heavier cloud.
+ */
+function drawCloud(
+  ctx: CanvasRenderingContext2D,
+  cx: number,
+  cy: number,
+  storm: boolean,
+): void {
+  const base = storm ? CLOUD_STORM : CLOUD_DARK;
+  const top = storm ? CLOUD_DARK : CLOUD_LIGHT;
+  // Cloud body — a couple of stacked puffs, offset slightly down-right so
+  // the dimmed body still peeks out behind it.
+  const ox = cx + 1;
+  const oy = cy + 1;
+  ctx.fillStyle = base;
+  ctx.fillRect(ox - 5, oy + 1, 11, 3);
+  ctx.fillRect(ox - 3, oy - 1, 8, 3);
+  ctx.fillStyle = top;
+  ctx.fillRect(ox - 3, oy - 1, 7, 2);
+  ctx.fillRect(ox - 1, oy - 2, 4, 2);
 }
