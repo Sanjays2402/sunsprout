@@ -64,6 +64,7 @@ import { drawQualityHeatmap } from '../ui/quality-heatmap';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
+import { drawConfettiOverlay, celebrationDayKey, CONFETTI_DURATION_MS } from '../game/confetti';
 import { cropSellMultiplier } from '../game/festivals';
 import {
   placeSprinkler,
@@ -436,6 +437,10 @@ export class Game {
   private heartsPanelVisible = false;
   /** Set when we've already wiped today's forage at dusk. */
   private forageCleared = false;
+  /** Day-key of the celebration burst currently playing (null = none). */
+  private confettiDayKey: string | null = null;
+  /** Wall-clock ms the active confetti burst started. */
+  private confettiStartMs = 0;
 
   private canvas: HTMLCanvasElement;
   private running = false;
@@ -2703,6 +2708,26 @@ export class Game {
     drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
+    // Confetti — a brief celebratory burst the moment the player arrives on
+    // a festival or birthday. We diff today's celebration key against the
+    // last burst's: a change to a non-null key arms a fresh burst (so a
+    // reload mid-day or a sleep-into-a-birthday both trigger it once). The
+    // burst is skipped wholesale under reduce-motion, matching rain / snow.
+    {
+      const key = celebrationDayKey(this.time);
+      if (key && key !== this.confettiDayKey) {
+        this.confettiDayKey = key;
+        this.confettiStartMs = renderNow;
+      } else if (!key) {
+        this.confettiDayKey = null;
+      }
+      if (this.confettiDayKey && !settings.reduceMotion) {
+        const elapsed = renderNow - this.confettiStartMs;
+        if (elapsed <= CONFETTI_DURATION_MS) {
+          drawConfettiOverlay(this.ctx, elapsed, this.canvas.width, this.canvas.height);
+        }
+      }
+    }
     // Rain overlay sits between the world and the HUD chrome so it darkens
     // the village but not the on-screen text. Only render when the active
     // weather actually drops water — and skip when reduce-motion is on.
