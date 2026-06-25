@@ -167,6 +167,7 @@ import { getSettings } from '../game/settings';
 import { SettingsPanel } from '../ui/settings-panel';
 import { HelpOverlay } from '../ui/help-overlay';
 import { MinimapPanel } from '../ui/minimap-panel';
+import { AlmanacPanel } from '../ui/almanac-panel';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -391,6 +392,8 @@ export class Game {
   public helpOverlay: HelpOverlay = new HelpOverlay();
   /** Village minimap — toggled with `9`. */
   public minimapPanel: MinimapPanel = new MinimapPanel();
+  /** Almanac of upcoming events — toggled with `0`. */
+  public almanacPanel: AlmanacPanel = new AlmanacPanel();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
   public cartMenu: CartMenu = new CartMenu();
   /** Maple's shop menu — opened with E when standing adjacent to the shop. */
@@ -994,6 +997,7 @@ export class Game {
     this.settingsPanel.update(dtMs);
     this.helpOverlay.update(dtMs);
     this.minimapPanel.update(dtMs);
+    this.almanacPanel.update(dtMs);
     this.toasts.tick(dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -1162,6 +1166,13 @@ export class Game {
       this.minimapPanel.toggle();
     } else if (this.minimapPanel.isVisible() && this.minimapPanel.canAct() && this.input.justPressed.has('escape')) {
       this.minimapPanel.close();
+    }
+
+    // 0: toggle the almanac of upcoming events.
+    if (this.input.justPressed.has('0')) {
+      this.almanacPanel.toggle();
+    } else if (this.almanacPanel.isVisible() && this.almanacPanel.canAct() && this.input.justPressed.has('escape')) {
+      this.almanacPanel.close();
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -2742,6 +2753,7 @@ export class Game {
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.minimapPanel.draw(this.ctx, this.world, this.canvas.width, this.canvas.height);
+    this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height);
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
