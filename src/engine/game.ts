@@ -164,6 +164,7 @@ import { MoneyLogPanel } from '../ui/money-log-panel';
 import { QuestLogPanel } from '../ui/quest-log-panel';
 import { getSettings } from '../game/settings';
 import { SettingsPanel } from '../ui/settings-panel';
+import { HelpOverlay } from '../ui/help-overlay';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -384,6 +385,8 @@ export class Game {
   public questLogPanel: QuestLogPanel = new QuestLogPanel();
   /** Settings panel — toggled with `\\`. */
   public settingsPanel: SettingsPanel = new SettingsPanel();
+  /** Controls help overlay — toggled with `?`. */
+  public helpOverlay: HelpOverlay = new HelpOverlay();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
   public cartMenu: CartMenu = new CartMenu();
   /** Maple's shop menu — opened with E when standing adjacent to the shop. */
@@ -985,6 +988,7 @@ export class Game {
     this.moneyLogPanel.update(dtMs);
     this.questLogPanel.update(dtMs);
     this.settingsPanel.update(dtMs);
+    this.helpOverlay.update(dtMs);
     this.toasts.tick(dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
@@ -1139,6 +1143,13 @@ export class Game {
           // close() already hides — no toast.
         }
       }
+    }
+
+    // ?: toggle the controls help overlay.
+    if (this.input.justPressed.has('?')) {
+      this.helpOverlay.toggle();
+    } else if (this.helpOverlay.isVisible() && this.helpOverlay.canAct() && this.input.justPressed.has('escape')) {
+      this.helpOverlay.close();
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -2716,6 +2727,7 @@ export class Game {
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
+    this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
