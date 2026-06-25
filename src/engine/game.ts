@@ -2697,9 +2697,9 @@ export class Game {
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale, typeof performance !== 'undefined' ? performance.now() : Date.now());
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
-    drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player);
-    drawSkyDial(this.ctx, this.time, this.canvas.width);
-    drawAlmanacChip(this.ctx, this.time, this.canvas.width);
+    drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player, settings.hudScale);
+    drawSkyDial(this.ctx, this.time, this.canvas.width, settings.hudScale);
+    drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens

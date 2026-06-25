@@ -11,6 +11,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { weatherToday, weatherTomorrow, WEATHER } from '../game/weather';
 import { hasBarometer, weatherDayAfterTomorrow } from '../game/barometer';
+import { rightColumnLayout } from '../game/hud-layout';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -21,22 +22,27 @@ const SUBTLE = '#9D8FB8';
  * Renders the strip aligned to the top-right, just below the status
  * bar. Returns void; the HUD layer composes it on every frame. When
  * the player owns the barometer the strip widens to include an
- * "After" pill (day-after-tomorrow).
+ * "After" pill (day-after-tomorrow). `hudScale` grows the strip + its
+ * Y position in lockstep with the top bar so it stays attached when the
+ * player scales the HUD up for accessibility.
  */
 export function drawWeatherStrip(
   ctx: CanvasRenderingContext2D,
   time: TimeOfDay,
   canvasW: number,
   player?: Player,
+  hudScale: number = 1.0,
 ): void {
   const today = weatherToday(time);
   const tomorrow = weatherTomorrow(time);
   const showAfter = player ? hasBarometer(player) : false;
   const after = showAfter ? weatherDayAfterTomorrow(time) : null;
-  const w = showAfter ? 320 : 220;
-  const h = 22;
-  const x = canvasW - w - 12;
-  const y = 40;
+  const layout = rightColumnLayout(hudScale);
+  const scale = layout.scale;
+  const w = Math.round((showAfter ? 320 : 220) * scale);
+  const h = layout.weatherStrip.height;
+  const x = canvasW - w - Math.round(12 * scale);
+  const y = layout.weatherStrip.y;
 
   ctx.save();
   ctx.fillStyle = PANEL_BG;
@@ -45,23 +51,23 @@ export function drawWeatherStrip(
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
-  ctx.font = '11px ui-monospace, monospace';
+  ctx.font = `${Math.round(11 * scale)}px ui-monospace, monospace`;
   ctx.textBaseline = 'middle';
 
   // "Today:" label + colored pill + "Next:" + colored pill.
   ctx.textAlign = 'left';
   ctx.fillStyle = SUBTLE;
-  ctx.fillText('Today', x + 6, y + h / 2);
-  drawWeatherPill(ctx, x + 42, y + 4, WEATHER[today].label, WEATHER[today].color);
+  ctx.fillText('Today', x + Math.round(6 * scale), y + h / 2);
+  drawWeatherPill(ctx, x + Math.round(42 * scale), y + Math.round(4 * scale), WEATHER[today].label, WEATHER[today].color, scale);
 
   ctx.fillStyle = SUBTLE;
-  ctx.fillText('Next', x + 116, y + h / 2);
-  drawWeatherPill(ctx, x + 148, y + 4, WEATHER[tomorrow].label, WEATHER[tomorrow].color);
+  ctx.fillText('Next', x + Math.round(116 * scale), y + h / 2);
+  drawWeatherPill(ctx, x + Math.round(148 * scale), y + Math.round(4 * scale), WEATHER[tomorrow].label, WEATHER[tomorrow].color, scale);
 
   if (showAfter && after) {
     ctx.fillStyle = SUBTLE;
-    ctx.fillText('After', x + 220, y + h / 2);
-    drawWeatherPill(ctx, x + 254, y + 4, WEATHER[after].label, WEATHER[after].color);
+    ctx.fillText('After', x + Math.round(220 * scale), y + h / 2);
+    drawWeatherPill(ctx, x + Math.round(254 * scale), y + Math.round(4 * scale), WEATHER[after].label, WEATHER[after].color, scale);
   }
 
   ctx.restore();
@@ -74,10 +80,11 @@ function drawWeatherPill(
   y: number,
   label: string,
   color: string,
+  scale: number = 1.0,
 ): void {
-  const pillH = 14;
-  const padX = 6;
-  ctx.font = 'bold 10px ui-monospace, monospace';
+  const pillH = Math.round(14 * scale);
+  const padX = Math.round(6 * scale);
+  ctx.font = `bold ${Math.round(10 * scale)}px ui-monospace, monospace`;
   const w = ctx.measureText(label).width + padX * 2;
   ctx.fillStyle = color;
   ctx.fillRect(x, y, w, pillH);

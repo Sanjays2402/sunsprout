@@ -12,6 +12,7 @@
 
 import type { TimeOfDay } from '../game/time';
 import { almanacHighlight, highlightChipText, type AlmanacKind } from '../game/almanac';
+import { rightColumnLayout } from '../game/hud-layout';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -26,18 +27,17 @@ const KIND_COLOR: Record<AlmanacKind, string> = {
   tournament: '#C8A0E8',
 };
 
-const HEIGHT = 20;
-/** Top of the chip — below the sky dial (y=66, h=40 => bottom 106). */
-const TOP_Y = 110;
-
 /**
  * Draws the almanac highlight chip, right-aligned under the sky dial.
- * No-op when nothing is due Today/Tomorrow. `canvasW` right-aligns it.
+ * No-op when nothing is due Today/Tomorrow. `canvasW` right-aligns it;
+ * `hudScale` grows the chip + its Y in lockstep with the rest of the
+ * right HUD column so it stays attached when the HUD is scaled up.
  */
 export function drawAlmanacChip(
   ctx: CanvasRenderingContext2D,
   time: TimeOfDay,
   canvasW: number,
+  hudScale: number = 1.0,
 ): void {
   const hit = almanacHighlight(time, 1);
   if (!hit) return;
@@ -46,31 +46,35 @@ export function drawAlmanacChip(
   const rail = KIND_COLOR[hit.kind];
   const isToday = hit.daysUntil <= 0;
 
+  const layout = rightColumnLayout(hudScale);
+  const scale = layout.scale;
+  const height = layout.almanacChip.height;
+
   ctx.save();
   ctx.imageSmoothingEnabled = false;
-  ctx.font = 'bold 10px ui-monospace, monospace';
-  const padL = 12; // text inset (leaves room for the rail)
-  const padR = 10;
+  ctx.font = `bold ${Math.round(10 * scale)}px ui-monospace, monospace`;
+  const padL = Math.round(12 * scale); // text inset (leaves room for the rail)
+  const padR = Math.round(10 * scale);
   const w = Math.ceil(ctx.measureText(text).width) + padL + padR;
-  const x = canvasW - w - 12;
-  const y = TOP_Y;
+  const x = canvasW - w - Math.round(12 * scale);
+  const y = layout.almanacChip.y;
 
   // Frame.
   ctx.fillStyle = PANEL_BG;
-  ctx.fillRect(x, y, w, HEIGHT);
+  ctx.fillRect(x, y, w, height);
   ctx.strokeStyle = PANEL_BORDER;
   ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, HEIGHT - 1);
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, height - 1);
 
   // Left colour rail keyed to the event kind.
   ctx.fillStyle = rail;
-  ctx.fillRect(x + 3, y + 4, 3, HEIGHT - 8);
+  ctx.fillRect(x + Math.round(3 * scale), y + Math.round(4 * scale), Math.round(3 * scale), height - Math.round(8 * scale));
 
   // Text — "Today" highlighted green, "Tomorrow" in the warm body colour.
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'left';
   ctx.fillStyle = isToday ? TODAY : TEXT_COLOR;
-  ctx.fillText(text, x + padL, y + HEIGHT / 2 + 0.5);
+  ctx.fillText(text, x + padL, y + height / 2 + 0.5);
 
   ctx.restore();
 }

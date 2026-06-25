@@ -10,6 +10,7 @@
 import type { TimeOfDay } from '../game/time';
 import { skyDialState, daylightMinutesLeft, skyWeatherStyle } from '../game/sky-dial';
 import { weatherToday } from '../game/weather';
+import { rightColumnLayout } from '../game/hud-layout';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
 const PANEL_BORDER = '#4a3b6e';
@@ -24,43 +25,46 @@ const CLOUD_LIGHT = '#C7CDDA';
 const CLOUD_DARK = '#8C93A6';
 const CLOUD_STORM = '#6A7186';
 
-const WIDTH = 132;
-const HEIGHT = 40;
-
 /**
  * Draws the sky dial. Anchored top-right, stacked just below the weather
  * strip so it shares the right-hand HUD column and never collides with the
  * centred clock or the birthday/festival banners. `canvasW` right-aligns it.
+ * `hudScale` grows the card + its Y in lockstep with the rest of the column
+ * so the dial stays attached when the HUD is scaled up for accessibility.
  */
 export function drawSkyDial(
   ctx: CanvasRenderingContext2D,
   time: TimeOfDay,
   canvasW: number,
+  hudScale: number = 1.0,
 ): void {
   const state = skyDialState(time.hour, time.minute);
-  // Right-aligned, one row below the weather strip (strip sits at y=40,
-  // height 22). 4px gap keeps the two cards visually distinct.
-  const x = canvasW - WIDTH - 12;
-  const y = 66;
+  const layout = rightColumnLayout(hudScale);
+  const scale = layout.scale;
+  const width = layout.skyDial.width;
+  const height = layout.skyDial.height;
+  // Right-aligned, in its column slot below the weather strip.
+  const x = canvasW - width - Math.round(12 * scale);
+  const y = layout.skyDial.y;
 
   ctx.save();
   ctx.imageSmoothingEnabled = false;
 
   // Frame.
   ctx.fillStyle = PANEL_BG;
-  ctx.fillRect(x, y, WIDTH, HEIGHT);
+  ctx.fillRect(x, y, width, height);
   ctx.strokeStyle = PANEL_BORDER;
   ctx.lineWidth = 1;
-  ctx.strokeRect(x + 0.5, y + 0.5, WIDTH - 1, HEIGHT - 1);
+  ctx.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
 
   // Arc geometry: a shallow dome inside the frame. The body rides it by
   // arcT (0 left horizon -> 1 right horizon), lifted by its altitude.
-  const padX = 14;
-  const baseY = y + HEIGHT - 14; // horizon line
+  const padX = Math.round(14 * scale);
+  const baseY = y + height - Math.round(14 * scale); // horizon line
   const arcLeft = x + padX;
-  const arcRight = x + WIDTH - padX;
+  const arcRight = x + width - padX;
   const arcSpan = arcRight - arcLeft;
-  const arcHeight = 16;
+  const arcHeight = Math.round(16 * scale);
 
   // Horizon line.
   ctx.strokeStyle = state.isDay ? ARC_DAY : ARC_NIGHT;
@@ -71,11 +75,12 @@ export function drawSkyDial(
 
   // Dotted arc the body travels along.
   ctx.fillStyle = state.isDay ? ARC_DAY : ARC_NIGHT;
+  const dot = Math.max(1, Math.round(scale));
   for (let i = 0; i <= 12; i++) {
     const t = i / 12;
     const px = arcLeft + t * arcSpan;
     const py = baseY - Math.sin(t * Math.PI) * arcHeight;
-    ctx.fillRect(Math.floor(px), Math.floor(py), 1, 1);
+    ctx.fillRect(Math.floor(px), Math.floor(py), dot, dot);
   }
 
   // Body position.
@@ -87,21 +92,21 @@ export function drawSkyDial(
   ctx.save();
   if (weather.dimmed) ctx.globalAlpha = 0.5;
   if (state.body === 'sun') {
-    drawSun(ctx, bx, by);
+    drawSun(ctx, bx, by, scale);
   } else {
-    drawMoon(ctx, bx, by);
+    drawMoon(ctx, bx, by, scale);
   }
   ctx.restore();
   if (weather.cloud) {
-    drawCloud(ctx, bx, by, weather.storm);
+    drawCloud(ctx, bx, by, weather.storm, scale);
   }
 
   // Caption: phase word + daylight-left readout.
-  ctx.font = 'bold 9px ui-monospace, monospace';
+  ctx.font = `bold ${Math.round(9 * scale)}px ui-monospace, monospace`;
   ctx.textBaseline = 'top';
   ctx.textAlign = 'left';
   ctx.fillStyle = SUBTLE;
-  ctx.fillText(state.phaseLabel, x + 8, y + 5);
+  ctx.fillText(state.phaseLabel, x + Math.round(8 * scale), y + Math.round(5 * scale));
 
   if (state.isDay) {
     const minsLeft = daylightMinutesLeft(time.hour, time.minute);
@@ -110,37 +115,39 @@ export function drawSkyDial(
     const txt = hrs > 0 ? `${hrs}h ${mins}m left` : `${mins}m left`;
     ctx.textAlign = 'right';
     ctx.fillStyle = SUBTLE;
-    ctx.font = '9px ui-monospace, monospace';
-    ctx.fillText(txt, x + WIDTH - 8, y + 5);
+    ctx.font = `${Math.round(9 * scale)}px ui-monospace, monospace`;
+    ctx.fillText(txt, x + width - Math.round(8 * scale), y + Math.round(5 * scale));
   }
 
   ctx.restore();
 }
 
 /** Tiny radiant sun glyph centred on (cx, cy). */
-function drawSun(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+function drawSun(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number = 1.0): void {
+  const u = (n: number) => Math.round(n * scale);
   // Rays.
   ctx.fillStyle = SUN_RAY;
-  ctx.fillRect(cx - 1, cy - 6, 2, 3);
-  ctx.fillRect(cx - 1, cy + 4, 2, 3);
-  ctx.fillRect(cx - 6, cy - 1, 3, 2);
-  ctx.fillRect(cx + 4, cy - 1, 3, 2);
+  ctx.fillRect(cx - u(1), cy - u(6), u(2), u(3));
+  ctx.fillRect(cx - u(1), cy + u(4), u(2), u(3));
+  ctx.fillRect(cx - u(6), cy - u(1), u(3), u(2));
+  ctx.fillRect(cx + u(4), cy - u(1), u(3), u(2));
   // Core.
   ctx.fillStyle = SUN_CORE;
-  ctx.fillRect(cx - 3, cy - 2, 6, 5);
-  ctx.fillRect(cx - 2, cy - 3, 4, 7);
+  ctx.fillRect(cx - u(3), cy - u(2), u(6), u(5));
+  ctx.fillRect(cx - u(2), cy - u(3), u(4), u(7));
 }
 
 /** Tiny crescent moon glyph centred on (cx, cy). */
-function drawMoon(ctx: CanvasRenderingContext2D, cx: number, cy: number): void {
+function drawMoon(ctx: CanvasRenderingContext2D, cx: number, cy: number, scale: number = 1.0): void {
+  const u = (n: number) => Math.round(n * scale);
   // Full disc.
   ctx.fillStyle = MOON_CORE;
-  ctx.fillRect(cx - 3, cy - 2, 6, 5);
-  ctx.fillRect(cx - 2, cy - 3, 4, 7);
+  ctx.fillRect(cx - u(3), cy - u(2), u(6), u(5));
+  ctx.fillRect(cx - u(2), cy - u(3), u(4), u(7));
   // Shadow bite to make it a crescent.
   ctx.fillStyle = MOON_SHADOW;
-  ctx.fillRect(cx, cy - 3, 3, 7);
-  ctx.fillRect(cx + 1, cy - 2, 2, 5);
+  ctx.fillRect(cx, cy - u(3), u(3), u(7));
+  ctx.fillRect(cx + u(1), cy - u(2), u(2), u(5));
 }
 
 /**
@@ -153,17 +160,19 @@ function drawCloud(
   cx: number,
   cy: number,
   storm: boolean,
+  scale: number = 1.0,
 ): void {
+  const u = (n: number) => Math.round(n * scale);
   const base = storm ? CLOUD_STORM : CLOUD_DARK;
   const top = storm ? CLOUD_DARK : CLOUD_LIGHT;
   // Cloud body — a couple of stacked puffs, offset slightly down-right so
   // the dimmed body still peeks out behind it.
-  const ox = cx + 1;
-  const oy = cy + 1;
+  const ox = cx + u(1);
+  const oy = cy + u(1);
   ctx.fillStyle = base;
-  ctx.fillRect(ox - 5, oy + 1, 11, 3);
-  ctx.fillRect(ox - 3, oy - 1, 8, 3);
+  ctx.fillRect(ox - u(5), oy + u(1), u(11), u(3));
+  ctx.fillRect(ox - u(3), oy - u(1), u(8), u(3));
   ctx.fillStyle = top;
-  ctx.fillRect(ox - 3, oy - 1, 7, 2);
-  ctx.fillRect(ox - 1, oy - 2, 4, 2);
+  ctx.fillRect(ox - u(3), oy - u(1), u(7), u(2));
+  ctx.fillRect(ox - u(1), oy - u(2), u(4), u(2));
 }
