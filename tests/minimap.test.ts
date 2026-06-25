@@ -8,8 +8,10 @@ import {
   projectTile,
   playerDotRingAlpha,
   pingRing,
+  pingLegend,
   MINIMAP_TILE_COLORS,
   MINIMAP_PULSE_PERIOD_MS,
+  type MinimapPing,
 } from '../src/game/minimap';
 
 describe('minimapTileColors', () => {
@@ -156,5 +158,51 @@ describe('pingRing — reduce-motion gate', () => {
     const a = pingRing(0, true);
     const b = pingRing(750, true);
     expect(a).toEqual(b);
+  });
+});
+
+describe('pingLegend — colour-blind reason key', () => {
+  const ping = (reason: string, color: string): MinimapPing => ({
+    tx: 0,
+    ty: 0,
+    color,
+    reason,
+  });
+
+  it('is empty for no pings (legend hides itself)', () => {
+    expect(pingLegend([])).toEqual([]);
+  });
+
+  it('emits one row per ping with its colour + reason', () => {
+    const rows = pingLegend([
+      ping('Quest ready to turn in', '#A3D77A'),
+      ping('Pip the Peddler is here', '#C8923A'),
+    ]);
+    expect(rows).toEqual([
+      { color: '#A3D77A', reason: 'Quest ready to turn in' },
+      { color: '#C8923A', reason: 'Pip the Peddler is here' },
+    ]);
+  });
+
+  it('de-duplicates repeated reasons (first wins)', () => {
+    const rows = pingLegend([
+      ping('Tournament at the well', '#C8A0E8'),
+      ping('Tournament at the well', '#C8A0E8'),
+    ]);
+    expect(rows.length).toBe(1);
+    expect(rows[0].reason).toBe('Tournament at the well');
+  });
+
+  it('preserves the derivation order of distinct reasons', () => {
+    const rows = pingLegend([
+      ping('Quest ready to turn in', '#A3D77A'),
+      ping('Pip the Peddler is here', '#C8923A'),
+      ping('Tournament at the well', '#C8A0E8'),
+    ]);
+    expect(rows.map((r) => r.reason)).toEqual([
+      'Quest ready to turn in',
+      'Pip the Peddler is here',
+      'Tournament at the well',
+    ]);
   });
 });

@@ -12,12 +12,14 @@ import {
   minimapMarkers,
   minimapTileColors,
   minimapPings,
+  pingLegend,
   projectTile,
   playerDotRingAlpha,
   pingRing,
   type MinimapMarker,
   type MinimapPing,
   type PingRing,
+  type PingLegendRow,
 } from '../game/minimap';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
@@ -77,8 +79,15 @@ export class MinimapPanel {
     reduceMotion: boolean = false,
   ): void {
     if (!this.opened) return;
+    // Active pings drive both the on-map rings and the "why" legend; derive
+    // them once so the two stay in sync.
+    const pings = minimapPings(player, time);
+    const legendRows = pingLegend(pings);
+    // Grow the panel to fit a ping-reason legend when one or more tiles are
+    // pinging, so a colour-blind player can read WHY without decoding hue.
+    const pingLegendH = legendRows.length > 0 ? 16 + legendRows.length * 16 : 0;
     const panelW = MAP_W + PAD * 2;
-    const panelH = 40 + MAP_H + LEGEND_H + PAD;
+    const panelH = 40 + MAP_H + LEGEND_H + pingLegendH + PAD;
     const x = Math.floor((canvasW - panelW) / 2);
     const y = Math.floor((canvasH - panelH) / 2);
 
@@ -100,10 +109,15 @@ export class MinimapPanel {
 
     const mapX = x + PAD;
     const mapY = y + 36;
-    this.drawMap(ctx, world, player, time, mapX, mapY, reduceMotion);
+    this.drawMap(ctx, world, mapX, mapY, reduceMotion, pings);
 
-    // Legend below the map.
+    // Landmark legend below the map.
     this.drawLegend(ctx, world, mapX, mapY + MAP_H + 8);
+
+    // Ping-reason legend below the landmark legend (only when pinging).
+    if (legendRows.length > 0) {
+      this.drawPingLegend(ctx, legendRows, mapX, mapY + MAP_H + 8 + LEGEND_H);
+    }
 
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
@@ -115,11 +129,10 @@ export class MinimapPanel {
   private drawMap(
     ctx: CanvasRenderingContext2D,
     world: World,
-    player: Player,
-    time: TimeOfDay,
     mapX: number,
     mapY: number,
     reduceMotion: boolean,
+    pings: readonly MinimapPing[],
   ): void {
     const colors = minimapTileColors(world);
     const { cellW, cellH } = projectTile(0, 0, world.width, world.height, MAP_W, MAP_H);
@@ -152,7 +165,6 @@ export class MinimapPanel {
     // now (quest turn-in, open cart, live tournament). Drawn over the
     // landmark pips but under the player dot. Under reduceMotion the
     // expanding ring is dropped (a steady inner dot still marks the spot).
-    const pings = minimapPings(player, time);
     const ring = pingRing(this.pulseMs, reduceMotion);
     for (const p of pings) {
       this.drawPing(ctx, p, mapX, mapY, cellW, cellH, ring);
@@ -263,6 +275,45 @@ export class MinimapPanel {
       ctx.font = '10px ui-monospace, monospace';
       ctx.textAlign = 'left';
       ctx.fillText(m.label, px + 12, py);
+    }
+    ctx.textBaseline = 'top';
+  }
+
+  /**
+   * "Why is this pinging" key — one row per active ping reason with its
+   * ring colour swatch + plain-language label, so a colour-blind player
+   * can read the meaning of each pulse instead of decoding hue. Only drawn
+   * when there's at least one ping (the caller gates + sizes the panel).
+   */
+  private drawPingLegend(
+    ctx: CanvasRenderingContext2D,
+    rows: readonly PingLegendRow[],
+    lx: number,
+    ly: number,
+  ): void {
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = TITLE_COLOR;
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    ctx.fillText('needs you now', lx, ly + 6);
+    ctx.font = '10px ui-monospace, monospace';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const ry = ly + 16 + i * 16 + 6;
+      // Ring-colour swatch (drawn as a small ring to echo the on-map cue).
+      ctx.strokeStyle = r.color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(lx + 4, ry, 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = r.color;
+      ctx.beginPath();
+      ctx.arc(lx + 4, ry, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      // Reason label.
+      ctx.fillStyle = LABEL;
+      ctx.textAlign = 'left';
+      ctx.fillText(r.reason, lx + 14, ry);
     }
     ctx.textBaseline = 'top';
   }

@@ -225,3 +225,27 @@ export function pingRing(pulseMs: number, reduceMotion: boolean): PingRing {
     dotRadius: 2,
   };
 }
+
+/** A colour-swatch + reason row for the minimap's "why is this pinging" key. */
+export interface PingLegendRow {
+  color: string;
+  reason: string;
+}
+
+/**
+ * Reduce a set of active pings to a de-duplicated legend so a colour-blind
+ * player can read WHY a tile is pinging, not just that it is. Each distinct
+ * reason appears once, in the order the pings were derived (board -> cart ->
+ * tournament). Empty in -> empty out so the caller can hide the legend on a
+ * calm day. Pure.
+ */
+export function pingLegend(pings: readonly MinimapPing[]): PingLegendRow[] {
+  const rows: PingLegendRow[] = [];
+  const seen = new Set<string>();
+  for (const p of pings) {
+    if (seen.has(p.reason)) continue;
+    seen.add(p.reason);
+    rows.push({ color: p.color, reason: p.reason });
+  }
+  return rows;
+}
