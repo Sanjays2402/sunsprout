@@ -311,6 +311,7 @@ import {
   rareMasterDawnBrag,
 } from '../game/compost';
 import { assembleDawnToast } from '../game/dawn-toast';
+import { ToastQueue, toastAlpha, TOAST_TTL_MS } from '../game/toast-queue';
 import { drawBarks, tickBarks } from '../game/npc-barks';
 import {
   STORM_SHELTER_INVENTORY_KEY,
@@ -417,9 +418,8 @@ export class Game {
   /** Time of day in [0,1) for the renderer's sky/tint maths. */
   public timeOfDay = 0.25;
 
-  /** Last harvest notification — short fade in the corner. */
-  private toast = '';
-  private toastFade = 0;
+  /** Stacked corner notifications so same-frame messages don't clobber. */
+  private toasts = new ToastQueue();
   private heartsPanelVisible = false;
   /** Set when we've already wiped today's forage at dusk. */
   private forageCleared = false;
@@ -554,8 +554,7 @@ export class Game {
   }
 
   private setToast(msg: string): void {
-    this.toast = msg;
-    this.toastFade = 2500;
+    this.toasts.push(msg, TOAST_TTL_MS);
   }
 
   /**
@@ -986,7 +985,7 @@ export class Game {
     this.moneyLogPanel.update(dtMs);
     this.questLogPanel.update(dtMs);
     this.settingsPanel.update(dtMs);
-    if (this.toastFade > 0) this.toastFade = Math.max(0, this.toastFade - dtMs);
+    this.toasts.tick(dtMs);
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
     // if the player isn't pressing anything. Auto-toast escape events so
@@ -2761,25 +2760,37 @@ export class Game {
         this.strikeGrade,
       );
     }
-    // Toast
-    if (this.toastFade > 0 && this.toast) {
-      const alpha = Math.min(1, this.toastFade / 600);
-      this.ctx.save();
-      this.ctx.globalAlpha = alpha;
-      this.ctx.fillStyle = 'rgba(26, 20, 38, 0.85)';
-      this.ctx.font = 'bold 13px ui-monospace, monospace';
-      this.ctx.textAlign = 'center';
-      this.ctx.textBaseline = 'middle';
-      const text = this.toast;
-      const tw = this.ctx.measureText(text).width + 24;
-      const x = (this.canvas.width - tw) / 2;
-      const y = 50;
-      this.ctx.fillRect(x, y, tw, 26);
-      this.ctx.strokeStyle = '#F5C9A0';
-      this.ctx.strokeRect(x + 0.5, y + 0.5, tw - 1, 25);
-      this.ctx.fillStyle = '#F5E9D4';
-      this.ctx.fillText(text, this.canvas.width / 2, y + 13);
-      this.ctx.restore();
+    // Toast stack — newest on top. Multiple same-frame messages each get
+    // their own pill so a busy moment (harvest + heart-up + achievement)
+    // reads as a short list instead of the last writer clobbering the rest.
+    {
+      const stack = this.toasts.active();
+      const pillH = 26;
+      const gap = 6;
+      const topY = 50;
+      for (let i = 0; i < stack.length; i++) {
+        const entry = stack[i];
+        const alpha = toastAlpha(entry);
+        if (alpha <= 0) continue;
+        const y = topY + i * (pillH + gap);
+        this.ctx.save();
+        this.ctx.globalAlpha = alpha;
+        this.ctx.fillStyle = 'rgba(26, 20, 38, 0.85)';
+        this.ctx.font = 'bold 13px ui-monospace, monospace';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        const text = entry.text;
+        const tw = this.ctx.measureText(text).width + 24;
+        const x = (this.canvas.width - tw) / 2;
+        this.ctx.fillRect(x, y, tw, pillH);
+        // Freshest pill gets the bright accent border; older ones dim so
+        // the eye lands on the newest message first.
+        this.ctx.strokeStyle = i === 0 ? '#F5C9A0' : 'rgba(245, 201, 160, 0.45)';
+        this.ctx.strokeRect(x + 0.5, y + 0.5, tw - 1, pillH - 1);
+        this.ctx.fillStyle = '#F5E9D4';
+        this.ctx.fillText(text, this.canvas.width / 2, y + pillH / 2);
+        this.ctx.restore();
+      }
     }
   }
 }
