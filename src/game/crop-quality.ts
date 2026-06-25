@@ -171,3 +171,73 @@ export function qualityHeat(
   const alpha = 0.18 + progress * 0.16;
   return { tier: 'building', quality, color: HEAT_COLORS.building, alpha };
 }
+
+// ---------------------------------------------------------------------
+// Heatmap summary — a one-line tally of the field's care state so the
+// player can act on the heatmap without scanning every tile. Counts how
+// many crops sit in each band and renders a compact, priority-ordered
+// sentence ("3 dry, 1 about to gold-star"). Pure: takes the (streak,
+// growthStages) pairs the overlay already has, returns counts + a string.
+// ---------------------------------------------------------------------
+
+/** Per-band crop counts across the whole field. */
+export type QualityHeatCounts = Record<QualityHeatTier, number>;
+
+/** A single (streak, growthStages) pair for one crop on the field. */
+export interface CropStreakSample {
+  waterStreak: number;
+  growthStages: number;
+}
+
+/** Tally how many crops fall into each heatmap band. Pure. */
+export function qualityHeatCounts(samples: readonly CropStreakSample[]): QualityHeatCounts {
+  const counts: QualityHeatCounts = { dry: 0, building: 0, almost: 0, silver: 0, gold: 0 };
+  for (const s of samples) {
+    const { tier } = qualityHeat(s.waterStreak, s.growthStages);
+    counts[tier] += 1;
+  }
+  return counts;
+}
+
+/**
+ * Pluralizing phrase for one band's count, e.g. "3 dry", "1 about to
+ * gold-star". The "almost" band frames it as actionable ("about to
+ * silver-star") rather than naming the band. Returns '' for a zero count.
+ */
+function bandPhrase(tier: QualityHeatTier, n: number): string {
+  if (n <= 0) return '';
+  switch (tier) {
+    case 'dry':
+      return `${n} dry`;
+    case 'building':
+      return n === 1 ? '1 growing a streak' : `${n} growing a streak`;
+    case 'almost':
+      return n === 1 ? '1 about to silver-star' : `${n} about to silver-star`;
+    case 'silver':
+      return `${n} silver-star`;
+    case 'gold':
+      return `${n} gold-star`;
+  }
+}
+
+/**
+ * A compact, priority-ordered summary line for the field's care state.
+ * Order is "what needs me" first: dry (neglected) -> almost (one watering
+ * from a star) -> building -> silver -> gold. Only non-zero bands appear.
+ * Returns '' when there are no crops at all so the caller can hide the chip.
+ *
+ * Examples:
+ *   "3 dry, 1 about to silver-star"
+ *   "2 gold-star, 1 silver-star"   (a well-tended field, still informative)
+ */
+export function qualityHeatSummary(samples: readonly CropStreakSample[]): string {
+  if (samples.length === 0) return '';
+  const counts = qualityHeatCounts(samples);
+  const order: QualityHeatTier[] = ['dry', 'almost', 'building', 'silver', 'gold'];
+  const parts: string[] = [];
+  for (const tier of order) {
+    const phrase = bandPhrase(tier, counts[tier]);
+    if (phrase) parts.push(phrase);
+  }
+  return parts.join(', ');
+}
