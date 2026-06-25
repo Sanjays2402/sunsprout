@@ -18,6 +18,7 @@ import {
   plant,
   till,
   water,
+  type FarmCrop,
 } from '../game/farming';
 import {
   tilesForTool,
@@ -59,6 +60,7 @@ import { sleep as sleepAction } from '../game/sleep';
 import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { drawSkyDial } from '../ui/sky-dial-widget';
 import { drawAlmanacChip } from '../ui/almanac-chip';
+import { drawQualityHeatmap } from '../ui/quality-heatmap';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
@@ -2680,6 +2682,19 @@ export class Game {
     // a player walk-by. Drawn after peers + dog/cat so the bubble sits
     // on top of any sprite that happens to overlap.
     drawBarks(this.ctx, this.world, (wx, wy) => this.camera.worldToScreen(wx, wy), TILE_SIZE);
+    // Crop-quality heatmap — a field wash shown while the crop journal is
+    // open so the player can see which crops are about to star and which
+    // are dry. Rides the `;` toggle (no scarce keybind) and draws in
+    // world-space, on top of the field but under the HUD chrome.
+    if (this.cropJournal.isVisible()) {
+      drawQualityHeatmap(
+        this.ctx,
+        this.world.crops as unknown as FarmCrop[],
+        (wx, wy) => this.camera.worldToScreen(wx, wy),
+        TILE_SIZE,
+        this.canvas.height,
+      );
+    }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player);

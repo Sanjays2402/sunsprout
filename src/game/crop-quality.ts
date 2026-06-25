@@ -100,3 +100,74 @@ export function qualityGlyph(quality: CropQuality): string {
       return '';
   }
 }
+
+// ---------------------------------------------------------------------
+// Quality heatmap — a per-crop tint band for the field overlay shown
+// while the crop journal (`;`) is open. The player can't see, from the
+// sprites alone, which tilled corners are about to earn a silver/gold
+// star and which are languishing dry. This maps a crop's water-streak
+// onto a small set of readable bands so the overlay can wash each crop
+// tile with a colour the eye reads instantly.
+// ---------------------------------------------------------------------
+
+/** Heatmap band a crop falls into, coarsest-care first. */
+export type QualityHeatTier = 'dry' | 'building' | 'almost' | 'silver' | 'gold';
+
+export interface QualityHeat {
+  /** Which readable band the crop's streak lands in. */
+  tier: QualityHeatTier;
+  /** Resolved quality tier (what it would harvest as right now). */
+  quality: CropQuality;
+  /** Overlay tint colour for the band. */
+  color: string;
+  /** Tint alpha — stronger as the crop nears / reaches a star tier. */
+  alpha: number;
+}
+
+/** Band colours — reuse the journal panel's gold / silver / green language. */
+export const HEAT_COLORS: Record<QualityHeatTier, string> = {
+  dry: '#C85A4A', // a careless, un-watered crop — warns the player
+  building: '#A3D77A', // a watered streak forming
+  almost: '#F0A828', // one watered day from a silver star
+  silver: '#D5D8DC',
+  gold: '#F0C24A',
+};
+
+/**
+ * Resolve the heatmap band for a crop's `waterStreak` against its
+ * `growthStages`. The streak->quality ladder (see qualityFromStreak):
+ *   streak >= growthStages + 1 -> gold star
+ *   streak == growthStages     -> silver star
+ *   streak == growthStages - 1 -> "almost" (one more watered day = silver)
+ *   0 < streak < growthStages-1 -> "building" (alpha climbs with progress)
+ *   streak == 0                 -> "dry" (no streak — won't star)
+ *
+ * Pure — a single number in, a tint band out. The overlay widget owns
+ * the projection + draw; this owns the colour decision so it's testable.
+ */
+export function qualityHeat(
+  waterStreak: number,
+  growthStages: number,
+): QualityHeat {
+  const quality = qualityFromStreak(waterStreak, growthStages);
+  const streak = Math.max(0, waterStreak);
+  if (quality === 'gold') {
+    return { tier: 'gold', quality, color: HEAT_COLORS.gold, alpha: 0.5 };
+  }
+  if (quality === 'silver') {
+    return { tier: 'silver', quality, color: HEAT_COLORS.silver, alpha: 0.45 };
+  }
+  // Normal tier — decide between dry / building / almost.
+  if (streak <= 0) {
+    return { tier: 'dry', quality, color: HEAT_COLORS.dry, alpha: 0.16 };
+  }
+  if (streak >= growthStages - 1) {
+    return { tier: 'almost', quality, color: HEAT_COLORS.almost, alpha: 0.42 };
+  }
+  // Building: alpha ramps from 0.18 toward 0.34 as the streak approaches
+  // the silver threshold so a more-cared-for crop reads as warmer.
+  const span = Math.max(1, growthStages - 1);
+  const progress = Math.min(1, streak / span);
+  const alpha = 0.18 + progress * 0.16;
+  return { tier: 'building', quality, color: HEAT_COLORS.building, alpha };
+}
