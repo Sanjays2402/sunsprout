@@ -58,6 +58,7 @@ import { SleepSummary } from '../ui/sleep-summary';
 import { sleep as sleepAction } from '../game/sleep';
 import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { drawSkyDial } from '../ui/sky-dial-widget';
+import { drawAlmanacChip } from '../ui/almanac-chip';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
@@ -2683,6 +2684,7 @@ export class Game {
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player);
     drawSkyDial(this.ctx, this.time, this.canvas.width);
+    drawAlmanacChip(this.ctx, this.time, this.canvas.width);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Rain overlay sits between the world and the HUD chrome so it darkens

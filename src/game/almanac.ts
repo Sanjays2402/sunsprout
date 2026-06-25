@@ -146,5 +146,33 @@ export function dateLabel(season: number, day: number): string {
   return `${SEASONS[season] ?? '?'} ${day}`;
 }
 
+/**
+ * The single most-imminent event within `maxDays` of `time`, or null when
+ * the next two weeks open with nothing that close. Used by the HUD chip so
+ * the player sees the planner's top row ("Tomorrow: Maple's birthday")
+ * without opening the `0` panel. buildAlmanac already returns soonest-first
+ * so the first row inside the window is the highlight; ties resolve by the
+ * same stable kind order the panel uses.
+ */
+export function almanacHighlight(
+  time: TimeOfDay,
+  maxDays: number = 1,
+): AlmanacEntry | null {
+  for (const e of buildAlmanac(time, ALMANAC_HORIZON_DAYS)) {
+    if (e.daysUntil <= maxDays) return e;
+  }
+  return null;
+}
+
+/**
+ * One-line chip text for an almanac highlight: "Today: <title>" or
+ * "Tomorrow: <title>". Only meaningful for daysUntil <= 1 (the chip never
+ * surfaces anything further out), so the prefix is always Today/Tomorrow.
+ */
+export function highlightChipText(e: AlmanacEntry): string {
+  const when = e.daysUntil <= 0 ? 'Today' : 'Tomorrow';
+  return `${when}: ${e.title}`;
+}
+
 // Re-export for the panel + tests that want to project an arbitrary offset.
 export { dateInDays };
