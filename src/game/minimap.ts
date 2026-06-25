@@ -5,6 +5,11 @@
 // unit-testable without a rendering context.
 
 import type { World, TileType } from '../world/world';
+import type { Player } from '../world/world';
+import type { TimeOfDay } from './time';
+import { BOARD_X, BOARD_Y, canTurnIn } from './board';
+import { CART_X, CART_Y, cartOpen } from './cart';
+import { tournamentOpen, alreadyEntered } from './tournament';
 
 /** Per-tile colour on the minimap, keyed by tile type. */
 export const MINIMAP_TILE_COLORS: Record<TileType, string> = {
@@ -99,4 +104,67 @@ export function minimapTileColors(world: World): string[] {
     }
   }
   return out;
+}
+
+/** A soft "do something here right now" ping overlaid on the minimap. */
+export interface MinimapPing {
+  /** Tile-space centre of the ping. */
+  tx: number;
+  ty: number;
+  /** Pulse ring colour. */
+  color: string;
+  /** Short reason for the legend / accessibility. */
+  reason: string;
+}
+
+/** The well tile (centre of the plaza) — tournament + sell point. */
+export const WELL_PING_X = 19;
+export const WELL_PING_Y = 8;
+
+/**
+ * Derive the set of "act here now" pings from the same predicates the
+ * rest of the game uses, so the minimap (`9`) highlights tiles that
+ * matter at this exact moment without inventing new state:
+ *
+ *   - the notice board when its weekly quest can be turned in,
+ *   - Pip's cart tile while the cart is parked + open,
+ *   - the well during tournament hours, before the player has entered.
+ *
+ * Pure read-only helper — no mutation, deterministic from (player, time).
+ * Returns an empty array on a calm day so the overlay adds nothing.
+ */
+export function minimapPings(player: Player, time: TimeOfDay): MinimapPing[] {
+  const pings: MinimapPing[] = [];
+
+  // Weekly board quest ready to hand in.
+  if (canTurnIn(player, time)) {
+    pings.push({
+      tx: BOARD_X,
+      ty: BOARD_Y,
+      color: '#A3D77A',
+      reason: 'Quest ready to turn in',
+    });
+  }
+
+  // Pip's cart open for business.
+  if (cartOpen(time)) {
+    pings.push({
+      tx: CART_X,
+      ty: CART_Y,
+      color: '#C8923A',
+      reason: 'Pip the Peddler is here',
+    });
+  }
+
+  // Friendship tournament running and the player hasn't entered yet.
+  if (tournamentOpen(time) && !alreadyEntered(player, time)) {
+    pings.push({
+      tx: WELL_PING_X,
+      ty: WELL_PING_Y,
+      color: '#C8A0E8',
+      reason: 'Tournament at the well',
+    });
+  }
+
+  return pings;
 }

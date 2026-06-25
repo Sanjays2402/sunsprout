@@ -2754,7 +2754,7 @@ export class Game {
     this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
-    this.minimapPanel.draw(this.ctx, this.world, this.canvas.width, this.canvas.height);
+    this.minimapPanel.draw(this.ctx, this.world, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height);
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);

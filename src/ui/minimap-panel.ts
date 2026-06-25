@@ -6,11 +6,15 @@
 // overlays.
 
 import type { World } from '../world/world';
+import type { Player } from '../world/world';
+import type { TimeOfDay } from '../game/time';
 import {
   minimapMarkers,
   minimapTileColors,
+  minimapPings,
   projectTile,
   type MinimapMarker,
+  type MinimapPing,
 } from '../game/minimap';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
@@ -60,7 +64,14 @@ export class MinimapPanel {
     this.pulseMs = (this.pulseMs + dtMs) % 1200;
   }
 
-  draw(ctx: CanvasRenderingContext2D, world: World, canvasW: number, canvasH: number): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    world: World,
+    player: Player,
+    time: TimeOfDay,
+    canvasW: number,
+    canvasH: number,
+  ): void {
     if (!this.opened) return;
     const panelW = MAP_W + PAD * 2;
     const panelH = 40 + MAP_H + LEGEND_H + PAD;
@@ -85,7 +96,7 @@ export class MinimapPanel {
 
     const mapX = x + PAD;
     const mapY = y + 36;
-    this.drawMap(ctx, world, mapX, mapY);
+    this.drawMap(ctx, world, player, time, mapX, mapY);
 
     // Legend below the map.
     this.drawLegend(ctx, world, mapX, mapY + MAP_H + 8);
@@ -97,7 +108,14 @@ export class MinimapPanel {
     ctx.restore();
   }
 
-  private drawMap(ctx: CanvasRenderingContext2D, world: World, mapX: number, mapY: number): void {
+  private drawMap(
+    ctx: CanvasRenderingContext2D,
+    world: World,
+    player: Player,
+    time: TimeOfDay,
+    mapX: number,
+    mapY: number,
+  ): void {
     const colors = minimapTileColors(world);
     const { cellW, cellH } = projectTile(0, 0, world.width, world.height, MAP_W, MAP_H);
     // Tile grid. Cells are < 1px-rounded so we ceil the size to avoid seams.
@@ -123,6 +141,14 @@ export class MinimapPanel {
     const markers = minimapMarkers(world);
     for (const m of markers) {
       this.drawMarker(ctx, m, mapX, mapY, world, cellW, cellH);
+    }
+
+    // Action pings — pulsing rings on tiles that need the player right
+    // now (quest turn-in, open cart, live tournament). Drawn over the
+    // landmark pips but under the player dot.
+    const pings = minimapPings(player, time);
+    for (const p of pings) {
+      this.drawPing(ctx, p, mapX, mapY, cellW, cellH);
     }
 
     // Player dot — pulsing ring so the eye finds "you are here" fast.
@@ -167,6 +193,36 @@ export class MinimapPanel {
     ctx.textBaseline = 'middle';
     ctx.fillText(m.glyph, Math.floor(cx), Math.floor(cy) + 1);
     ctx.textBaseline = 'top';
+  }
+
+  private drawPing(
+    ctx: CanvasRenderingContext2D,
+    p: MinimapPing,
+    mapX: number,
+    mapY: number,
+    cellW: number,
+    cellH: number,
+  ): void {
+    const cx = mapX + p.tx * cellW + cellW / 2;
+    const cy = mapY + p.ty * cellH + cellH / 2;
+    // Expanding ring: radius + alpha breathe on the shared pulse clock so
+    // the eye is drawn to the spot without a hard flash.
+    const phase = (this.pulseMs / 1200) % 1;
+    const radius = 4 + phase * 7;
+    ctx.save();
+    ctx.globalAlpha = 0.75 * (1 - phase);
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    // Solid inner dot keeps the marker readable at the trough of the pulse.
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 
   private drawLegend(ctx: CanvasRenderingContext2D, world: World, lx: number, ly: number): void {
