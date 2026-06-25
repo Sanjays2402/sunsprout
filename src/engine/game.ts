@@ -2527,7 +2527,8 @@ export class Game {
 
   private render(): void {
     const settings = getSettings(this.world.player);
-    this.renderer.draw(this.world, this.camera, this.timeOfDay, settings.nightTintScale);
+    const renderNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    this.renderer.draw(this.world, this.camera, this.timeOfDay, settings.nightTintScale, renderNow, settings.reduceMotion);
     // Sprinklers — render after the world so they sit on top of crops/tiles
     // but below peers / HUD. Each sprinkler is a 14-ish px sprite anchored
     // to the centre of its tile.

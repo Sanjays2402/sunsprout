@@ -19,6 +19,7 @@ import type { PeerRenderable } from '../game/peer-view';
 import { drawPeerSprite, peerScreenPos } from './peer-sprite';
 import { drawPeerMuteMark, type MuteSource } from './peer-mute-mark';
 import { decorPalette, type DecorPalette } from '../game/decor';
+import { cropSwayOffset } from '../game/crop-sway';
 import {
   drawPixelCircle,
   drawPixelRect,
@@ -50,6 +51,10 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   /** Last-frame night tint scale, set by Game via draw(...). */
   private activeTintScale: number = 1.0;
+  /** Wall-clock ms for time-driven sprite animation (crop sway). */
+  private nowMs: number = 0;
+  /** Reduce-motion flag — when true, sprite animations hold still. */
+  private reduceMotion: boolean = false;
 
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx;
@@ -86,10 +91,15 @@ export class Renderer {
     }
   }
 
-  draw(world: World, camera: Camera, timeOfDay: number, nightTintScale: number = 1.0): void {
+  draw(world: World, camera: Camera, timeOfDay: number, nightTintScale: number = 1.0, nowMs: number = 0, reduceMotion: boolean = false): void {
     const ctx = this.ctx;
     const w = camera.viewW;
     const h = camera.viewH;
+    // Remember the frame's animation clock + calm-mode flag for the crop
+    // sway in drawCrop (kept on the instance to avoid threading them
+    // through every private draw helper).
+    this.nowMs = nowMs;
+    this.reduceMotion = reduceMotion;
 
     // (1) Sky / background.
     this.drawSky(timeOfDay, w, h);
@@ -427,6 +437,12 @@ export class Renderer {
     const wy = crop.y * TILE_SIZE + TILE_SIZE / 2;
     const { sx, sy } = camera.worldToScreen(wx, wy);
     const stage = Math.max(0, Math.min(3, Math.floor(crop.stage)));
+    // Gentle wind: the leafy canopy + fruit lean a hair side-to-side while
+    // the stem base stays rooted. Per-tile phase so neighbours ripple out
+    // of sync; flat 0 under reduce-motion and for un-grown stages.
+    const sway = Math.round(
+      cropSwayOffset(crop.x, crop.y, stage, this.nowMs, this.reduceMotion),
+    );
     const cropColors: Record<Crop['kind'], string> = {
       turnip: '#E8E0F2',
       carrot: '#E48A3C',
@@ -441,15 +457,15 @@ export class Renderer {
       drawPixelRect(ctx, sx, sy - 2, 1, 4, '#3A7A2E');
       drawPixelRect(ctx, sx - 2, sy - 2, 5, 1, '#4FA040');
     } else if (stage === 2) {
-      // Mid: bushier leaves.
-      drawPixelRect(ctx, sx - 3, sy - 3, 7, 1, '#3A7A2E');
-      drawPixelRect(ctx, sx - 4, sy - 1, 9, 2, '#4FA040');
+      // Mid: bushier leaves. Upper leaves catch the wind; base furrow stays put.
+      drawPixelRect(ctx, sx - 3 + sway, sy - 3, 7, 1, '#3A7A2E');
+      drawPixelRect(ctx, sx - 4 + sway, sy - 1, 9, 2, '#4FA040');
       drawPixelRect(ctx, sx, sy + 1, 1, 3, '#3A7A2E');
     } else {
-      // Ripe: leafy base + colour-coded fruit.
+      // Ripe: leafy base stays rooted; the colour-coded fruit leans in the breeze.
       drawPixelRect(ctx, sx - 4, sy - 1, 9, 2, '#3A7A2E');
       drawPixelRect(ctx, sx - 3, sy + 1, 7, 2, '#4FA040');
-      drawPixelCircle(ctx, sx, sy - 3, 3, cropColors[crop.kind]);
+      drawPixelCircle(ctx, sx + sway, sy - 3, 3, cropColors[crop.kind]);
     }
   }
 
