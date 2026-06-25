@@ -318,7 +318,7 @@ import {
   rareMasterDawnBrag,
 } from '../game/compost';
 import { assembleDawnToast } from '../game/dawn-toast';
-import { ToastQueue, toastAlpha, TOAST_TTL_MS } from '../game/toast-queue';
+import { ToastQueue, toastAlpha, toastKindColor, classifyToast, TOAST_TTL_MS } from '../game/toast-queue';
 import { drawBarks, tickBarks } from '../game/npc-barks';
 import {
   STORM_SHELTER_INVENTORY_KEY,
@@ -567,7 +567,7 @@ export class Game {
   }
 
   private setToast(msg: string): void {
-    this.toasts.push(msg, TOAST_TTL_MS);
+    this.toasts.push(msg, TOAST_TTL_MS, classifyToast(msg));
   }
 
   /**
@@ -2842,6 +2842,11 @@ export class Game {
         // the eye lands on the newest message first.
         this.ctx.strokeStyle = i === 0 ? '#F5C9A0' : 'rgba(245, 201, 160, 0.45)';
         this.ctx.strokeRect(x + 0.5, y + 0.5, tw - 1, pillH - 1);
+        // Left colour rail tinted by category (money / hearts / achievement
+        // / info) so a busy stack is scannable by hue without reading every
+        // line. Sits just inside the border, full-height of the pill.
+        this.ctx.fillStyle = toastKindColor(entry.kind);
+        this.ctx.fillRect(x + 1, y + 1, 3, pillH - 2);
         this.ctx.fillStyle = '#F5E9D4';
         this.ctx.fillText(text, this.canvas.width / 2, y + pillH / 2);
         this.ctx.restore();

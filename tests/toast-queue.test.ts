@@ -5,10 +5,14 @@ import { describe, it, expect } from 'vitest';
 import {
   ToastQueue,
   toastAlpha,
+  toastKindColor,
+  classifyToast,
+  TOAST_KIND_COLOR,
   TOAST_TTL_MS,
   TOAST_FADE_MS,
   TOAST_MAX_VISIBLE,
   type ToastEntry,
+  type ToastKind,
 } from '../src/game/toast-queue';
 
 describe('ToastQueue — push + ordering', () => {
@@ -144,7 +148,7 @@ describe('ToastQueue — visible cap', () => {
 
 describe('toastAlpha — fade curve', () => {
   function entry(ageMs: number, ttlMs: number = TOAST_TTL_MS): ToastEntry {
-    return { text: 'x', ageMs, ttlMs };
+    return { text: 'x', ageMs, ttlMs, kind: 'info' };
   }
 
   it('is fully opaque well before the fade window', () => {
@@ -172,5 +176,71 @@ describe('toastAlpha — fade curve', () => {
       expect(a).toBeGreaterThanOrEqual(0);
       expect(a).toBeLessThanOrEqual(1);
     }
+  });
+});
+
+describe('toast kind — rail tint', () => {
+  it('defaults a pushed toast to the info kind', () => {
+    const q = new ToastQueue();
+    q.push('plain message');
+    expect(q.active()[0].kind).toBe('info');
+  });
+
+  it('carries an explicit kind onto the entry', () => {
+    const q = new ToastQueue();
+    q.push('+120g earned', TOAST_TTL_MS, 'money');
+    expect(q.active()[0].kind).toBe('money');
+  });
+
+  it('a duplicate refresh adopts the latest kind', () => {
+    const q = new ToastQueue();
+    q.push('Heart up with Maple', TOAST_TTL_MS, 'info');
+    q.push('Heart up with Maple', TOAST_TTL_MS, 'hearts');
+    expect(q.size).toBe(1);
+    expect(q.active()[0].kind).toBe('hearts');
+  });
+
+  it('every kind maps to a distinct monochrome hex with no emoji', () => {
+    const kinds: ToastKind[] = ['info', 'money', 'hearts', 'achievement'];
+    const seen = new Set<string>();
+    for (const k of kinds) {
+      const c = toastKindColor(k);
+      expect(c).toMatch(/^#[0-9A-Fa-f]{6}$/);
+      seen.add(c);
+    }
+    // All four rails are visually distinct.
+    expect(seen.size).toBe(4);
+  });
+
+  it('falls back to the info rail for an undefined kind', () => {
+    expect(toastKindColor(undefined)).toBe(TOAST_KIND_COLOR.info);
+  });
+});
+
+describe('classifyToast — heuristic kind inference', () => {
+  it('reads an achievement unlock as achievement (most specific wins)', () => {
+    expect(classifyToast('Achievement unlocked: Cave Veteran')).toBe('achievement');
+    expect(classifyToast('New ribbon: 4 in a day')).toBe('achievement');
+  });
+
+  it('reads heart / friendship / birthday lines as hearts', () => {
+    expect(classifyToast('Heart up with Maple')).toBe('hearts');
+    expect(classifyToast("It's Pip's birthday today!")).toBe('hearts');
+  });
+
+  it('reads a gold amount as money', () => {
+    expect(classifyToast('Sold the harvest for 612g')).toBe('money');
+    expect(classifyToast('Placed a coop. -600g')).toBe('money');
+    expect(classifyToast('Pockets clinking (+100g)')).toBe('money');
+  });
+
+  it('prefers hearts over money when a hangout pays gold AND hearts', () => {
+    // "+120g, hearts now 5" — hearts is checked before money on purpose.
+    expect(classifyToast('Lovely evening +120g, hearts now 5.')).toBe('hearts');
+  });
+
+  it('falls back to info for a plain status line', () => {
+    expect(classifyToast('Saved.')).toBe('info');
+    expect(classifyToast('Stand by the farmhouse to sleep.')).toBe('info');
   });
 });
