@@ -2695,7 +2695,7 @@ export class Game {
         this.canvas.height,
       );
     }
-    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale);
+    drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale, typeof performance !== 'undefined' ? performance.now() : Date.now());
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player);
     drawSkyDial(this.ctx, this.time, this.canvas.width);

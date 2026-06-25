@@ -9,6 +9,7 @@ import type { Player } from '../world/world';
 import type { TimeOfDay } from '../game/time';
 import { SEASONS } from '../game/time';
 import { CROPS, CROP_KEYS, drawCropSprite } from '../game/crops';
+import { seedWarnLevel, seedWarnPulse, SEED_WARN_COLOR } from '../game/hotbar';
 import type { Quest } from '../game/quests';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
@@ -85,6 +86,7 @@ function drawHotbar(
   player: Player,
   canvasW: number,
   canvasH: number,
+  nowMs: number,
 ): void {
   const slotSize = 48;
   const gap = 6;
@@ -117,7 +119,21 @@ function drawHotbar(
       );
       // Seed count badge.
       const count = player.inventory[cropKey] ?? 0;
-      ctx.fillStyle = TEXT_COLOR;
+      // Low-stock warning: pulse an amber border when the stack is down
+      // to its last planting (or empty) so the player notices before
+      // trying to plant nothing. The selected slot keeps its bright
+      // selection border; the warning rides on top as an overlay stroke.
+      const level = seedWarnLevel(count);
+      if (level !== 'none') {
+        const pulse = seedWarnPulse(level, nowMs);
+        ctx.save();
+        ctx.globalAlpha = pulse;
+        ctx.strokeStyle = SEED_WARN_COLOR;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 1, y + 1, slotSize - 2, slotSize - 2);
+        ctx.restore();
+      }
+      ctx.fillStyle = level === 'empty' ? SEED_WARN_COLOR : TEXT_COLOR;
       ctx.font = 'bold 11px ui-monospace, monospace';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
@@ -206,11 +222,12 @@ export function drawHUD(
   canvasW: number,
   canvasH: number,
   hudScale: number = 1.0,
+  nowMs: number = 0,
 ): void {
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   drawTopBar(ctx, player, time, canvasW, hudScale);
-  drawHotbar(ctx, player, canvasW, canvasH);
+  drawHotbar(ctx, player, canvasW, canvasH, nowMs);
   drawQuestPanel(ctx, player, hudScale);
   ctx.restore();
 }
