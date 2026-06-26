@@ -183,6 +183,47 @@ export function dateLabel(season: number, day: number): string {
   return `${SEASONS[season] ?? '?'} ${day}`;
 }
 
+/** Grouping bucket for the planner's agenda dividers. */
+export type AlmanacSectionKey = 'today' | 'week' | 'later';
+
+/** A contiguous run of almanac entries under one divider header. */
+export interface AlmanacSection {
+  key: AlmanacSectionKey;
+  /** Divider label, e.g. "TODAY". */
+  header: string;
+  entries: AlmanacEntry[];
+}
+
+/** Inclusive upper bound (in daysUntil) of the "this week" bucket. */
+export const ALMANAC_WEEK_MAX_DAYS = 6;
+
+/**
+ * Split a soonest-first almanac list into TODAY / THIS WEEK / LATER
+ * sections so the planner reads as a grouped agenda instead of one long
+ * countdown. Buckets by daysUntil:
+ *   - today: 0 (lands today)
+ *   - week:  1..ALMANAC_WEEK_MAX_DAYS (the rest of the current in-game week)
+ *   - later: beyond that, out to the horizon
+ * Empty buckets are omitted so a quiet stretch never shows a bare header.
+ * Order within a bucket is preserved from the input (already soonest-first).
+ * Pure.
+ */
+export function almanacSections(entries: readonly AlmanacEntry[]): AlmanacSection[] {
+  const today: AlmanacEntry[] = [];
+  const week: AlmanacEntry[] = [];
+  const later: AlmanacEntry[] = [];
+  for (const e of entries) {
+    if (e.daysUntil <= 0) today.push(e);
+    else if (e.daysUntil <= ALMANAC_WEEK_MAX_DAYS) week.push(e);
+    else later.push(e);
+  }
+  const out: AlmanacSection[] = [];
+  if (today.length) out.push({ key: 'today', header: 'TODAY', entries: today });
+  if (week.length) out.push({ key: 'week', header: 'THIS WEEK', entries: week });
+  if (later.length) out.push({ key: 'later', header: 'LATER', entries: later });
+  return out;
+}
+
 /**
  * The single most-imminent event within `maxDays` of `time`, or null when
  * the next two weeks open with nothing that close. Used by the HUD chip so

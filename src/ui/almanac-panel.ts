@@ -11,6 +11,7 @@ import {
   buildAlmanac,
   whenLabel,
   dateLabel,
+  almanacSections,
   type AlmanacEntry,
   type AlmanacKind,
 } from '../game/almanac';
@@ -35,6 +36,7 @@ const KIND_STYLE: Record<AlmanacKind, { color: string; tag: string }> = {
 const PANEL_W = 400;
 const ROW_H = 34;
 const HEADER_H = 44;
+const SECTION_H = 18;
 
 export class AlmanacPanel {
   private opened = false;
@@ -70,8 +72,10 @@ export class AlmanacPanel {
   draw(ctx: CanvasRenderingContext2D, time: TimeOfDay, canvasW: number, canvasH: number, player?: Player): void {
     if (!this.opened) return;
     const entries = buildAlmanac(time, undefined, player);
+    const sections = almanacSections(entries);
     const bodyRows = Math.max(entries.length, 1);
-    const h = HEADER_H + bodyRows * ROW_H + 24;
+    // Each section adds a small divider header above its rows.
+    const h = HEADER_H + bodyRows * ROW_H + sections.length * SECTION_H + 24;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -102,8 +106,17 @@ export class AlmanacPanel {
       ctx.textAlign = 'center';
       ctx.fillText('A quiet stretch ahead — nothing on the calendar.', x + PANEL_W / 2, y + HEADER_H + 8);
     } else {
-      for (let i = 0; i < entries.length; i++) {
-        this.drawRow(ctx, entries[i], x, y + HEADER_H + i * ROW_H, i > 0);
+      // Walk the sections, drawing a small TODAY / THIS WEEK / LATER
+      // divider above each group so the agenda reads as buckets rather
+      // than one long countdown.
+      let cy = y + HEADER_H;
+      for (const section of sections) {
+        this.drawSectionHeader(ctx, section.header, x, cy);
+        cy += SECTION_H;
+        for (let i = 0; i < section.entries.length; i++) {
+          this.drawRow(ctx, section.entries[i], x, cy, i > 0);
+          cy += ROW_H;
+        }
       }
     }
 
@@ -112,6 +125,26 @@ export class AlmanacPanel {
     ctx.textAlign = 'center';
     ctx.fillText('0 or Esc to close', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /** Small section divider header, e.g. "TODAY" / "THIS WEEK" / "LATER". */
+  private drawSectionHeader(
+    ctx: CanvasRenderingContext2D,
+    header: string,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    ctx.fillText(header, x + 16, ry + 5);
+    // A thin rule trailing off to the right of the label, so the divider
+    // reads as a section break without shouting.
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    const labelW = ctx.measureText(header).width;
+    ctx.fillStyle = 'rgba(74, 59, 110, 0.5)';
+    ctx.fillRect(x + 16 + labelW + 8, ry + 9, PANEL_W - 28 - labelW - 8, 1);
   }
 
   private drawRow(
