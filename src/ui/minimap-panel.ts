@@ -16,6 +16,8 @@ import {
   projectTile,
   playerDotRingAlpha,
   pingRing,
+  cycleFocusIndex,
+  focusedLandmarkCaption,
   type MinimapMarker,
   type MinimapPing,
   type PingRing,
@@ -30,24 +32,36 @@ const LABEL = 'rgba(245, 233, 212, 0.82)';
 const MAP_BORDER = '#2A2038';
 const PLAYER_DOT = '#F5E9D4';
 const PLAYER_RING = '#F5C9A0';
+const FOCUS_RING = '#F5E9D4';
+const FOCUS_CAPTION = '#F5C9A0';
 
 const MAP_W = 320;
 const MAP_H = 240;
 const PAD = 16;
 const LEGEND_H = 56;
+/** Height of the focused-landmark caption row under the map title. */
+const FOCUS_CAPTION_H = 18;
 
 export class MinimapPanel {
   private opened = false;
   private lockoutMs = 0;
   private pulseMs = 0;
+  /**
+   * Cursor into the landmark list for the focused-landmark caption, or
+   * -1 when nothing is focused yet (the player hasn't cycled). Cleared on
+   * close so each open starts neutral (caption hidden until they press).
+   */
+  private focusIndex = -1;
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
+    this.focusIndex = -1;
   }
 
   close(): void {
     this.opened = false;
+    this.focusIndex = -1;
   }
 
   toggle(): void {
@@ -61,6 +75,18 @@ export class MinimapPanel {
 
   canAct(): boolean {
     return this.opened && this.lockoutMs <= 0;
+  }
+
+  /**
+   * Move the focused-landmark cursor by `delta` (+1 next, -1 prev),
+   * wrapping through the landmark list. The first press from the neutral
+   * state lands on the first marker (forward) or the last (backward).
+   */
+  cycleFocus(world: World, delta: number): void {
+    const count = minimapMarkers(world).length;
+    if (count === 0) return;
+    const from = this.focusIndex < 0 ? (delta > 0 ? -1 : 0) : this.focusIndex;
+    this.focusIndex = cycleFocusIndex(from, count, delta);
   }
 
   update(dtMs: number): void {
@@ -86,8 +112,12 @@ export class MinimapPanel {
     // Grow the panel to fit a ping-reason legend when one or more tiles are
     // pinging, so a colour-blind player can read WHY without decoding hue.
     const pingLegendH = legendRows.length > 0 ? 16 + legendRows.length * 16 : 0;
+    // Focused-landmark caption sits in a fixed row under the title so the
+    // map doesn't jump as the player cycles focus on/off.
+    const markers = minimapMarkers(world);
+    const caption = focusedLandmarkCaption(markers, this.focusIndex);
     const panelW = MAP_W + PAD * 2;
-    const panelH = 40 + MAP_H + LEGEND_H + pingLegendH + PAD;
+    const panelH = 40 + FOCUS_CAPTION_H + MAP_H + LEGEND_H + pingLegendH + PAD;
     const x = Math.floor((canvasW - panelW) / 2);
     const y = Math.floor((canvasH - panelH) / 2);
 
@@ -107,8 +137,21 @@ export class MinimapPanel {
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('village map  (9)', x + PAD, y + 12);
 
+    // Focused-landmark caption row (arrow keys cycle it). Shows a soft
+    // prompt before the player has cycled so the affordance is discoverable.
+    ctx.font = '11px ui-monospace, monospace';
+    if (caption) {
+      ctx.fillStyle = FOCUS_CAPTION;
+      ctx.textAlign = 'left';
+      ctx.fillText(caption, x + PAD, y + 34);
+    } else {
+      ctx.fillStyle = HINT;
+      ctx.textAlign = 'left';
+      ctx.fillText('arrow keys: focus a landmark', x + PAD, y + 34);
+    }
+
     const mapX = x + PAD;
-    const mapY = y + 36;
+    const mapY = y + 36 + FOCUS_CAPTION_H;
     this.drawMap(ctx, world, mapX, mapY, reduceMotion, pings);
 
     // Landmark legend below the map.
@@ -159,6 +202,20 @@ export class MinimapPanel {
     const markers = minimapMarkers(world);
     for (const m of markers) {
       this.drawMarker(ctx, m, mapX, mapY, world, cellW, cellH);
+    }
+
+    // Focused-landmark highlight — a steady square ring around the pip the
+    // player has cycled to, so the caption text has a visible anchor on the
+    // map. Steady (no pulse) so it doesn't fight the action-ping animation.
+    if (this.focusIndex >= 0 && this.focusIndex < markers.length) {
+      const fm = markers[this.focusIndex];
+      const fx = mapX + fm.tx * cellW + cellW / 2;
+      const fy = mapY + fm.ty * cellH + cellH / 2;
+      ctx.save();
+      ctx.strokeStyle = FOCUS_RING;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(Math.floor(fx - 7) + 0.5, Math.floor(fy - 7) + 0.5, 13, 13);
+      ctx.restore();
     }
 
     // Action pings — pulsing rings on tiles that need the player right

@@ -1076,8 +1076,10 @@ export class Game {
       }
     }
 
-    // Resolve player movement only when no dialogue / menu is up.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible() || this.owlMenu.isVisible();
+    // Resolve player movement only when no dialogue / menu is up. The
+    // minimap is included because it now consumes arrows / WASD to cycle
+    // the focused-landmark caption, and it dims the world like a modal.
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible() || this.owlMenu.isVisible() || this.minimapPanel.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1196,11 +1198,28 @@ export class Game {
       this.helpOverlay.close();
     }
 
-    // 9: toggle the village minimap.
+    // 9: toggle the village minimap. While open, arrows / a-d cycle the
+    // focused-landmark caption so a mouseless player can identify any pip.
     if (this.input.justPressed.has('9')) {
       this.minimapPanel.toggle();
-    } else if (this.minimapPanel.isVisible() && this.minimapPanel.canAct() && this.input.justPressed.has('escape')) {
-      this.minimapPanel.close();
+    } else if (this.minimapPanel.isVisible() && this.minimapPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.minimapPanel.close();
+      } else if (
+        this.input.justPressed.has('arrowright') ||
+        this.input.justPressed.has('arrowdown') ||
+        this.input.justPressed.has('d') ||
+        this.input.justPressed.has('s')
+      ) {
+        this.minimapPanel.cycleFocus(this.world, 1);
+      } else if (
+        this.input.justPressed.has('arrowleft') ||
+        this.input.justPressed.has('arrowup') ||
+        this.input.justPressed.has('a') ||
+        this.input.justPressed.has('w')
+      ) {
+        this.minimapPanel.cycleFocus(this.world, -1);
+      }
     }
 
     // 0: toggle the almanac of upcoming events.

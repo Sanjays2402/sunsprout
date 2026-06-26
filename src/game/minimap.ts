@@ -249,3 +249,46 @@ export function pingLegend(pings: readonly MinimapPing[]): PingLegendRow[] {
   }
   return rows;
 }
+
+// ---------------------------------------------------------------------
+// Focused-landmark caption — with no mouse, the minimap can still answer
+// "what's that pip?" by letting the player cycle a focused landmark with
+// a key while the map is open. These pure helpers own the cursor wrap +
+// the caption wording so the widget stays a thin draw layer and the
+// behaviour is unit-testable.
+// ---------------------------------------------------------------------
+
+/**
+ * Wrap a focus cursor into the marker list by `delta` (+1 next, -1 prev).
+ * Returns 0 for an empty list. Pure modular arithmetic so the cursor
+ * never escapes [0, count) no matter how many times it's nudged.
+ */
+export function cycleFocusIndex(
+  current: number,
+  count: number,
+  delta: number,
+): number {
+  if (count <= 0) return 0;
+  return (((current + delta) % count) + count) % count;
+}
+
+/**
+ * Caption for the currently focused landmark: its full label plus the
+ * integer tile it sits on, e.g. "Maple's shop  ·  tile 24, 9". Markers
+ * carry fractional centres (building footprints), so we round to the
+ * nearest tile for a clean readout. Returns null when there's nothing to
+ * focus (empty marker list / out-of-range cursor) so the caller hides
+ * the caption row.
+ */
+export function focusedLandmarkCaption(
+  markers: readonly MinimapMarker[],
+  index: number,
+): string | null {
+  if (markers.length === 0) return null;
+  if (index < 0 || index >= markers.length) return null;
+  const m = markers[index];
+  const tx = Math.round(m.tx);
+  const ty = Math.round(m.ty);
+  return `${m.label}  -  tile ${tx}, ${ty}`;
+}
+
