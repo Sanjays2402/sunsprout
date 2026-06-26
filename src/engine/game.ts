@@ -241,6 +241,8 @@ import {
 import { OwlMenu } from '../ui/owl-menu';
 import { chainTierDawnBrag, chainRecipientDawnBrag, owlPostFeeFor } from '../game/owl-post';
 import { drawCartSprite } from '../render/cart-sprite';
+import { drawShopBanner } from '../render/shop-banner-sprite';
+import { shopBannerStyle } from '../game/shop-banner';
 import { dawnRestock, recordLastSeed } from '../game/auto-restock';
 import { dawnSpouseGift, spouseGreeting } from '../game/spouse';
 import {
@@ -2632,6 +2634,24 @@ export class Game {
           chimneyY,
           renderNow,
           settings.reduceMotion,
+        );
+      }
+    }
+    // Seasonal banner over Maple's shop — a small cloth that swaps colour
+    // + motif per season so the village visibly notices the calendar.
+    // Drawn over the shop roofline, same apex geometry as the chimney.
+    {
+      const shop = this.world.buildings.find((b) => b.kind === 'shop');
+      if (shop) {
+        const { sx, sy } = this.camera.worldToScreen(shop.x * TILE_SIZE, shop.y * TILE_SIZE);
+        const pw = shop.w * TILE_SIZE;
+        const ph = shop.h * TILE_SIZE;
+        const apexY = sy + Math.floor(ph * 0.4) + 2 - Math.floor(ph * 0.55);
+        drawShopBanner(
+          this.ctx,
+          sx + pw / 2,
+          apexY - 24,
+          shopBannerStyle(this.time.season),
         );
       }
     }
