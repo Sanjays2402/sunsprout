@@ -65,6 +65,7 @@ import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
 import { drawConfettiOverlay, celebrationDayKey, CONFETTI_DURATION_MS } from '../game/confetti';
+import { drawChimneySmoke, hearthLit } from '../game/chimney-smoke';
 import { cropSellMultiplier } from '../game/festivals';
 import {
   placeSprinkler,
@@ -2607,6 +2608,31 @@ export class Game {
         const cy = (g.ty + GREENHOUSE_H / 2) * TILE_SIZE;
         const { sx, sy } = this.camera.worldToScreen(cx, cy);
         drawGreenhouseSprite(this.ctx, sx, sy, TILE_SIZE);
+      }
+    }
+    // Chimney smoke — a soft wisp curling up from the farmhouse roof when
+    // the hearth would be lit (Winter, the cold dark hours, or rain/storm).
+    // Drawn after the buildings so it sits over the roofline. Skipped when
+    // the hearth is cold; frozen-but-visible under reduce-motion.
+    {
+      const fh = this.world.buildings.find((b) => b.kind === 'farmhouse');
+      if (fh && hearthLit(this.time)) {
+        const { sx, sy } = this.camera.worldToScreen(fh.x * TILE_SIZE, fh.y * TILE_SIZE);
+        const pw = fh.w * TILE_SIZE;
+        const ph = fh.h * TILE_SIZE;
+        // Roof apex mirrors drawBuilding's stepped-triangle geometry so the
+        // chimney lip tracks the ridge at any building size.
+        const apexY = sy + Math.floor(ph * 0.4) + 2 - Math.floor(ph * 0.55);
+        const chimneyX = sx + Math.round(pw * 0.68);
+        const chimneyY = apexY - 6;
+        drawChimneySmoke(
+          this.ctx,
+          this.time,
+          chimneyX,
+          chimneyY,
+          renderNow,
+          settings.reduceMotion,
+        );
       }
     }
     // Chests — small wooden + brass-band sprites placed on grass.
