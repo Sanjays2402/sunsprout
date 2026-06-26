@@ -1061,6 +1061,35 @@ export class Game {
       return;
     }
 
+    // Controls help overlay (?) is an input-capturing modal once open: it
+    // accepts typed letters/digits as a live filter over the cheat sheet.
+    // Handle it BEFORE any other key dispatch so a filter keystroke (e.g.
+    // "h", "r") doesn't also toggle the hearts / recipe panels behind it.
+    // We let `?` itself fall through so the closing toggle is handled in
+    // the normal panel block below. Esc clears the filter first, then
+    // closes on the next press.
+    if (this.helpOverlay.isVisible() && this.helpOverlay.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        if (!this.helpOverlay.clearFilter()) this.helpOverlay.close();
+        this.input.clearJustPressed();
+        return;
+      }
+      if (this.input.justPressed.has('backspace')) {
+        this.helpOverlay.backspace();
+        this.input.clearJustPressed();
+        return;
+      }
+      if (!this.input.justPressed.has('?')) {
+        // Feed the first single printable letter/digit into the filter and
+        // swallow the rest of this frame's input so nothing leaks through.
+        for (const k of this.input.justPressed) {
+          if (this.helpOverlay.typeChar(k)) break;
+        }
+        this.input.clearJustPressed();
+        return;
+      }
+    }
+
     // Fishing rod state machine ticks every frame so bite/escape fire even
     // if the player isn't pressing anything. Auto-toast escape events so
     // they don't feel silent.
@@ -1225,11 +1254,12 @@ export class Game {
       }
     }
 
-    // ?: toggle the controls help overlay.
+    // ?: open/close the controls help overlay. Opening happens here in
+    // the normal flow; once it's open it becomes an input-capturing modal
+    // handled by the early block above (so typed filter letters don't also
+    // fire other panel toggles). This branch only needs to OPEN it.
     if (this.input.justPressed.has('?')) {
       this.helpOverlay.toggle();
-    } else if (this.helpOverlay.isVisible() && this.helpOverlay.canAct() && this.input.justPressed.has('escape')) {
-      this.helpOverlay.close();
     }
 
     // 9: toggle the village minimap. While open, arrows / a-d cycle the

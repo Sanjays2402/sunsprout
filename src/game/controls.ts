@@ -121,6 +121,67 @@ export function totalBindingCount(): number {
 }
 
 /**
+ * Does a single binding match the (already-lowercased) filter string? A
+ * match is a case-insensitive substring hit on either the key glyph or
+ * the action label, so typing "f" lights up "Fish (face water)" and "F",
+ * and typing "panel" surfaces nothing at the binding level (the title
+ * carries that — see groupMatchesFilter). Empty filter matches everything.
+ */
+export function bindingMatchesFilter(b: ControlBinding, filter: string): boolean {
+  if (filter.length === 0) return true;
+  const f = filter.toLowerCase();
+  return b.keys.toLowerCase().includes(f) || b.label.toLowerCase().includes(f);
+}
+
+/**
+ * Does a group match the filter? True when the group's title matches OR
+ * any of its bindings match. So a typed "panel" lights the whole Panels
+ * group, and a typed "water" lights Farm (via the watering binding).
+ * Empty filter matches every group. Pure.
+ */
+export function groupMatchesFilter(g: ControlGroup, filter: string): boolean {
+  if (filter.length === 0) return true;
+  const f = filter.toLowerCase();
+  if (g.title.toLowerCase().includes(f)) return true;
+  return g.bindings.some((b) => bindingMatchesFilter(b, filter));
+}
+
+/**
+ * Indices of the groups (within `groups`) that match the filter. Empty
+ * filter -> every index. Used by the overlay to dim the non-matching
+ * groups while keeping the layout stable (nothing is removed, only
+ * dimmed). Pure.
+ */
+export function matchingGroupIndices(
+  filter: string,
+  groups: ControlGroup[] = CONTROL_GROUPS,
+): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < groups.length; i++) {
+    if (groupMatchesFilter(groups[i], filter)) out.push(i);
+  }
+  return out;
+}
+
+/**
+ * How many individual bindings match the filter, across every group. The
+ * overlay surfaces this as a "N of M keys" readout so the player knows the
+ * filter is doing something even when whole groups stay lit. Pure.
+ */
+export function matchingBindingCount(
+  filter: string,
+  groups: ControlGroup[] = CONTROL_GROUPS,
+): number {
+  let n = 0;
+  for (const g of groups) {
+    for (const b of g.bindings) {
+      if (bindingMatchesFilter(b, filter)) n++;
+    }
+  }
+  return n;
+}
+
+/**
  * Split the groups into two balanced columns for the overlay. Greedy
  * fill: walk the groups in order, keep adding to the left column until
  * it holds at least half the total *rows* (counting a title as one row),

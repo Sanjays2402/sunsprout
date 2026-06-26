@@ -5,6 +5,10 @@ import {
   CONTROL_GROUPS,
   totalBindingCount,
   splitControlColumns,
+  bindingMatchesFilter,
+  groupMatchesFilter,
+  matchingGroupIndices,
+  matchingBindingCount,
   type ControlGroup,
 } from '../src/game/controls';
 
@@ -73,6 +77,62 @@ describe('totalBindingCount', () => {
 
   it('catalogs a substantial number of keys (>= 30)', () => {
     expect(totalBindingCount()).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe('keybind filter', () => {
+  it('empty filter matches every binding and every group', () => {
+    for (const g of CONTROL_GROUPS) {
+      expect(groupMatchesFilter(g, '')).toBe(true);
+      for (const b of g.bindings) expect(bindingMatchesFilter(b, '')).toBe(true);
+    }
+    expect(matchingBindingCount('')).toBe(totalBindingCount());
+    expect(matchingGroupIndices('')).toHaveLength(CONTROL_GROUPS.length);
+  });
+
+  it('matches case-insensitively on the label', () => {
+    const b = { keys: 'F', label: 'Fish (face water)' };
+    expect(bindingMatchesFilter(b, 'fish')).toBe(true);
+    expect(bindingMatchesFilter(b, 'FISH')).toBe(true);
+    expect(bindingMatchesFilter(b, 'water')).toBe(true);
+    expect(bindingMatchesFilter(b, 'mine')).toBe(false);
+  });
+
+  it('matches on the key glyph too', () => {
+    const b = { keys: 'WASD / Arrows', label: 'Walk around the village' };
+    expect(bindingMatchesFilter(b, 'wasd')).toBe(true);
+    expect(bindingMatchesFilter(b, 'arrow')).toBe(true);
+  });
+
+  it('a group matches when only its title matches', () => {
+    const panels = CONTROL_GROUPS.find((g) => g.title === 'Panels')!;
+    expect(groupMatchesFilter(panels, 'panel')).toBe(true);
+  });
+
+  it('a group matches when only one binding matches', () => {
+    const farm = CONTROL_GROUPS.find((g) => g.title === 'Farm')!;
+    // No "Farm" binding label says "water"-ish except the watering verb.
+    expect(groupMatchesFilter(farm, 'water')).toBe(true);
+  });
+
+  it('narrows the matching binding count as the filter gets specific', () => {
+    const all = matchingBindingCount('');
+    const some = matchingBindingCount('upgrade');
+    expect(some).toBeGreaterThan(0);
+    expect(some).toBeLessThan(all);
+  });
+
+  it('matchingGroupIndices returns a subset for a real filter', () => {
+    const idx = matchingGroupIndices('fish');
+    expect(idx.length).toBeGreaterThan(0);
+    expect(idx.length).toBeLessThan(CONTROL_GROUPS.length);
+    // Every returned index is a real group index.
+    for (const i of idx) expect(CONTROL_GROUPS[i]).toBeDefined();
+  });
+
+  it('a no-hit filter matches nothing', () => {
+    expect(matchingBindingCount('zzqqxx')).toBe(0);
+    expect(matchingGroupIndices('zzqqxx')).toEqual([]);
   });
 });
 
