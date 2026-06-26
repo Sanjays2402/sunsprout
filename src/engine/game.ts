@@ -68,6 +68,8 @@ import { drawConfettiOverlay, celebrationDayKey, CONFETTI_DURATION_MS } from '..
 import { drawChimneySmoke, hearthLit } from '../game/chimney-smoke';
 import { ribbonHallMounts } from '../game/ribbon-hall';
 import { drawRibbonHall } from '../render/ribbon-hall-sprite';
+import { toolRackMounts } from '../game/tool-rack';
+import { drawToolRack } from '../render/tool-rack-sprite';
 import { cropSellMultiplier } from '../game/festivals';
 import {
   placeSprinkler,
@@ -2700,6 +2702,27 @@ export class Game {
           const hallX = sx + Math.round(pw * 0.58);
           const hallY = wallTop + 12;
           drawRibbonHall(this.ctx, hallX, hallY, mounts);
+        }
+      }
+    }
+    // Tool rack — the player's hoe / can / pickaxe / rod hung on the LEFT
+    // half of the farmhouse wall (the ribbon hall takes the right). Reads
+    // the tool-tier helpers via the pure layout; empty (no draw) until the
+    // player upgrades any tool past its starting wood tier.
+    {
+      const fh = this.world.buildings.find((b) => b.kind === 'farmhouse');
+      if (fh) {
+        const rack = toolRackMounts(this.world.player);
+        if (rack.length > 0) {
+          const { sx, sy } = this.camera.worldToScreen(fh.x * TILE_SIZE, fh.y * TILE_SIZE);
+          const pw = fh.w * TILE_SIZE;
+          const ph = fh.h * TILE_SIZE;
+          // Same wall-top geometry as the ribbon hall; hung on the left of
+          // the centred door so the two displays flank it symmetrically.
+          const wallTop = sy + Math.floor(ph * 0.4);
+          const rackX = sx + Math.round(pw * 0.08);
+          const rackY = wallTop + 12;
+          drawToolRack(this.ctx, rackX, rackY, rack);
         }
       }
     }
