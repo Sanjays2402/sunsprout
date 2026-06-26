@@ -66,6 +66,8 @@ import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
 import { drawConfettiOverlay, celebrationDayKey, CONFETTI_DURATION_MS } from '../game/confetti';
 import { drawChimneySmoke, hearthLit } from '../game/chimney-smoke';
+import { ribbonHallMounts } from '../game/ribbon-hall';
+import { drawRibbonHall } from '../render/ribbon-hall-sprite';
 import { cropSellMultiplier } from '../game/festivals';
 import {
   placeSprinkler,
@@ -2678,6 +2680,27 @@ export class Game {
           renderNow,
           settings.reduceMotion,
         );
+      }
+    }
+    // Ribbon hall — the player's tournament rosettes mounted on the
+    // farmhouse wall. Reads ribbonCounts() via the pure layout helper;
+    // empty (no draw) until the player wins their first ribbon. Anchored
+    // on the wall to the right of the door so it reads as wall decor.
+    {
+      const fh = this.world.buildings.find((b) => b.kind === 'farmhouse');
+      if (fh) {
+        const mounts = ribbonHallMounts(this.world.player);
+        if (mounts.length > 0) {
+          const { sx, sy } = this.camera.worldToScreen(fh.x * TILE_SIZE, fh.y * TILE_SIZE);
+          const pw = fh.w * TILE_SIZE;
+          const ph = fh.h * TILE_SIZE;
+          // Wall top mirrors drawBuilding's wall geometry; hang the strip a
+          // few px below it on the right half of the wall (door is centred).
+          const wallTop = sy + Math.floor(ph * 0.4);
+          const hallX = sx + Math.round(pw * 0.58);
+          const hallY = wallTop + 12;
+          drawRibbonHall(this.ctx, hallX, hallY, mounts);
+        }
       }
     }
     // Seasonal banner over Maple's shop — a small cloth that swaps colour
