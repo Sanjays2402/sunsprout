@@ -11,6 +11,7 @@ import {
   buildAchievements,
   type AchievementRow,
 } from '../game/achievements';
+import { ribbonHallCaption } from '../game/ribbon-hall';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -20,6 +21,7 @@ const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const EARNED_PIP = '#F0C24A';
 const LOCKED_PIP = '#7a6a9a';
+const RIBBON_CAPTION = '#E8B23A';
 
 const PANEL_W = 440;
 const ROW_H = 30;
@@ -72,7 +74,9 @@ export class AchievementsPanel {
     if (!this.opened) return;
     const rows = buildAchievements(player);
     const visibleN = Math.min(8, rows.length);
-    const h = 50 + visibleN * ROW_H + 22;
+    const caption = ribbonHallCaption(player);
+    const captionH = caption ? 18 : 0;
+    const h = 50 + visibleN * ROW_H + 22 + captionH;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -133,6 +137,17 @@ export class AchievementsPanel {
       const top = start === 0 ? '' : 'up ';
       const bot = end >= rows.length ? '' : 'down';
       ctx.fillText(`${top}${bot}`.trim(), x + PANEL_W / 2, y + h - 30);
+    }
+
+    // Ribbon-hall caption — names the tournament rosettes mounted on the
+    // farmhouse wall in plain words, so the tiny pixel medals are legible
+    // to a player who can't make them out. Sits on its own line above the
+    // scroll indicator + close hint. Only when at least one is shown.
+    if (caption) {
+      ctx.fillStyle = RIBBON_CAPTION;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(caption, x + PANEL_W / 2, y + h - 46);
     }
 
     ctx.fillStyle = HINT;

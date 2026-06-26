@@ -66,3 +66,33 @@ export function ribbonHallMounts(player: Player): RibbonMount[] {
 export function ribbonHallCount(player: Player): number {
   return ribbonHallMounts(player).length;
 }
+
+/**
+ * Plain-language caption of what's actually mounted on the wall, for the
+ * achievements-panel footer. The rosettes themselves are tiny pixel
+ * medals; a player who can't make them out (small screen, low vision)
+ * gets the same information in words here. Counts reflect the SHOWN
+ * rosettes (capped per tier via ribbonHallMounts), so the caption never
+ * claims more than the wall displays.
+ *
+ * Wording:
+ *   no ribbons  -> '' (caller draws nothing)
+ *   one mount   -> "1 ribbon on the wall: 1 gold"
+ *   several     -> "4 ribbons on the wall: 1 gold, 2 silver, 1 bronze"
+ *
+ * Tiers are listed best-first to match the left-to-right wall layout.
+ * Pure — derived entirely from ribbonHallMounts so it can't drift from
+ * what's drawn.
+ */
+export function ribbonHallCaption(player: Player): string {
+  const mounts = ribbonHallMounts(player);
+  if (mounts.length === 0) return '';
+  const byTier: Record<RibbonTier, number> = { gold: 0, silver: 0, bronze: 0 };
+  for (const m of mounts) byTier[m.tier] += 1;
+  const parts: string[] = [];
+  for (const tier of RIBBON_DISPLAY_ORDER) {
+    if (byTier[tier] > 0) parts.push(`${byTier[tier]} ${tier}`);
+  }
+  const noun = mounts.length === 1 ? 'ribbon' : 'ribbons';
+  return `${mounts.length} ${noun} on the wall: ${parts.join(', ')}`;
+}

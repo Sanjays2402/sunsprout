@@ -4,6 +4,7 @@ import { World } from '../src/world/world';
 import {
   ribbonHallMounts,
   ribbonHallCount,
+  ribbonHallCaption,
   RIBBON_TIER_COLOR,
   RIBBON_DISPLAY_ORDER,
   RIBBON_MAX_PER_TIER,
@@ -61,5 +62,42 @@ describe('ribbonHallMounts', () => {
       expect(c.body).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(c.sheen).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
+  });
+});
+
+describe('ribbonHallCaption', () => {
+  it('is empty on a fresh farm so the panel draws nothing', () => {
+    expect(ribbonHallCaption(new World().player)).toBe('');
+  });
+
+  it('uses the singular noun for a single ribbon', () => {
+    const p = playerWith({ gold: 1 });
+    expect(ribbonHallCaption(p)).toBe('1 ribbon on the wall: 1 gold');
+  });
+
+  it('lists every shown tier best-first with the plural noun', () => {
+    const p = playerWith({ bronze: 1, silver: 2, gold: 1 });
+    expect(ribbonHallCaption(p)).toBe('4 ribbons on the wall: 1 gold, 2 silver, 1 bronze');
+  });
+
+  it('counts only the SHOWN rosettes (respects the per-tier cap)', () => {
+    const p = playerWith({ silver: 99 });
+    const caption = ribbonHallCaption(p);
+    expect(caption).toBe(`${RIBBON_MAX_PER_TIER} ribbons on the wall: ${RIBBON_MAX_PER_TIER} silver`);
+    // The caption count must match what the wall actually mounts.
+    expect(caption.startsWith(`${ribbonHallCount(p)} `)).toBe(true);
+  });
+
+  it('omits a tier the player has none of', () => {
+    const p = playerWith({ gold: 1, bronze: 1 });
+    const caption = ribbonHallCaption(p);
+    expect(caption).toContain('1 gold');
+    expect(caption).toContain('1 bronze');
+    expect(caption).not.toContain('silver');
+  });
+
+  it('carries no emoji / non-ASCII (git-safe chrome)', () => {
+    const p = playerWith({ gold: 2, silver: 1, bronze: 3 });
+    expect(/^[\x20-\x7E]*$/.test(ribbonHallCaption(p))).toBe(true);
   });
 });
