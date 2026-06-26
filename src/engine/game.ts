@@ -61,6 +61,8 @@ import { drawWeatherStrip, drawRainOverlay } from '../ui/weather-strip';
 import { drawSkyDial } from '../ui/sky-dial-widget';
 import { drawAlmanacChip } from '../ui/almanac-chip';
 import { drawQualityHeatmap } from '../ui/quality-heatmap';
+import { heatmapToastSpill, type CropStreakSample } from '../game/crop-quality';
+import { CROPS } from '../game/crops';
 import { applyRain, weatherToday, WEATHER } from '../game/weather';
 import { drawBirthdayBanner } from '../ui/birthday-banner';
 import { drawFestivalBanner } from '../ui/festival-banner';
@@ -593,6 +595,22 @@ export class Game {
   }
 
   /**
+   * Build the (waterStreak, growthStages) samples for every crop on the
+   * field — the same data the heatmap overlay derives — so the journal
+   * open-transition can spill a field-care toast. Crops whose key is not
+   * in the catalog are skipped (mirrors the overlay's guard).
+   */
+  private cropFieldSamples(): CropStreakSample[] {
+    const samples: CropStreakSample[] = [];
+    for (const c of this.world.crops as unknown as FarmCrop[]) {
+      const catalog = CROPS[c.crop];
+      if (!catalog) continue;
+      samples.push({ waterStreak: c.waterStreak ?? 0, growthStages: catalog.growthStages });
+    }
+    return samples;
+  }
+
+  /**
    * Wrapper around checkQuests that captures any gold delta from a
    * completed quest and posts it to the money log so the player can
    * see "Wheat-Five Reward +50g" in the Q panel. The underlying quest
@@ -1110,9 +1128,17 @@ export class Game {
       this.recipeCodex.close();
     }
 
-    // ;: toggle the crop journal panel.
+    // ;: toggle the crop journal panel. On the OPEN transition, spill a
+    // one-shot "field care" toast when the field has any dry crop, so the
+    // heatmap's neglect signal reaches a player who isn't watching the
+    // legend corner. Quiet on a well-tended or empty field.
     if (this.input.justPressed.has(';')) {
+      const wasOpen = this.cropJournal.isVisible();
       this.cropJournal.toggle();
+      if (!wasOpen && this.cropJournal.isVisible()) {
+        const spill = heatmapToastSpill(this.cropFieldSamples());
+        if (spill) this.setToast(spill);
+      }
     } else if (this.cropJournal.isVisible() && this.cropJournal.canAct() && this.input.justPressed.has('escape')) {
       this.cropJournal.close();
     }

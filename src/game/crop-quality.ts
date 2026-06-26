@@ -241,3 +241,24 @@ export function qualityHeatSummary(samples: readonly CropStreakSample[]): string
   }
   return parts.join(', ');
 }
+
+/**
+ * One-shot toast text for the moment the crop journal opens onto a field
+ * that has at least one neglected (dry) crop. The heatmap legend already
+ * shows the same tally in the corner, but a player who opened the journal
+ * for some other reason might not glance there — so we spill the summary
+ * as a toast ONLY when there's something that actually needs them (>= 1
+ * dry crop). A well-tended or empty field returns null so the toast stays
+ * quiet and the spill never becomes noise.
+ *
+ * Pure: takes the same (streak, growthStages) samples the overlay builds,
+ * returns the toast string or null. The caller decides when to fire it
+ * (on the open transition) and pushes it through the toast queue.
+ */
+export function heatmapToastSpill(samples: readonly CropStreakSample[]): string | null {
+  if (samples.length === 0) return null;
+  const counts = qualityHeatCounts(samples);
+  if (counts.dry <= 0) return null;
+  const summary = qualityHeatSummary(samples);
+  return summary.length > 0 ? `Field care: ${summary}.` : null;
+}

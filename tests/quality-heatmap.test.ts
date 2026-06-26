@@ -6,6 +6,7 @@ import {
   qualityHeat,
   qualityHeatCounts,
   qualityHeatSummary,
+  heatmapToastSpill,
   HEAT_COLORS,
   qualityFromStreak,
   type QualityHeatTier,
@@ -180,6 +181,41 @@ describe('qualityHeatSummary — one-line glance', () => {
 
   it('carries no emoji (git-safe app chrome)', () => {
     const line = qualityHeatSummary([s(0), s(3), s(5)]);
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/^[\x00-\x7F]*$/);
+  });
+});
+
+describe('heatmapToastSpill — open-transition nudge', () => {
+  const G = 3;
+  const s = (waterStreak: number): CropStreakSample => ({ waterStreak, growthStages: G });
+
+  it('is null on an empty field (nothing to nudge about)', () => {
+    expect(heatmapToastSpill([])).toBeNull();
+  });
+
+  it('is null when nothing is dry (a tended field stays quiet)', () => {
+    // streaks 2 (almost), 3 (silver), 5 (gold) -> no dry crop.
+    expect(heatmapToastSpill([s(2), s(3), s(5)])).toBeNull();
+  });
+
+  it('spills the field-care summary when at least one crop is dry', () => {
+    const line = heatmapToastSpill([s(0), s(0), s(0), s(2)]);
+    expect(line).toBe('Field care: 3 dry, 1 about to silver-star.');
+  });
+
+  it('fires off a single dry crop', () => {
+    expect(heatmapToastSpill([s(0)])).toBe('Field care: 1 dry.');
+  });
+
+  it('matches the legend summary it mirrors (minus the wrapper)', () => {
+    const samples = [s(0), s(0), s(1), s(5)];
+    const spill = heatmapToastSpill(samples)!;
+    expect(spill).toBe(`Field care: ${qualityHeatSummary(samples)}.`);
+  });
+
+  it('carries no emoji (git-safe chrome)', () => {
+    const line = heatmapToastSpill([s(0), s(3)])!;
     // eslint-disable-next-line no-control-regex
     expect(line).toMatch(/^[\x00-\x7F]*$/);
   });
