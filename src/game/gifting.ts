@@ -19,6 +19,7 @@ import {
   CANDIDATES,
   PERFUMED_SOAP_GIFT_KEY,
   giveGift,
+  tasteOf,
   type GiftResult,
   type GiftTaste,
 } from './hearts';
@@ -76,6 +77,40 @@ export function pickBestGift(
     }
   }
   return bestKey;
+}
+
+/**
+ * Glanceable gift-readiness for the relationships panel. Answers, for a
+ * single candidate, "do I have something good to hand them right now,
+ * and have I not already gifted them today?" — the two questions the
+ * `G` press resolves, surfaced ahead of time so the player can see at a
+ * glance who they can court without walking over and mashing the key.
+ *
+ * `ready` is true only when BOTH hold: the per-day gift gate is open
+ * (no gift logged for `day`) AND pickBestGift finds an acceptable item
+ * (never a disliked one). `taste` carries the tier of that best item so
+ * the panel can tint the chip (loved > liked > neutral); `itemKey` is
+ * the raw inventory key the `G` press would spend. Pure — never mutates.
+ */
+export interface GiftReadiness {
+  ready: boolean;
+  taste: GiftTaste | null;
+  itemKey: string | null;
+}
+
+export function giftReadiness(
+  player: Player,
+  npcId: string,
+  day: number,
+): GiftReadiness {
+  const none: GiftReadiness = { ready: false, taste: null, itemKey: null };
+  if (!CANDIDATES[npcId]) return none;
+  // Per-day gate: already gifted today -> not ready (even with a full bag).
+  const row = player.hearts?.[npcId];
+  if (row && row.lastGiftDay === day) return none;
+  const key = pickBestGift(player.inventory, npcId);
+  if (!key) return none;
+  return { ready: true, taste: tasteOf(npcId, key), itemKey: key };
 }
 
 /**

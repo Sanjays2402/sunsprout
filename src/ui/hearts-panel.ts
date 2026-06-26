@@ -19,8 +19,10 @@ import {
   CANDIDATES,
   MAX_HEARTS,
   getHearts,
+  type GiftTaste,
   type HeartsState,
 } from '../game/hearts';
+import { giftReadiness } from '../game/gifting';
 import { daysUntilBirthday } from '../game/birthdays';
 import { spouseOf } from '../game/marriage';
 import { fianceOf } from '../game/engagement';
@@ -76,6 +78,14 @@ export interface RelationshipRow {
   /** Short "loves ..." hint naming up to two adored gifts. */
   lovedHint: string;
   status: RelationshipStatus;
+  /**
+   * True when the player is carrying a giftable item for this candidate
+   * AND hasn't gifted them today — i.e. a `G` press right now would land.
+   * Surfaced as a chip so the player can court without trial-and-error.
+   */
+  giftReady: boolean;
+  /** Taste tier of the gift the `G` press would pick, for the chip tint. */
+  giftTaste: GiftTaste | null;
 }
 
 /** Prettify a gift inventory key into a short human label. */
@@ -112,6 +122,7 @@ export function relationshipRows(
       spouse === id ? 'married' : fiance === id ? 'engaged' : 'single';
     const days = daysUntilBirthday(id, time);
     const loved = def.loved.slice(0, 2).map(prettyGiftKey).join(', ');
+    const ready = giftReadiness(player, id, time.day);
     return {
       id,
       name: def.name,
@@ -121,6 +132,8 @@ export function relationshipRows(
       birthdayLine: birthdayCountdownLabel(days),
       lovedHint: loved ? `loves ${loved}` : '',
       status,
+      giftReady: ready.ready,
+      giftTaste: ready.taste,
     };
   });
   const rank = (s: RelationshipStatus) =>
@@ -141,6 +154,32 @@ export function statusChipLabel(status: RelationshipStatus): string {
   if (status === 'married') return 'wed';
   if (status === 'engaged') return 'vow';
   return '';
+}
+
+/**
+ * Tiny chip text for a gift-ready candidate, tinted by how much they'll
+ * love the best item in the player's bag. '' when nothing is ready (the
+ * panel then draws no chip). Kept under ~10 chars so it tucks beside the
+ * birthday line without crowding the loves hint.
+ */
+export function giftChipLabel(row: RelationshipRow): string {
+  if (!row.giftReady) return '';
+  if (row.giftTaste === 'loved') return 'loved gift';
+  if (row.giftTaste === 'liked') return 'liked gift';
+  return 'gift ready';
+}
+
+/** Chip rail colour by taste — loved warmest, neutral coolest. */
+const GIFT_CHIP_COLOR: Record<GiftTaste, string> = {
+  loved: '#E25C7A',
+  liked: '#F0C24A',
+  neutral: '#A3D77A',
+  disliked: '#9D8FB8',
+};
+
+/** Chip rail colour for a row's ready gift, or a neutral fallback. */
+export function giftChipColor(taste: GiftTaste | null): string {
+  return taste ? GIFT_CHIP_COLOR[taste] : GIFT_CHIP_COLOR.neutral;
 }
 
 /** Draw a single pixel heart at (x,y), filled or empty. */
@@ -231,10 +270,28 @@ export function drawHeartsPanel(
     ctx.textAlign = 'left';
     ctx.fillStyle = row.daysUntilBirthday <= 1 ? BDAY_SOON : BDAY_COLOR;
     ctx.fillText(row.birthdayLine, x + 8, sy);
+    const line2X = x + 8 + ctx.measureText(row.birthdayLine).width + 6;
+    // Gift-ready chip — right-aligned on line 2 so the player can see who
+    // a `G` press would land on, tinted by how loved the best bag item is.
+    const giftChip = giftChipLabel(row);
+    if (giftChip) {
+      ctx.font = 'bold 8px ui-monospace, monospace';
+      const gc = giftChipColor(row.giftTaste);
+      const gw = ctx.measureText(giftChip).width + 6;
+      const gx = x + w - 8 - gw;
+      ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
+      ctx.fillRect(gx, sy - 1, gw, 11);
+      ctx.fillStyle = gc;
+      ctx.fillRect(gx, sy - 1, 2, 11); // left rail accent
+      ctx.fillText(giftChip, gx + 4, sy + 1);
+    }
     if (row.lovedHint) {
-      const bdayW = ctx.measureText(row.birthdayLine).width;
+      // Clip the loves hint short of the gift chip so they never overlap.
+      const hintMaxX = giftChip ? x + w - 8 - 64 : x + w - 8;
+      ctx.font = '10px ui-monospace, monospace';
       ctx.fillStyle = LOVE_HINT;
-      ctx.fillText(`· ${row.lovedHint}`, x + 8 + bdayW + 6, sy);
+      ctx.textAlign = 'left';
+      ctx.fillText(`· ${row.lovedHint}`, line2X, sy, Math.max(0, hintMaxX - line2X));
     }
   }
 

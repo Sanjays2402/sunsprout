@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world';
 import { startingHearts, getHearts } from '../src/game/hearts';
-import { attemptAutoGift, pickBestGift } from '../src/game/gifting';
+import { attemptAutoGift, pickBestGift, giftReadiness } from '../src/game/gifting';
 
 describe('gifting auto-pick', () => {
   it('prefers loved over liked over neutral, and skips disliked', () => {
@@ -57,5 +57,66 @@ describe('gifting auto-pick', () => {
     const p = w.player!;
     p.hearts = startingHearts();
     expect(attemptAutoGift(p, 'ghost', 1).kind).toBe('not-candidate');
+  });
+});
+
+describe('giftReadiness', () => {
+  function freshPlayer() {
+    const w = new World();
+    const p = w.player!;
+    p.hearts = startingHearts();
+    p.inventory = {};
+    return p;
+  }
+
+  it('is not ready with an empty bag', () => {
+    const p = freshPlayer();
+    const r = giftReadiness(p, 'maple', 1);
+    expect(r.ready).toBe(false);
+    expect(r.taste).toBeNull();
+    expect(r.itemKey).toBeNull();
+  });
+
+  it('reports the best item + its taste when something giftable is held', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1, wheat: 2 }; // ruby loved by Maple
+    const r = giftReadiness(p, 'maple', 1);
+    expect(r.ready).toBe(true);
+    expect(r.itemKey).toBe('ruby');
+    expect(r.taste).toBe('loved');
+  });
+
+  it('falls to a neutral item when nothing loved/liked is carried', () => {
+    const p = freshPlayer();
+    // pumpkin_harvest is neutral for Maple (not in her loved/liked/disliked).
+    p.inventory = { pumpkin_harvest: 1 };
+    const r = giftReadiness(p, 'maple', 1);
+    expect(r.ready).toBe(true);
+    expect(r.taste).toBe('neutral');
+  });
+
+  it('goes un-ready once the candidate has been gifted today', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1 };
+    expect(giftReadiness(p, 'maple', 5).ready).toBe(true);
+    attemptAutoGift(p, 'maple', 5);
+    // Same day -> the per-day gate closes readiness even if more is in the bag.
+    p.inventory.amethyst = 1; // another Maple-loved item
+    expect(giftReadiness(p, 'maple', 5).ready).toBe(false);
+    // Next day it re-opens.
+    expect(giftReadiness(p, 'maple', 6).ready).toBe(true);
+  });
+
+  it('never reports a disliked-only bag as ready', () => {
+    const p = freshPlayer();
+    p.inventory = { frog: 3 }; // Maple dislikes frog
+    expect(giftReadiness(p, 'maple', 1).ready).toBe(false);
+  });
+
+  it('returns the empty shape for an unknown NPC', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1 };
+    const r = giftReadiness(p, 'ghost', 1);
+    expect(r.ready).toBe(false);
   });
 });

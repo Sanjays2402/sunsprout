@@ -7,6 +7,8 @@ import {
   birthdayCountdownLabel,
   prettyGiftKey,
   statusChipLabel,
+  giftChipLabel,
+  giftChipColor,
   heartsSummary,
 } from '../src/ui/hearts-panel';
 import { CANDIDATES, MAX_HEARTS, startingHearts, giveGift } from '../src/game/hearts';
@@ -106,5 +108,54 @@ describe('relationshipRows', () => {
     const rows = heartsSummary(startingHearts());
     expect(rows.length).toBe(Object.keys(CANDIDATES).length);
     for (const r of rows) expect(r.hearts).toBe(0);
+  });
+});
+
+describe('gift-readiness chip', () => {
+  it('is not ready for any candidate on a fresh empty bag', () => {
+    const p = freshPlayer();
+    p.inventory = {};
+    const rows = relationshipRows(p, new TimeOfDay(6));
+    for (const r of rows) {
+      expect(r.giftReady).toBe(false);
+      expect(giftChipLabel(r)).toBe('');
+    }
+  });
+
+  it('lights up the carried candidate with the right taste chip', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1 }; // Maple loves ruby
+    const t = new TimeOfDay(6);
+    const maple = relationshipRows(p, t).find((r) => r.id === 'maple')!;
+    expect(maple.giftReady).toBe(true);
+    expect(maple.giftTaste).toBe('loved');
+    expect(giftChipLabel(maple)).toBe('loved gift');
+    // A candidate who doesn't love/like ruby still gets a neutral "gift ready".
+    const rose = relationshipRows(p, t).find((r) => r.id === 'rose')!;
+    expect(rose.giftReady).toBe(true);
+    expect(giftChipLabel(rose)).toBe('gift ready');
+  });
+
+  it('drops the chip once the candidate was gifted today', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1 };
+    const t = new TimeOfDay(6);
+    t.day = 3;
+    giveGift(p.hearts!, 'maple', 'ruby', 3);
+    const maple = relationshipRows(p, t).find((r) => r.id === 'maple')!;
+    expect(maple.giftReady).toBe(false);
+    expect(giftChipLabel(maple)).toBe('');
+  });
+
+  it('chip labels are short, ASCII, and have a hex colour', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1, 'hearty-stew': 1 };
+    const rows = relationshipRows(p, new TimeOfDay(6));
+    for (const r of rows) {
+      const label = giftChipLabel(r);
+      expect(/^[\x20-\x7E]*$/.test(label)).toBe(true);
+      expect(label.length).toBeLessThanOrEqual(12);
+      expect(giftChipColor(r.giftTaste)).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    }
   });
 });
