@@ -43,6 +43,35 @@ export const BAG_CATEGORIES = [
 ] as const;
 export type BagCategory = (typeof BAG_CATEGORIES)[number];
 
+/**
+ * Within-category sort modes the player can cycle while the bag is open.
+ * - `count`: fullest stacks first (the historical default).
+ * - `value`: richest stacks first, by total worth (count * unitValue), so
+ *   the player can find where their money is sitting.
+ * - `name`: A-Z by label, for hunting a specific item.
+ * The category grouping never changes — only the order inside each tab.
+ */
+export const BAG_SORT_MODES = ['count', 'value', 'name'] as const;
+export type BagSortMode = (typeof BAG_SORT_MODES)[number];
+
+/** Short human label for the sort chip, e.g. "by value". */
+export function bagSortLabel(mode: BagSortMode): string {
+  switch (mode) {
+    case 'count':
+      return 'by count';
+    case 'value':
+      return 'by value';
+    case 'name':
+      return 'A-Z';
+  }
+}
+
+/** Advance to the next sort mode, wrapping count -> value -> name -> count. */
+export function cycleBagSort(mode: BagSortMode): BagSortMode {
+  const i = BAG_SORT_MODES.indexOf(mode);
+  return BAG_SORT_MODES[(i + 1) % BAG_SORT_MODES.length];
+}
+
 /** A single rolled-up bag row. */
 export interface BagItem {
   /** Raw inventory key. */
@@ -168,10 +197,17 @@ export function classifyBagKey(key: string, count: number): BagItem | null {
 
 /**
  * Build the full bag: every non-zero inventory stack as a categorized row.
- * Within a category rows sort by descending count, then label, so the
- * fullest stacks lead and ties read alphabetically. Pure.
+ * Rows are always grouped by category in the canonical order; within a
+ * category the `sort` mode decides the order:
+ *   - `count` (default): descending count, ties by label — the fullest
+ *     stacks lead and ties read alphabetically. Back-compat default so
+ *     every existing caller / test keeps its order.
+ *   - `value`: descending total worth (count * unitValue), ties by label,
+ *     so the richest stacks surface first.
+ *   - `name`: A-Z by label.
+ * Pure.
  */
-export function buildBag(player: Player): BagItem[] {
+export function buildBag(player: Player, sort: BagSortMode = 'count'): BagItem[] {
   const inv = player.inventory ?? {};
   const rows: BagItem[] = [];
   for (const key of Object.keys(inv)) {
@@ -189,6 +225,14 @@ export function buildBag(player: Player): BagItem[] {
   };
   rows.sort((a, b) => {
     if (a.category !== b.category) return order[a.category] - order[b.category];
+    if (sort === 'name') return a.label.localeCompare(b.label);
+    if (sort === 'value') {
+      const wa = a.count * a.unitValue;
+      const wb = b.count * b.unitValue;
+      if (wa !== wb) return wb - wa;
+      return a.label.localeCompare(b.label);
+    }
+    // 'count' (default).
     if (a.count !== b.count) return b.count - a.count;
     return a.label.localeCompare(b.label);
   });
@@ -196,8 +240,12 @@ export function buildBag(player: Player): BagItem[] {
 }
 
 /** Rows belonging to a single category, in their sorted order. Pure. */
-export function bagItemsForCategory(player: Player, category: BagCategory): BagItem[] {
-  return buildBag(player).filter((r) => r.category === category);
+export function bagItemsForCategory(
+  player: Player,
+  category: BagCategory,
+  sort: BagSortMode = 'count',
+): BagItem[] {
+  return buildBag(player, sort).filter((r) => r.category === category);
 }
 
 /** Per-category non-zero stack counts, for the tab-strip sub-labels. Pure. */

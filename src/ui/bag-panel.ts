@@ -18,7 +18,10 @@ import {
   bagCategoryCounts,
   bagTotalStacks,
   bagTotalValue,
+  bagSortLabel,
+  cycleBagSort,
   type BagCategory,
+  type BagSortMode,
 } from '../game/bag';
 import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
@@ -31,6 +34,7 @@ const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const ROW_PIP = '#9D8FB8';
+const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 const PANEL_W = 460;
 const ROW_H = 26;
@@ -41,6 +45,7 @@ export class BagPanel {
   private lockoutMs = 0;
   private tabIndex = 0;
   private scroll = 0;
+  private sortMode: BagSortMode = 'count';
 
   open(): void {
     this.opened = true;
@@ -75,6 +80,18 @@ export class BagPanel {
     return BAG_CATEGORIES[this.tabIndex];
   }
 
+  /** Active within-category sort mode — exposed for tests. */
+  currentSort(): BagSortMode {
+    return this.sortMode;
+  }
+
+  /** Cycle the within-category sort (count -> value -> A-Z). Resets scroll. */
+  cycleSort(): void {
+    if (!this.opened) return;
+    this.sortMode = cycleBagSort(this.sortMode);
+    this.scroll = 0;
+  }
+
   nextTab(): void {
     if (!this.opened) return;
     this.tabIndex = cycleTabIndex(this.tabIndex, BAG_CATEGORIES.length, 1);
@@ -89,7 +106,7 @@ export class BagPanel {
 
   scrollDown(player: Player): void {
     if (!this.opened) return;
-    const total = bagItemsForCategory(player, this.currentCategory()).length;
+    const total = bagItemsForCategory(player, this.currentCategory(), this.sortMode).length;
     this.scroll = Math.min(Math.max(0, total - VISIBLE_ROWS), this.scroll + 1);
   }
 
@@ -100,7 +117,7 @@ export class BagPanel {
 
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
     if (!this.opened) return;
-    const rows = bagItemsForCategory(player, this.currentCategory());
+    const rows = bagItemsForCategory(player, this.currentCategory(), this.sortMode);
     const visibleN = Math.min(VISIBLE_ROWS, Math.max(rows.length, 1));
     const h = 88 + visibleN * ROW_H + 22;
     const x = Math.floor((canvasW - PANEL_W) / 2);
@@ -122,6 +139,15 @@ export class BagPanel {
     ctx.fillStyle = TITLE_COLOR;
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('bag  (Tab)', x + 14, y + 12);
+
+    // Sort chip — a dim pill right of the title showing the active sort
+    // mode (by count / by value / A-Z) so the `f` cycle is discoverable
+    // and the current order is legible.
+    ctx.font = 'bold 14px ui-monospace, monospace';
+    const titleW = ctx.measureText('bag  (Tab)').width;
+    ctx.fillStyle = SORT_CHIP;
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText(`- ${bagSortLabel(this.sortMode)}`, x + 14 + titleW + 8, y + 16);
 
     const stacks = bagTotalStacks(player);
     const worth = bagTotalValue(player);
@@ -195,7 +221,7 @@ export class BagPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Tab / Esc to close - a/d switch tabs - w/s scroll', x + PANEL_W / 2, y + h - 14);
+    ctx.fillText('Tab / Esc to close - a/d switch tabs - w/s scroll - f sort', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 }

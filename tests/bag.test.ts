@@ -8,7 +8,10 @@ import {
   bagCategoryCounts,
   bagTotalStacks,
   bagTotalValue,
+  bagSortLabel,
+  cycleBagSort,
   BAG_CATEGORIES,
+  BAG_SORT_MODES,
 } from '../src/game/bag';
 import type { Player } from '../src/world/world';
 
@@ -153,6 +156,63 @@ describe('bag aggregates', () => {
     expect(bagTotalValue(empty)).toBe(0);
     for (const c of BAG_CATEGORIES) {
       expect(bagItemsForCategory(empty, c)).toEqual([]);
+    }
+  });
+});
+
+describe('bag sort modes', () => {
+  it('cycles count -> value -> name -> count', () => {
+    expect(cycleBagSort('count')).toBe('value');
+    expect(cycleBagSort('value')).toBe('name');
+    expect(cycleBagSort('name')).toBe('count');
+  });
+
+  it('labels every mode legibly', () => {
+    expect(bagSortLabel('count')).toBe('by count');
+    expect(bagSortLabel('value')).toBe('by value');
+    expect(bagSortLabel('name')).toBe('A-Z');
+    // Exhaustive: every catalog mode has a non-empty label.
+    for (const m of BAG_SORT_MODES) {
+      expect(bagSortLabel(m).length).toBeGreaterThan(0);
+    }
+  });
+
+  it("defaults buildBag to 'count' so existing callers are unchanged", () => {
+    const player = mkPlayer({ 'gem-copper': 5, 'gem-ruby': 1 });
+    const defaulted = buildBag(player).map((r) => r.label);
+    const explicit = buildBag(player, 'count').map((r) => r.label);
+    expect(defaulted).toEqual(explicit);
+    // copper (5) before ruby (1) under count.
+    expect(defaulted).toEqual(['Copper Nugget', 'Cave Ruby']);
+  });
+
+  it('sorts by total worth under value mode', () => {
+    // copper 5 * 8 = 40g total; ruby 1 * 140 = 140g total. Value mode
+    // puts ruby first even though copper has the bigger stack count.
+    const player = mkPlayer({ 'gem-copper': 5, 'gem-ruby': 1 });
+    const byValue = bagItemsForCategory(player, 'Gems', 'value').map((r) => r.label);
+    expect(byValue).toEqual(['Cave Ruby', 'Copper Nugget']);
+  });
+
+  it('sorts A-Z under name mode regardless of count or value', () => {
+    const player = mkPlayer({ 'gem-copper': 5, 'gem-ruby': 1, 'gem-iron': 3 });
+    const byName = bagItemsForCategory(player, 'Gems', 'name').map((r) => r.label);
+    // Cave Ruby, Copper Nugget, Iron Chunk — alphabetical by label.
+    expect(byName).toEqual(['Cave Ruby', 'Copper Nugget', 'Iron Chunk']);
+  });
+
+  it('keeps category grouping intact under every sort mode', () => {
+    const player = mkPlayer({
+      wheat: 8,
+      'fish-pike': 2,
+      'gem-ruby': 1,
+      hoe: 1,
+    });
+    for (const mode of BAG_SORT_MODES) {
+      const cats = buildBag(player, mode).map((r) => r.category);
+      // First row stays Seeds, last stays Supplies — sort never crosses tabs.
+      expect(cats[0]).toBe('Seeds');
+      expect(cats[cats.length - 1]).toBe('Supplies');
     }
   });
 });

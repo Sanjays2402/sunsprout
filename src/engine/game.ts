@@ -1308,6 +1308,11 @@ export class Game {
         this.bagPanel.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
         this.bagPanel.scrollUp();
+      } else if (this.input.justPressed.has('f')) {
+        // `f` cycles the within-category sort (count -> value -> A-Z).
+        // Safe to claim here: the gameplay fishing `f` is suppressed while
+        // the bag is open (its block guards on !this.bagPanel.isVisible()).
+        this.bagPanel.cycleSort();
       }
     }
 
