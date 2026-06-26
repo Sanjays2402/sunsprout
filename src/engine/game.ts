@@ -2918,7 +2918,7 @@ export class Game {
     drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player, settings.hudScale);
     drawSkyDial(this.ctx, this.time, this.canvas.width, settings.hudScale);
-    drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale);
+    drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale, this.world.player);
     drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
     drawFestivalBanner(this.ctx, this.time, this.canvas.width);
     // Confetti — a brief celebratory burst the moment the player arrives on
@@ -3009,7 +3009,7 @@ export class Game {
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.minimapPanel.draw(this.ctx, this.world, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.reduceMotion);
-    this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height);
+    this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height, this.world.player);
     this.bagPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);

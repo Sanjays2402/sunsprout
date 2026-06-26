@@ -11,6 +11,7 @@
 // Pure draw layer — all the "what's next" logic lives in almanac.ts.
 
 import type { TimeOfDay } from '../game/time';
+import type { Player } from '../world/world';
 import { almanacHighlight, highlightChipText, type AlmanacKind } from '../game/almanac';
 import { rightColumnLayout } from '../game/hud-layout';
 
@@ -21,6 +22,7 @@ const TODAY = '#A3D77A';
 
 /** Per-kind rail colour — mirrors the almanac panel's KIND_STYLE. */
 const KIND_COLOR: Record<AlmanacKind, string> = {
+  personal: '#E25C7A',
   festival: '#9ECDB5',
   birthday: '#F5C9A0',
   cart: '#C8923A',
@@ -32,14 +34,17 @@ const KIND_COLOR: Record<AlmanacKind, string> = {
  * No-op when nothing is due Today/Tomorrow. `canvasW` right-aligns it;
  * `hudScale` grows the chip + its Y in lockstep with the rest of the
  * right HUD column so it stays attached when the HUD is scaled up.
+ * `player` (optional) folds the player's own hangout dates into the
+ * highlight so a personal commitment due tomorrow surfaces on the HUD.
  */
 export function drawAlmanacChip(
   ctx: CanvasRenderingContext2D,
   time: TimeOfDay,
   canvasW: number,
   hudScale: number = 1.0,
+  player?: Player,
 ): void {
-  const hit = almanacHighlight(time, 1);
+  const hit = almanacHighlight(time, 1, player);
   if (!hit) return;
 
   const text = highlightChipText(hit);

@@ -6,6 +6,7 @@
 // other overlays. Data comes from the pure almanac.ts aggregator.
 
 import type { TimeOfDay } from '../game/time';
+import type { Player } from '../world/world';
 import {
   buildAlmanac,
   whenLabel,
@@ -24,6 +25,7 @@ const TODAY = '#A3D77A';
 
 /** Per-kind accent colour + one-letter tag for the left rail. */
 const KIND_STYLE: Record<AlmanacKind, { color: string; tag: string }> = {
+  personal: { color: '#E25C7A', tag: 'M' },
   festival: { color: '#9ECDB5', tag: 'F' },
   birthday: { color: '#F5C9A0', tag: 'B' },
   cart: { color: '#C8923A', tag: 'P' },
@@ -65,9 +67,9 @@ export class AlmanacPanel {
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
   }
 
-  draw(ctx: CanvasRenderingContext2D, time: TimeOfDay, canvasW: number, canvasH: number): void {
+  draw(ctx: CanvasRenderingContext2D, time: TimeOfDay, canvasW: number, canvasH: number, player?: Player): void {
     if (!this.opened) return;
-    const entries = buildAlmanac(time);
+    const entries = buildAlmanac(time, undefined, player);
     const bodyRows = Math.max(entries.length, 1);
     const h = HEADER_H + bodyRows * ROW_H + 24;
     const x = Math.floor((canvasW - PANEL_W) / 2);

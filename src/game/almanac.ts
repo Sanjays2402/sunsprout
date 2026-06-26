@@ -11,15 +11,18 @@
 
 import type { TimeOfDay } from './time';
 import { SEASONS } from './time';
+import type { Player } from '../world/world';
 import { birthdayCalendar } from './birthdays';
 import { festivalCalendar } from './festivals';
 import { CART_VISIT_DAY } from './cart';
 import { TOURNAMENT_DAY, TOURNAMENT_KINDS, TOURNAMENT_LABELS } from './tournament';
+import { getInvites, HANGOUT_HOUR_START, HANGOUT_HOUR_END } from './hangouts';
+import { CANDIDATES } from './hearts';
 
 /** How many days ahead the almanac looks. Two full in-game weeks. */
 export const ALMANAC_HORIZON_DAYS = 14;
 
-export type AlmanacKind = 'festival' | 'birthday' | 'cart' | 'tournament';
+export type AlmanacKind = 'festival' | 'birthday' | 'cart' | 'tournament' | 'personal';
 
 export interface AlmanacEntry {
   /** Days from today; 0 = today, 1 = tomorrow, ... */
@@ -63,6 +66,7 @@ function dateInDays(time: TimeOfDay, n: number): { season: number; day: number }
 export function buildAlmanac(
   time: TimeOfDay,
   horizon: number = ALMANAC_HORIZON_DAYS,
+  player?: Player,
 ): AlmanacEntry[] {
   const entries: AlmanacEntry[] = [];
 
@@ -121,17 +125,50 @@ export function buildAlmanac(
     });
   }
 
+  // Personal commitments — the player's own pending NPC hangout dates.
+  // Unlike the village-wide events above, these are deadlines the player
+  // accepted (heart-4 invites carry a concrete (season, day) + evening
+  // window), so they belong on the planner front-and-centre. Only present
+  // when a player is supplied; reuses the same 28-day wrap as everything
+  // else. Hour window comes from the hangout constants.
+  if (player) {
+    for (const iv of getInvites(player)) {
+      const d = daysUntil(time, iv.season, iv.day);
+      if (d > horizon) continue;
+      const name = CANDIDATES[iv.npcId]?.name ?? iv.npcId;
+      entries.push({
+        daysUntil: d,
+        kind: 'personal',
+        title: `Hangout with ${name}`,
+        detail: `Meet up, ${formatHourWindow(HANGOUT_HOUR_START, HANGOUT_HOUR_END)}`,
+        season: iv.season,
+        day: iv.day,
+      });
+    }
+  }
+
   const kindOrder: Record<AlmanacKind, number> = {
-    festival: 0,
-    tournament: 1,
-    cart: 2,
-    birthday: 3,
+    personal: 0,
+    festival: 1,
+    tournament: 2,
+    cart: 3,
+    birthday: 4,
   };
   entries.sort((a, b) => {
     if (a.daysUntil !== b.daysUntil) return a.daysUntil - b.daysUntil;
     return kindOrder[a.kind] - kindOrder[b.kind];
   });
   return entries;
+}
+
+/** Format a 24h hour window into a cozy "6-8pm" style label. */
+function formatHourWindow(startHour: number, endHour: number): string {
+  const fmt = (h: number) => {
+    const ampm = h < 12 ? 'am' : 'pm';
+    const h12 = h % 12 === 0 ? 12 : h % 12;
+    return `${h12}${ampm}`;
+  };
+  return `${fmt(startHour)}-${fmt(endHour)}`;
 }
 
 /** Human label for a daysUntil value: "Today", "Tomorrow", "in N days". */
@@ -157,8 +194,9 @@ export function dateLabel(season: number, day: number): string {
 export function almanacHighlight(
   time: TimeOfDay,
   maxDays: number = 1,
+  player?: Player,
 ): AlmanacEntry | null {
-  for (const e of buildAlmanac(time, ALMANAC_HORIZON_DAYS)) {
+  for (const e of buildAlmanac(time, ALMANAC_HORIZON_DAYS, player)) {
     if (e.daysUntil <= maxDays) return e;
   }
   return null;
