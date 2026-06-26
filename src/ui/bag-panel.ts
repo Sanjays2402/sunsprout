@@ -25,6 +25,8 @@ import {
 } from '../game/bag';
 import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
+import { bagGlyph } from '../game/bag-glyph';
+import { drawBagGlyph } from '../render/bag-glyph-sprite';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -33,7 +35,6 @@ const TEXT_COLOR = '#F5E9D4';
 const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
-const ROW_PIP = '#9D8FB8';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 const PANEL_W = 460;
@@ -186,13 +187,15 @@ export class BagPanel {
           ctx.fillStyle = 'rgba(74, 59, 110, 0.4)';
           ctx.fillRect(x + 14, ry - 2, PANEL_W - 28, 1);
         }
-        // Pip + label on the left.
-        ctx.fillStyle = ROW_PIP;
-        ctx.fillRect(x + 14, ry + 6, 6, 6);
+        // Glyph pip + label on the left. The glyph is a tiny recognisable
+        // sprite (crop / fish / gem / egg / dish / crate) so the list scans
+        // like the hotbar; it's centred in a ~16px gutter and the label
+        // starts to its right.
+        drawBagGlyph(ctx, x + 22, ry + 9, bagGlyph(r));
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = '12px ui-monospace, monospace';
         ctx.textAlign = 'left';
-        ctx.fillText(r.label, x + 28, ry + 3);
+        ctx.fillText(r.label, x + 34, ry + 3);
 
         // Count, then optional per-unit value, on the right.
         ctx.fillStyle = TITLE_COLOR;
