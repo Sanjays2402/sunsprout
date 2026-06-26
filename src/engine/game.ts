@@ -319,7 +319,7 @@ import {
   rareMasterDawnBrag,
 } from '../game/compost';
 import { assembleDawnToast } from '../game/dawn-toast';
-import { ToastQueue, toastAlpha, toastKindColor, classifyToast, TOAST_TTL_MS } from '../game/toast-queue';
+import { ToastQueue, toastAlphaFor, toastKindColor, classifyToast, TOAST_TTL_MS } from '../game/toast-queue';
 import { drawBarks, tickBarks } from '../game/npc-barks';
 import {
   STORM_SHELTER_INVENTORY_KEY,
@@ -2851,7 +2851,7 @@ export class Game {
       const topY = 50;
       for (let i = 0; i < stack.length; i++) {
         const entry = stack[i];
-        const alpha = toastAlpha(entry);
+        const alpha = toastAlphaFor(entry, settings.reduceMotion);
         if (alpha <= 0) continue;
         const y = topY + i * (pillH + gap);
         this.ctx.save();

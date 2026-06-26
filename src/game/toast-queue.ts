@@ -75,6 +75,32 @@ export function toastAlpha(entry: ToastEntry): number {
 }
 
 /**
+ * Length of the abrupt cut at the very end of a toast's life under
+ * reduce-motion (ms). Short enough to read as an instant disappear, but
+ * non-zero so the pill doesn't pop out one frame early on a slow tick.
+ */
+export const TOAST_CUT_MS = 80;
+
+/**
+ * Opacity for an entry, honouring the player's reduce-motion preference.
+ * With motion on, falls through to the standard {@link toastAlpha} fade
+ * tail. With motion off (calm mode), the pill holds FULL opacity for its
+ * whole life then cuts to 0 over the final {@link TOAST_CUT_MS} — no slow
+ * fade to track out of the corner of the eye, mirroring how the rain /
+ * snow overlays and the HUD pulses already drop their animation under
+ * reduceMotion. Pure + deterministic so a test can pin any age.
+ */
+export function toastAlphaFor(entry: ToastEntry, reduceMotion: boolean): number {
+  if (!reduceMotion) return toastAlpha(entry);
+  const remaining = entry.ttlMs - entry.ageMs;
+  if (remaining <= 0) return 0;
+  if (remaining >= TOAST_CUT_MS) return 1;
+  // A tiny linear cut so a single frame landing inside the window isn't a
+  // hard pop, but it reads as instant compared to the 600ms motion fade.
+  return Math.max(0, Math.min(1, remaining / TOAST_CUT_MS));
+}
+
+/**
  * A short ring of recent toasts. Newest-first ordering on read so the
  * freshest message sits at the top of the rendered stack.
  */
