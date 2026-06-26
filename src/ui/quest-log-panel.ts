@@ -5,6 +5,8 @@
 
 import type { Player } from '../world/world';
 import { buildQuestLog, questCounts, type QuestLogEntry } from '../game/quest-log';
+import { PANEL_EMPTY_STATES } from '../game/panel-empty';
+import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -70,7 +72,9 @@ export class QuestLogPanel {
     const rows = buildQuestLog(player);
     const counts = questCounts(player);
     const visibleN = Math.min(6, Math.max(1, rows.length));
-    const h = 70 + visibleN * ROW_H + 22;
+    // Empty board reserves two body rows for the message + hint.
+    const bodyRows = rows.length === 0 ? 2 : visibleN;
+    const h = 70 + bodyRows * ROW_H + 22;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -100,10 +104,7 @@ export class QuestLogPanel {
     ctx.fillRect(x + 14, y + 38, PANEL_W - 28, 1);
 
     if (rows.length === 0) {
-      ctx.fillStyle = DIM;
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('No quests on the board.', x + PANEL_W / 2, y + 60);
+      drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
     } else {
       const start = this.scroll;
       const end = Math.min(rows.length, start + visibleN);

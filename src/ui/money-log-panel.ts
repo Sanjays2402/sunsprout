@@ -6,6 +6,8 @@
 
 import type { Player } from '../world/world';
 import { getMoneyLog, netChange, totalIn, totalOut } from '../game/money-log';
+import { PANEL_EMPTY_STATES } from '../game/panel-empty';
+import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -56,7 +58,8 @@ export class MoneyLogPanel {
     const log = getMoneyLog(player);
     const rows = log.slice(0, 20);
     const visible = Math.max(rows.length, 1);
-    const h = 60 + visible * ROW_H + 22;
+    // Reserve a second line of body space for the empty state's hint.
+    const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + 22;
     const x = 12;
     const y = 40;
 
@@ -93,10 +96,7 @@ export class MoneyLogPanel {
     ctx.fillRect(x + 12, y + 46, PANEL_W - 24, 1);
 
     if (rows.length === 0) {
-      ctx.fillStyle = DIM;
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText('No coin movement yet.', x + PANEL_W / 2, y + 60);
+      drawEmptyState(ctx, PANEL_EMPTY_STATES.moneyLog, x + PANEL_W / 2, y + 58);
     } else {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];

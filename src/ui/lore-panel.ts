@@ -20,6 +20,8 @@ import {
 } from '../game/lore';
 import { tabStripLayout, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
+import { loreEmptyState } from '../game/panel-empty';
+import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -131,7 +133,12 @@ export class LorePanel {
     const tabFooter = loreTabFooter(player, this.tab);
     const tabDetail = loreTabDetailLine(player, this.tab);
     const detailExtra = tabDetail.length > 0 ? 14 : 0;
-    const h = 88 + visibleN * ROW_H + 22 + detailExtra;
+    // When a filter empties the list, reserve two body rows so the shared
+    // empty state (message + hint) has room to breathe instead of being
+    // crushed against the tab strip.
+    const empty = loreEmptyState(this.tab, this.rumorFilter, rows.length);
+    const bodyRows = rows.length === 0 ? 2 : visibleN;
+    const h = 88 + bodyRows * ROW_H + 22 + detailExtra;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -171,7 +178,10 @@ export class LorePanel {
     const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, activeIdx);
     drawTabStrip(ctx, tabRects);
 
-    // Rows.
+    // Rows — or a calm shared empty state when a filter emptied the list.
+    if (empty) {
+      drawEmptyState(ctx, empty, x + PANEL_W / 2, y + 78 + 6);
+    }
     const start = this.scroll;
     const end = Math.min(rows.length, start + visibleN);
     for (let i = start; i < end; i++) {
