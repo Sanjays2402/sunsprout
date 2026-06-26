@@ -18,6 +18,8 @@ import {
   rumorFilterLabel,
   type RumorFilter,
 } from '../game/lore';
+import { tabStripLayout, type TabStripItem } from '../game/panel-tabs';
+import { drawTabStrip } from './panel-tab-strip';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -25,9 +27,6 @@ const TITLE_COLOR = '#F5C9A0';
 const TEXT_COLOR = '#F5E9D4';
 const DIM = 'rgba(245, 233, 212, 0.4)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
-const TAB_BG = 'rgba(40, 30, 60, 0.85)';
-const TAB_ACTIVE = 'rgba(108, 86, 158, 0.92)';
-const TAB_BORDER = '#6b5b8e';
 const ROW_PIP_ON = '#F0C24A';
 const ROW_PIP_OFF = '#7a6a9a';
 
@@ -159,27 +158,18 @@ export class LorePanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${completion}% discovered`, x + PANEL_W - 14, y + 14);
 
-    // Tabs.
+    // Tabs — laid out + drawn through the shared panel tab-strip so the
+    // lore panel and the bag panel speak one tab dialect. The layout
+    // (origin x+14 / y+38, width PANEL_W-28, gap 4, height 26) reproduces
+    // this panel's historical strip pixel-for-pixel.
     const progress = loreProgress(player);
-    const tabW = Math.floor((PANEL_W - 28) / LORE_CATEGORIES.length);
-    for (let i = 0; i < LORE_CATEGORIES.length; i++) {
-      const cat = LORE_CATEGORIES[i];
-      const tx = x + 14 + i * tabW;
-      const ty = y + 38;
-      const active = cat === this.tab;
-      ctx.fillStyle = active ? TAB_ACTIVE : TAB_BG;
-      ctx.fillRect(tx, ty, tabW - 4, 26);
-      ctx.strokeStyle = TAB_BORDER;
-      ctx.strokeRect(tx + 0.5, ty + 0.5, tabW - 5, 25);
-      ctx.fillStyle = active ? TITLE_COLOR : TEXT_COLOR;
-      ctx.font = 'bold 11px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(cat, tx + (tabW - 4) / 2, ty + 4);
-      ctx.fillStyle = active ? TEXT_COLOR : HINT;
-      ctx.font = '10px ui-monospace, monospace';
-      const p = progress[i];
-      ctx.fillText(`${p.discovered}/${p.total}`, tx + (tabW - 4) / 2, ty + 16);
-    }
+    const tabItems: TabStripItem[] = LORE_CATEGORIES.map((cat, i) => ({
+      label: cat,
+      sub: `${progress[i].discovered}/${progress[i].total}`,
+    }));
+    const activeIdx = LORE_CATEGORIES.indexOf(this.tab);
+    const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, activeIdx);
+    drawTabStrip(ctx, tabRects);
 
     // Rows.
     const start = this.scroll;
