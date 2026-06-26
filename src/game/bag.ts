@@ -269,6 +269,19 @@ export function bagTotalStacks(player: Player): number {
 }
 
 /**
+ * Total sellable worth of a single category — sum of count * unitValue
+ * over the rows in that tab. Lets the panel show "Gems: 412g" so the
+ * player can see where their money is sitting without doing the sum in
+ * their head. Pure.
+ */
+export function bagCategoryValue(player: Player, category: BagCategory): number {
+  return bagItemsForCategory(player, category).reduce(
+    (sum, r) => sum + r.count * r.unitValue,
+    0,
+  );
+}
+
+/**
  * Total sellable worth of the whole bag — sum of count * unitValue across
  * every row that carries a value. A glanceable "your bag is worth ~Ng"
  * figure for the panel header. Pure.

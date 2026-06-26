@@ -8,6 +8,7 @@ import {
   bagCategoryCounts,
   bagTotalStacks,
   bagTotalValue,
+  bagCategoryValue,
   bagSortLabel,
   cycleBagSort,
   BAG_CATEGORIES,
@@ -148,6 +149,17 @@ describe('bag aggregates', () => {
   it('totals sellable worth as sum of count * unitValue', () => {
     // pike 2*60 + ruby 1*140 = 260; seeds + hoe contribute 0.
     expect(bagTotalValue(player)).toBe(260);
+  });
+
+  it('breaks worth down per category', () => {
+    // Fish 2*60 = 120; Gems 1*140 = 140; Seeds + Supplies are valueless.
+    expect(bagCategoryValue(player, 'Fish')).toBe(120);
+    expect(bagCategoryValue(player, 'Gems')).toBe(140);
+    expect(bagCategoryValue(player, 'Seeds')).toBe(0);
+    expect(bagCategoryValue(player, 'Supplies')).toBe(0);
+    // The per-category figures sum to the whole-bag worth.
+    const sum = BAG_CATEGORIES.reduce((n, c) => n + bagCategoryValue(player, c), 0);
+    expect(sum).toBe(bagTotalValue(player));
   });
 
   it('handles a totally empty bag without throwing', () => {

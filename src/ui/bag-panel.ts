@@ -18,6 +18,7 @@ import {
   bagCategoryCounts,
   bagTotalStacks,
   bagTotalValue,
+  bagCategoryValue,
   bagSortLabel,
   cycleBagSort,
   type BagCategory,
@@ -166,6 +167,22 @@ export class BagPanel {
     }));
     const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, this.tabIndex);
     drawTabStrip(ctx, tabRects);
+
+    // Per-tab worth caption in the gap between the strip and the rows —
+    // "Gems: 412g in this tab" — so the player sees where their money is
+    // sitting. Quiet on valueless tabs (Seeds / Supplies sum to 0g) and
+    // on an empty tab, so it only speaks when it has something to say.
+    const tabWorth = bagCategoryValue(player, this.currentCategory());
+    if (tabWorth > 0) {
+      ctx.fillStyle = GOLD;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(
+        `${this.currentCategory()}: ${tabWorth}g in this tab`,
+        x + PANEL_W - 14,
+        y + 67,
+      );
+    }
 
     // Rows or a calm empty state for this category.
     if (rows.length === 0) {
