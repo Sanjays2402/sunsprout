@@ -173,6 +173,8 @@ import { SettingsPanel } from '../ui/settings-panel';
 import { HelpOverlay } from '../ui/help-overlay';
 import { MinimapPanel } from '../ui/minimap-panel';
 import { AlmanacPanel } from '../ui/almanac-panel';
+import { OnboardingCard } from '../ui/onboarding-card';
+import { shouldShowOnboarding, markOnboardingSeen } from '../game/onboarding';
 import { Rod, FISH, canCastInto } from '../game/fishing';
 import { Pickaxe, GEMS, canStrikeInto } from '../game/mining';
 import { gemInventoryKey } from '../game/gems';
@@ -401,6 +403,8 @@ export class Game {
   public minimapPanel: MinimapPanel = new MinimapPanel();
   /** Almanac of upcoming events — toggled with `0`. */
   public almanacPanel: AlmanacPanel = new AlmanacPanel();
+  /** One-time welcome card on a player's first ever boot. */
+  public onboardingCard: OnboardingCard = new OnboardingCard();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
   public cartMenu: CartMenu = new CartMenu();
   /** Maple's shop menu — opened with E when standing adjacent to the shop. */
@@ -514,6 +518,12 @@ export class Game {
     // Make sure the starter cellar chest always exists at the farmhouse,
     // even on fresh worlds or saves that pre-date the chest system.
     ensureStarterChest(this.world);
+    // First-ever boot on this device: pop the one-time welcome card that
+    // points at the help (?) + wayfinding (9/0) surfaces. The seen flag
+    // lives in its own storage key so it survives a save reset.
+    if (shouldShowOnboarding(this.storage)) {
+      this.onboardingCard.open();
+    }
   }
 
   start(): void {
@@ -1009,7 +1019,21 @@ export class Game {
     this.helpOverlay.update(dtMs);
     this.minimapPanel.update(dtMs);
     this.almanacPanel.update(dtMs);
+    this.onboardingCard.update(dtMs);
     this.toasts.tick(dtMs);
+
+    // One-time welcome card: while it's up it owns the screen. Any key
+    // (after the brief open lockout) dismisses it and persists the seen
+    // flag so it never returns. We swallow input for the rest of this
+    // frame so the dismissing press doesn't also trigger a game action.
+    if (this.onboardingCard.isVisible()) {
+      if (this.onboardingCard.canDismiss() && this.input.justPressed.size > 0) {
+        this.onboardingCard.close();
+        markOnboardingSeen(this.storage);
+      }
+      this.input.clearJustPressed();
+      return;
+    }
 
     // Fishing rod state machine ticks every frame so bite/escape fire even
     // if the player isn't pressing anything. Auto-toast escape events so
@@ -2924,5 +2948,7 @@ export class Game {
         this.ctx.restore();
       }
     }
+    // One-time welcome card — drawn last so it sits above the whole HUD.
+    this.onboardingCard.draw(this.ctx, this.canvas.width, this.canvas.height);
   }
 }
