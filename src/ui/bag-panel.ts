@@ -19,6 +19,7 @@ import {
   bagTotalStacks,
   bagTotalValue,
   bagCategoryValue,
+  bagSellHint,
   bagSortLabel,
   cycleBagSort,
   type BagCategory,
@@ -37,6 +38,7 @@ const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
+const SELL_HINT = 'rgba(159, 205, 122, 0.66)';
 
 const PANEL_W = 460;
 const ROW_H = 26;
@@ -121,7 +123,9 @@ export class BagPanel {
     if (!this.opened) return;
     const rows = bagItemsForCategory(player, this.currentCategory(), this.sortMode);
     const visibleN = Math.min(VISIBLE_ROWS, Math.max(rows.length, 1));
-    const h = 88 + visibleN * ROW_H + 22;
+    // Reserve a footer band for the scroll indicator, the where-to-sell
+    // hint, and the controls line (three stacked 14-16px rows).
+    const h = 88 + visibleN * ROW_H + 36;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -235,7 +239,18 @@ export class BagPanel {
       ctx.textAlign = 'center';
       const top = this.scroll === 0 ? '' : 'up ';
       const bot = this.scroll + visibleN >= rows.length ? '' : 'down';
-      ctx.fillText(`${top}${bot}`.trim(), x + PANEL_W / 2, y + h - 30);
+      ctx.fillText(`${top}${bot}`.trim(), x + PANEL_W / 2, y + h - 44);
+    }
+
+    // Where-to-sell hint — closes the loop between seeing a stack's worth
+    // and realising it. Quiet on tabs that aren't a sell loop (Seeds /
+    // Supplies return null) and on an empty tab.
+    const sellHint = rows.length > 0 ? bagSellHint(this.currentCategory()) : null;
+    if (sellHint) {
+      ctx.fillStyle = SELL_HINT;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(sellHint, x + PANEL_W / 2, y + h - 28);
     }
 
     ctx.fillStyle = HINT;

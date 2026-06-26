@@ -282,6 +282,36 @@ export function bagCategoryValue(player: Player, category: BagCategory): number 
 }
 
 /**
+ * Where-to-sell hint for a category, or null when the tab isn't a sell
+ * loop (Seeds + Supplies aren't sold back). Closes the gap between seeing
+ * a stack's worth and realising it: the bag shows value but no action, so
+ * a one-line footer points the player at the right counter. Accurate to
+ * the engine's actual sell verbs:
+ *   - Crops / Gems / Forage / eggs sell at the well (E).
+ *   - Dishes sell at the inn (Rose pays for cooked food).
+ *   - Fish are cooking ingredients — they don't sell raw, so the hint
+ *     nudges the player to cook them at the inn instead.
+ * Pure formatter; no economy change.
+ */
+export function bagSellHint(category: BagCategory): string | null {
+  switch (category) {
+    case 'Crops':
+      return 'Sell crops at the well (stand in front, press E).';
+    case 'Gems':
+      return 'Sell gems at the well (stand in front, press E).';
+    case 'Forage':
+      return 'Sell forage at the well, or trade it at the inn.';
+    case 'Fish':
+      return 'Fish are cooking stock — cook them into dishes at the inn (C).';
+    case 'Kitchen':
+      return 'Eggs sell at the well; cooked dishes sell at the inn.';
+    case 'Seeds':
+    case 'Supplies':
+      return null;
+  }
+}
+
+/**
  * Total sellable worth of the whole bag — sum of count * unitValue across
  * every row that carries a value. A glanceable "your bag is worth ~Ng"
  * figure for the panel header. Pure.

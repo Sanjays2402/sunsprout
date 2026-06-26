@@ -9,6 +9,7 @@ import {
   bagTotalStacks,
   bagTotalValue,
   bagCategoryValue,
+  bagSellHint,
   bagSortLabel,
   cycleBagSort,
   BAG_CATEGORIES,
@@ -160,6 +161,19 @@ describe('bag aggregates', () => {
     // The per-category figures sum to the whole-bag worth.
     const sum = BAG_CATEGORIES.reduce((n, c) => n + bagCategoryValue(player, c), 0);
     expect(sum).toBe(bagTotalValue(player));
+  });
+
+  it('points each sellable tab at the right counter; null for the rest', () => {
+    expect(bagSellHint('Crops')).toContain('well');
+    expect(bagSellHint('Gems')).toContain('well');
+    expect(bagSellHint('Forage')).toContain('well');
+    expect(bagSellHint('Kitchen')).toContain('inn');
+    // Fish don't sell raw — the hint must steer to cooking, not the well.
+    expect(bagSellHint('Fish')).toContain('inn');
+    expect(bagSellHint('Fish')).not.toContain('well');
+    // Seeds + Supplies aren't a sell loop.
+    expect(bagSellHint('Seeds')).toBeNull();
+    expect(bagSellHint('Supplies')).toBeNull();
   });
 
   it('handles a totally empty bag without throwing', () => {
