@@ -1,20 +1,29 @@
-// Hearts panel — slice 4 of v0.5.0 marriage candidates.
+// Hearts panel — `H` toggles a relationships screen for the four
+// candidates.
 //
-// A toggleable HUD overlay (key `H`) that lists every candidate, the
-// player's current heart total, and a small intro hint at level 1+. The
-// panel is rendered top-right so it doesn't fight the quest panel.
+// Originally (slice 4 of v0.5.0) this was a bare name + heart-strip list.
+// It now reads as a real relationships screen: each row carries the heart
+// pips, a soft next-birthday countdown (so the player can plan the 8x
+// gift day), a "loves" hint naming a couple of the candidate's adored
+// gifts, and a status chip when the player is engaged or married to them.
+// Rows sort by closeness (married/engaged first, then hearts, then the
+// soonest birthday) so the people you care about most rise to the top.
 //
-// The drawing is pure: it pulls everything it needs from Player.hearts
-// and CANDIDATES, no engine-side state besides the `visible` flag held
-// in game.ts.
+// The heavy lifting is a pure `relationshipRows(player, time)` builder
+// that the panel and unit tests share; the draw method is a thin layer.
+// `heartsSummary` is kept untouched for back-compat with its callers/test.
 
 import type { Player } from '../world/world';
+import type { TimeOfDay } from '../game/time';
 import {
   CANDIDATES,
   MAX_HEARTS,
   getHearts,
   type HeartsState,
 } from '../game/hearts';
+import { daysUntilBirthday } from '../game/birthdays';
+import { spouseOf } from '../game/marriage';
+import { fianceOf } from '../game/engagement';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.92)';
 const PANEL_BORDER = '#4a3b6e';
@@ -22,8 +31,14 @@ const TEXT_COLOR = '#F5E9D4';
 const ACCENT = '#F5C9A0';
 const HEART_FULL = '#E25C7A';
 const HEART_EMPTY = '#3a2a4a';
+const BDAY_COLOR = '#9FB0D0';
+const BDAY_SOON = '#F0C24A';
+const LOVE_HINT = 'rgba(245, 233, 212, 0.5)';
+const STATUS_WED = '#E47ACF';
+const STATUS_RING = '#A3D77A';
+const HINT = 'rgba(245, 233, 212, 0.55)';
 
-/** Pure summary helper — used by both the panel and unit tests. */
+/** Pure summary helper — used by older callers and the panel test. */
 export interface HeartsRow {
   id: string;
   name: string;
@@ -43,6 +58,89 @@ export function heartsSummary(state: HeartsState | undefined): HeartsRow[] {
     });
   }
   return out;
+}
+
+/** Relationship status with a specific candidate. */
+export type RelationshipStatus = 'single' | 'engaged' | 'married';
+
+/** A full relationships-screen row: hearts + birthday + taste + status. */
+export interface RelationshipRow {
+  id: string;
+  name: string;
+  hearts: number;
+  max: number;
+  /** Days until this candidate's birthday (0 = today). */
+  daysUntilBirthday: number;
+  /** Glanceable countdown label, e.g. "birthday today" / "birthday in 5d". */
+  birthdayLine: string;
+  /** Short "loves ..." hint naming up to two adored gifts. */
+  lovedHint: string;
+  status: RelationshipStatus;
+}
+
+/** Prettify a gift inventory key into a short human label. */
+export function prettyGiftKey(key: string): string {
+  let k = key;
+  if (k.endsWith('_harvest')) k = k.slice(0, -'_harvest'.length);
+  if (k.startsWith('dish-')) k = k.slice('dish-'.length);
+  return k.replace(/[-_]+/g, ' ');
+}
+
+/** Format a days-until-birthday count into a calm one-line countdown. */
+export function birthdayCountdownLabel(days: number): string {
+  if (days <= 0) return 'birthday today';
+  if (days === 1) return 'birthday tomorrow';
+  return `birthday in ${days}d`;
+}
+
+/**
+ * Build the rich relationship rows. Pure: reads Player.hearts, the
+ * birthday calendar, and the engagement / marriage state, then sorts by
+ * closeness so the people the player is investing in lead the list:
+ *   married first, then engaged, then by hearts (desc), then by the
+ *   soonest birthday, then name for a stable final tie-break.
+ */
+export function relationshipRows(
+  player: Player,
+  time: TimeOfDay,
+): RelationshipRow[] {
+  const spouse = spouseOf(player);
+  const fiance = fianceOf(player);
+  const rows: RelationshipRow[] = Object.keys(CANDIDATES).map((id) => {
+    const def = CANDIDATES[id];
+    const status: RelationshipStatus =
+      spouse === id ? 'married' : fiance === id ? 'engaged' : 'single';
+    const days = daysUntilBirthday(id, time);
+    const loved = def.loved.slice(0, 2).map(prettyGiftKey).join(', ');
+    return {
+      id,
+      name: def.name,
+      hearts: player.hearts ? getHearts(player.hearts, id) : 0,
+      max: MAX_HEARTS,
+      daysUntilBirthday: days,
+      birthdayLine: birthdayCountdownLabel(days),
+      lovedHint: loved ? `loves ${loved}` : '',
+      status,
+    };
+  });
+  const rank = (s: RelationshipStatus) =>
+    s === 'married' ? 0 : s === 'engaged' ? 1 : 2;
+  rows.sort((a, b) => {
+    if (rank(a.status) !== rank(b.status)) return rank(a.status) - rank(b.status);
+    if (a.hearts !== b.hearts) return b.hearts - a.hearts;
+    if (a.daysUntilBirthday !== b.daysUntilBirthday) {
+      return a.daysUntilBirthday - b.daysUntilBirthday;
+    }
+    return a.name.localeCompare(b.name);
+  });
+  return rows;
+}
+
+/** Short status chip label, or '' for a single candidate. */
+export function statusChipLabel(status: RelationshipStatus): string {
+  if (status === 'married') return 'wed';
+  if (status === 'engaged') return 'vow';
+  return '';
 }
 
 /** Draw a single pixel heart at (x,y), filled or empty. */
@@ -70,14 +168,15 @@ export function drawHeartsPanel(
   player: Player,
   canvasW: number,
   visible: boolean,
+  time: TimeOfDay,
 ): void {
   if (!visible) return;
-  const rows = heartsSummary(player.hearts);
+  const rows = relationshipRows(player, time);
   if (rows.length === 0) return;
 
-  const w = 240;
-  const lineH = 22;
-  const h = 30 + rows.length * lineH;
+  const w = 264;
+  const rowH = 34;
+  const h = 32 + rows.length * rowH + 6;
   const x = canvasW - w - 12;
   const y = 40;
 
@@ -92,19 +191,56 @@ export function drawHeartsPanel(
   ctx.font = 'bold 12px ui-monospace, monospace';
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
-  ctx.fillText('hearts  (H)', x + 8, y + 6);
+  ctx.fillText('relationships  (H)', x + 8, y + 6);
 
-  ctx.font = '11px ui-monospace, monospace';
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const ry = y + 24 + i * lineH;
+    const ry = y + 26 + i * rowH;
+
+    // Line 1: name (+ status chip) on the left, heart strip on the right.
+    ctx.font = '11px ui-monospace, monospace';
     ctx.fillStyle = TEXT_COLOR;
+    ctx.textAlign = 'left';
     ctx.fillText(row.name, x + 8, ry);
-    // Hearts strip right-aligned: 10 small hearts, ~8px apart.
+
+    const chip = statusChipLabel(row.status);
+    if (chip) {
+      const nameW = ctx.measureText(row.name).width;
+      const chipX = x + 8 + nameW + 6;
+      ctx.font = 'bold 8px ui-monospace, monospace';
+      const chipColor = row.status === 'married' ? STATUS_WED : STATUS_RING;
+      const cw = ctx.measureText(chip).width + 6;
+      ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
+      ctx.fillRect(chipX, ry - 1, cw, 11);
+      ctx.strokeStyle = chipColor;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(chipX + 0.5, ry - 0.5, cw - 1, 10);
+      ctx.fillStyle = chipColor;
+      ctx.fillText(chip, chipX + 3, ry + 1);
+    }
+
+    // Heart strip right-aligned: 10 small hearts, ~8px apart.
     const stripX = x + w - 8 - row.max * 8;
     for (let hi = 0; hi < row.max; hi++) {
-      drawHeart(ctx, stripX + hi * 8, ry + 2, hi < row.hearts);
+      drawHeart(ctx, stripX + hi * 8, ry + 1, hi < row.hearts);
+    }
+
+    // Line 2: birthday countdown (left, warmer when soon) + loves hint.
+    const sy = ry + 16;
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = row.daysUntilBirthday <= 1 ? BDAY_SOON : BDAY_COLOR;
+    ctx.fillText(row.birthdayLine, x + 8, sy);
+    if (row.lovedHint) {
+      const bdayW = ctx.measureText(row.birthdayLine).width;
+      ctx.fillStyle = LOVE_HINT;
+      ctx.fillText(`· ${row.lovedHint}`, x + 8 + bdayW + 6, sy);
     }
   }
+
+  ctx.fillStyle = HINT;
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('H to close', x + w / 2, y + h - 13);
   ctx.restore();
 }

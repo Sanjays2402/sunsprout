@@ -2833,7 +2833,7 @@ export class Game {
         });
       }
     }
-    drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible);
+    drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible, this.time);
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
