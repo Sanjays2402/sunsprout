@@ -100,6 +100,7 @@ export const CONTROL_GROUPS: ControlGroup[] = [
     title: 'Panels',
     bindings: [
       { keys: '?', label: 'This controls overlay' },
+      { keys: 'Tab', label: 'Inventory / bag' },
       { keys: '9', label: 'Village minimap' },
       { keys: '0', label: 'Almanac of upcoming days' },
       { keys: 'H', label: 'Hearts / relationships' },

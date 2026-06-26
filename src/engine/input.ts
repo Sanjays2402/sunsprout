@@ -29,6 +29,7 @@ export class Input {
       if (
         key.startsWith('arrow') ||
         key === ' ' ||
+        key === 'tab' ||
         key === 'w' ||
         key === 'a' ||
         key === 's' ||

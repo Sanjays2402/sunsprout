@@ -179,6 +179,7 @@ import { SettingsPanel } from '../ui/settings-panel';
 import { HelpOverlay } from '../ui/help-overlay';
 import { MinimapPanel } from '../ui/minimap-panel';
 import { AlmanacPanel } from '../ui/almanac-panel';
+import { BagPanel } from '../ui/bag-panel';
 import { OnboardingCard } from '../ui/onboarding-card';
 import { shouldShowOnboarding, markOnboardingSeen } from '../game/onboarding';
 import { Rod, FISH, canCastInto } from '../game/fishing';
@@ -409,6 +410,8 @@ export class Game {
   public minimapPanel: MinimapPanel = new MinimapPanel();
   /** Almanac of upcoming events — toggled with `0`. */
   public almanacPanel: AlmanacPanel = new AlmanacPanel();
+  /** Inventory / bag panel — toggled with `Tab`. */
+  public bagPanel: BagPanel = new BagPanel();
   /** One-time welcome card on a player's first ever boot. */
   public onboardingCard: OnboardingCard = new OnboardingCard();
   /** Pip's travelling cart menu — opened with E when next to the cart. */
@@ -1041,6 +1044,7 @@ export class Game {
     this.helpOverlay.update(dtMs);
     this.minimapPanel.update(dtMs);
     this.almanacPanel.update(dtMs);
+    this.bagPanel.update(dtMs);
     this.onboardingCard.update(dtMs);
     this.toasts.tick(dtMs);
 
@@ -1101,7 +1105,7 @@ export class Game {
     // Resolve player movement only when no dialogue / menu is up. The
     // minimap is included because it now consumes arrows / WASD to cycle
     // the focused-landmark caption, and it dims the world like a modal.
-    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible() || this.owlMenu.isVisible() || this.minimapPanel.isVisible();
+    const blocked = this.dialogue.isVisible() || this.cookingMenu.isVisible() || this.sleepSummary.isVisible() || this.chestMenu.isVisible() || this.cartMenu.isVisible() || this.shopMenu.isVisible() || this.benchMenu.isVisible() || this.owlMenu.isVisible() || this.minimapPanel.isVisible() || this.bagPanel.isVisible();
     const dir = blocked ? { dx: 0, dy: 0 } : this.input.getDirection();
     this.world.update(dtMs, dir);
 
@@ -1257,6 +1261,24 @@ export class Game {
       this.almanacPanel.toggle();
     } else if (this.almanacPanel.isVisible() && this.almanacPanel.canAct() && this.input.justPressed.has('escape')) {
       this.almanacPanel.close();
+    }
+
+    // Tab: toggle the inventory / bag panel. While open, a/d (or arrows)
+    // switch category tabs and w/s (or arrows) scroll the list.
+    if (this.input.justPressed.has('tab')) {
+      this.bagPanel.toggle();
+    } else if (this.bagPanel.isVisible() && this.bagPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.bagPanel.close();
+      } else if (this.input.justPressed.has('arrowright') || this.input.justPressed.has('d')) {
+        this.bagPanel.nextTab();
+      } else if (this.input.justPressed.has('arrowleft') || this.input.justPressed.has('a')) {
+        this.bagPanel.prevTab();
+      } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
+        this.bagPanel.scrollDown(this.world.player);
+      } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
+        this.bagPanel.scrollUp();
+      }
     }
 
     // K: manual save. Useful before quitting / before risky moves.
@@ -2023,7 +2045,7 @@ export class Game {
           }
         }
       }
-    } else if (!this.dialogue.isVisible()) {
+    } else if (!this.dialogue.isVisible() && !this.bagPanel.isVisible()) {
       // Gameplay actions
       const front = this.tileInFront();
       // C: open the cooking menu when standing on/adjacent to the inn.
@@ -2958,6 +2980,7 @@ export class Game {
     this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.minimapPanel.draw(this.ctx, this.world, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.reduceMotion);
     this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height);
+    this.bagPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
