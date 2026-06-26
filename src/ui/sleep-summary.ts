@@ -11,12 +11,15 @@
 // wording is unit-testable; this file is the thin canvas layer.
 
 import type { DaySummary } from '../game/sleep';
+import type { Player } from '../world/world';
 import {
   summaryRows,
   bestMomentLine,
+  continuityLine,
   SUMMARY_ROW_COLOR,
   type SummaryRowKind,
 } from '../game/day-summary';
+import { buildJournal } from '../game/crop-journal';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.94)';
 const PANEL_BORDER = '#4a3b6e';
@@ -24,6 +27,7 @@ const TITLE_COLOR = '#F5C9A0';
 const SUBTLE = '#9D8FB8';
 const BEST_COLOR = '#F5E9D4';
 const BEST_BG = 'rgba(64, 48, 96, 0.55)';
+const CONTINUITY_COLOR = '#7CC55C';
 
 export class SleepSummary {
   private summary: DaySummary | null = null;
@@ -57,7 +61,7 @@ export class SleepSummary {
   }
 
   /** Render the panel. No-op when no summary is open. */
-  draw(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number): void {
+  draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
     const s = this.summary;
     if (!s) return;
     // Compute alpha for the fade-in.
@@ -72,13 +76,21 @@ export class SleepSummary {
     const w = 320;
     const rows = summaryRows(s);
     const best = bestMomentLine(s);
+    // Lifetime crops-reaped tally drives the continuity line that ties
+    // this dawn to the farm's whole story.
+    const lifetimeHarvest = buildJournal(player).reduce(
+      (sum, e) => sum + e.normal + e.silver + e.gold,
+      0,
+    );
+    const continuity = continuityLine(s, lifetimeHarvest);
 
     const titleH = 28;
     const lineH = 18;
     const bestH = best ? 22 : 0;
+    const continuityH = continuity ? 16 : 0;
     const flavorH = 22;
     const pad = 14;
-    const h = pad + titleH + rows.length * lineH + bestH + flavorH + pad;
+    const h = pad + titleH + rows.length * lineH + bestH + continuityH + flavorH + pad;
     const x = Math.floor((canvasW - w) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -117,6 +129,16 @@ export class SleepSummary {
       ctx.textAlign = 'center';
       ctx.fillText(best, x + w / 2, cursorY + 3);
       cursorY += bestH;
+    }
+
+    // Continuity line — ties this dawn's harvest to the lifetime tally so
+    // the recap connects to the last rather than reading as a receipt.
+    if (continuity) {
+      ctx.fillStyle = CONTINUITY_COLOR;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(continuity, x + w / 2, cursorY + 2);
+      cursorY += continuityH;
     }
 
     // Flavor.

@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   summaryRows,
   bestMomentLine,
+  continuityLine,
   SUMMARY_ROW_COLOR,
   GOLD_HIGHLIGHT,
   HARVEST_HIGHLIGHT,
@@ -86,5 +87,44 @@ describe('bestMomentLine', () => {
   it('falls back to dishes, then null on a truly quiet day', () => {
     expect(bestMomentLine(summary({ dishesDelta: 2 }))).toContain('2 cooked');
     expect(bestMomentLine(summary())).toBeNull();
+  });
+});
+
+describe('continuityLine', () => {
+  it('is null before the player has ever reaped a crop', () => {
+    expect(continuityLine(summary({ harvestDelta: 0 }), 0)).toBeNull();
+    // Even a harvest-positive day shows nothing if the lifetime tally is 0
+    // (defensive — that combination shouldn't occur, but stays clean).
+    expect(continuityLine(summary({ harvestDelta: 3 }), 0)).toBeNull();
+  });
+
+  it('ties a harvest day into the running lifetime tally', () => {
+    expect(continuityLine(summary({ harvestDelta: 4 }), 42)).toBe(
+      'That brings your lifetime haul to 42 crops.',
+    );
+  });
+
+  it('holds steady on a day with no harvest', () => {
+    expect(continuityLine(summary({ harvestDelta: 0 }), 42)).toBe(
+      'Lifetime haul holds at 42 crops.',
+    );
+  });
+
+  it('treats a shrunk-bag day (negative delta) as no harvest', () => {
+    expect(continuityLine(summary({ harvestDelta: -5 }), 42)).toBe(
+      'Lifetime haul holds at 42 crops.',
+    );
+  });
+
+  it('uses the singular noun at exactly one crop', () => {
+    expect(continuityLine(summary({ harvestDelta: 1 }), 1)).toBe(
+      'That brings your lifetime haul to 1 crop.',
+    );
+  });
+
+  it('carries no emoji (git-safe chrome)', () => {
+    const line = continuityLine(summary({ harvestDelta: 2 }), 7)!;
+    // eslint-disable-next-line no-control-regex
+    expect(line).toMatch(/^[\x00-\x7F]*$/);
   });
 });

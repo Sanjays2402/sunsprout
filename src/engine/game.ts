@@ -2935,7 +2935,7 @@ export class Game {
     this.lorePanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.dialogue.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cookingMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
-    this.sleepSummary.draw(this.ctx, this.canvas.width, this.canvas.height);
+    this.sleepSummary.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.chestMenu.draw(this.ctx, this.canvas.width, this.canvas.height);
     this.cartMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height, this.time);
     this.shopMenu.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);

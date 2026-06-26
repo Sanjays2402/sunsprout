@@ -88,3 +88,33 @@ export function bestMomentLine(s: DaySummary): string | null {
   }
   return null;
 }
+
+/**
+ * A continuity line that ties the slept day to the farm's whole story:
+ * it threads the day's harvest into the lifetime crops-reaped tally from
+ * the crop journal, so each morning the recap connects to the last
+ * rather than reading as an isolated receipt.
+ *
+ * `lifetimeHarvest` is the career crops-reaped total (normal + silver +
+ * gold across every crop) — the caller passes it in (computed from the
+ * crop journal) so this module stays decoupled from the journal. The
+ * tally is monotonic, so it never goes backward even on a day the bag
+ * shrank from selling.
+ *
+ * Wording:
+ *   never reaped       -> null (the overlay shows nothing; a first-day
+ *                          farmer hasn't earned a career line yet)
+ *   harvested yesterday-> "That brings your lifetime haul to N crops."
+ *   none yesterday     -> "Lifetime haul holds at N crops."
+ *
+ * The "added today?" signal is the same harvestDelta the summary rows
+ * already display, so the line stays consistent with the panel above it.
+ */
+export function continuityLine(s: DaySummary, lifetimeHarvest: number): string | null {
+  if (lifetimeHarvest <= 0) return null;
+  const noun = lifetimeHarvest === 1 ? 'crop' : 'crops';
+  if (s.harvestDelta > 0) {
+    return `That brings your lifetime haul to ${lifetimeHarvest} ${noun}.`;
+  }
+  return `Lifetime haul holds at ${lifetimeHarvest} ${noun}.`;
+}
