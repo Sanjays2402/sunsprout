@@ -1,23 +1,29 @@
 // Sleep summary overlay — modal shown the morning after sleep().
 //
 // Renders a small, centered panel listing yesterday's deltas: gold,
-// harvest, dishes, heart gains, plus a flavour line. The player
-// dismisses with any of the usual keys (Space / Enter / Escape) —
-// the Game's input loop is responsible for calling close().
+// harvest, dishes, heart gains, each with a category tint + a small
+// monochrome pixel glyph, plus a "best moment" highlight line and the
+// dawn flavour. The player dismisses with any of the usual keys (Space /
+// Enter / Escape) — the Game's input loop is responsible for calling
+// close().
 //
-// Visual language matches the existing dialogue/cooking panels:
-// PANEL_BG + PANEL_BORDER + ACCENT title + monospace body, no emoji
-// in the panel chrome.
+// The row + highlight logic lives in pure game/day-summary.ts so the
+// wording is unit-testable; this file is the thin canvas layer.
 
 import type { DaySummary } from '../game/sleep';
+import {
+  summaryRows,
+  bestMomentLine,
+  SUMMARY_ROW_COLOR,
+  type SummaryRowKind,
+} from '../game/day-summary';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.94)';
 const PANEL_BORDER = '#4a3b6e';
 const TITLE_COLOR = '#F5C9A0';
-const TEXT_COLOR = '#F5E9D4';
 const SUBTLE = '#9D8FB8';
-const PLUS_COLOR = '#7CC55C';
-const HEART_COLOR = '#E47ACF';
+const BEST_COLOR = '#F5E9D4';
+const BEST_BG = 'rgba(64, 48, 96, 0.55)';
 
 export class SleepSummary {
   private summary: DaySummary | null = null;
@@ -64,20 +70,15 @@ export class SleepSummary {
     ctx.fillRect(0, 0, canvasW, canvasH);
 
     const w = 320;
-    const lines: string[] = [];
-    lines.push(`Gold ${formatDelta(s.goldDelta)}g`);
-    lines.push(`Harvest ${formatDelta(s.harvestDelta)}`);
-    if (s.dishesDelta !== 0) lines.push(`Dishes ${formatDelta(s.dishesDelta)}`);
-    for (const hg of s.heartGains) {
-      lines.push(`${hg.name} +${hg.delta} hearts`);
-    }
-    if (lines.length === 0) lines.push('A quiet day passed.');
+    const rows = summaryRows(s);
+    const best = bestMomentLine(s);
 
     const titleH = 28;
     const lineH = 18;
+    const bestH = best ? 22 : 0;
     const flavorH = 22;
     const pad = 14;
-    const h = pad + titleH + lines.length * lineH + flavorH + pad;
+    const h = pad + titleH + rows.length * lineH + bestH + flavorH + pad;
     const x = Math.floor((canvasW - w) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -94,23 +95,35 @@ export class SleepSummary {
     ctx.textBaseline = 'top';
     ctx.fillText(`Morning of Day ${s.newDay}`, x + w / 2, y + pad);
 
-    // Lines.
-    ctx.textAlign = 'left';
+    // Rows — each with a small category glyph + tinted text.
     ctx.font = '12px ui-monospace, monospace';
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      // Colour-code the line by its leading word.
-      if (line.startsWith('Gold')) ctx.fillStyle = PLUS_COLOR;
-      else if (line.includes('hearts')) ctx.fillStyle = HEART_COLOR;
-      else ctx.fillStyle = TEXT_COLOR;
-      ctx.fillText(line, x + pad + 4, y + pad + titleH + i * lineH);
+    ctx.textAlign = 'left';
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const ry = y + pad + titleH + i * lineH;
+      const color = SUMMARY_ROW_COLOR[row.kind];
+      drawRowGlyph(ctx, row.kind, x + pad + 2, ry + 2, color);
+      ctx.fillStyle = color;
+      ctx.fillText(row.text, x + pad + 18, ry);
+    }
+
+    // Best-moment highlight band — the standout of the slept day.
+    let cursorY = y + pad + titleH + rows.length * lineH;
+    if (best) {
+      ctx.fillStyle = BEST_BG;
+      ctx.fillRect(x + pad - 2, cursorY - 1, w - (pad - 2) * 2, lineH);
+      ctx.fillStyle = BEST_COLOR;
+      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(best, x + w / 2, cursorY + 3);
+      cursorY += bestH;
     }
 
     // Flavor.
     ctx.fillStyle = SUBTLE;
     ctx.font = 'italic 11px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(s.flavor, x + w / 2, y + pad + titleH + lines.length * lineH + 2);
+    ctx.fillText(s.flavor, x + w / 2, cursorY + 2);
 
     // Footer dismiss hint.
     ctx.fillStyle = SUBTLE;
@@ -121,7 +134,72 @@ export class SleepSummary {
   }
 }
 
-function formatDelta(n: number): string {
-  if (n >= 0) return `+${n}`;
-  return `${n}`;
+/**
+ * A tiny 6x6-ish monochrome pixel glyph per category, drawn to the left
+ * of each row. Kept deliberately simple (coin, sheaf, bowl, heart) so
+ * they read at a glance and match the pixel-art chrome.
+ */
+function drawRowGlyph(
+  ctx: CanvasRenderingContext2D,
+  kind: SummaryRowKind,
+  x: number,
+  y: number,
+  color: string,
+): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  let px: number[][];
+  switch (kind) {
+    case 'gold':
+      // coin — filled diamond/circle
+      px = [
+        [2, 0], [3, 0],
+        [1, 1], [2, 1], [3, 1], [4, 1],
+        [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2],
+        [0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3],
+        [1, 4], [2, 4], [3, 4], [4, 4],
+        [2, 5], [3, 5],
+      ];
+      break;
+    case 'harvest':
+      // sheaf — three stalks fanning up
+      px = [
+        [2, 0], [0, 1], [2, 1], [4, 1],
+        [0, 2], [2, 2], [4, 2],
+        [1, 3], [2, 3], [3, 3],
+        [2, 4], [2, 5],
+      ];
+      break;
+    case 'dishes':
+      // bowl — rounded base with a rim
+      px = [
+        [0, 1], [5, 1],
+        [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2],
+        [1, 3], [2, 3], [3, 3], [4, 3],
+        [2, 4], [3, 4],
+      ];
+      break;
+    case 'hearts':
+      // small heart
+      px = [
+        [1, 0], [2, 0], [4, 0], [5, 0],
+        [0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1],
+        [1, 2], [2, 2], [3, 2], [4, 2], [5, 2],
+        [2, 3], [3, 3], [4, 3],
+        [3, 4],
+      ];
+      break;
+    default:
+      // quiet — a small moon crescent
+      px = [
+        [2, 0], [3, 0],
+        [1, 1], [2, 1],
+        [1, 2], [2, 2],
+        [1, 3], [2, 3],
+        [2, 4], [3, 4],
+      ];
+      break;
+  }
+  for (const [dx, dy] of px) ctx.fillRect(x + dx, y + dy, 1, 1);
+  ctx.restore();
 }
