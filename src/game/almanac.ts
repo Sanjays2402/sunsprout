@@ -254,6 +254,71 @@ export function applyAlmanacFilter(
   return entries.filter((e) => kinds.includes(e.kind));
 }
 
+/** A single "{count} {noun}" segment of the per-kind summary line. */
+export interface AlmanacCountPart {
+  kind: AlmanacKind;
+  count: number;
+  /** Pre-pluralised phrase, e.g. "2 birthdays" / "1 festival". */
+  text: string;
+}
+
+/** Singular noun per kind for the count summary. Pluralised with a trailing s. */
+const KIND_NOUN: Record<AlmanacKind, string> = {
+  personal: 'hangout',
+  festival: 'festival',
+  tournament: 'tournament',
+  cart: 'cart visit',
+  birthday: 'birthday',
+};
+
+/**
+ * Order the summary parts read in, so the line is stable regardless of how
+ * the entries happened to sort. Mirrors the panel's row-rail priority.
+ */
+const SUMMARY_KIND_ORDER: readonly AlmanacKind[] = [
+  'personal',
+  'festival',
+  'tournament',
+  'cart',
+  'birthday',
+];
+
+/**
+ * Tally a (possibly filtered) almanac list into one "{n} {noun}" part per
+ * kind that actually appears, in a stable display order. Lets the panel
+ * surface "2 birthdays, 1 festival, 1 hangout in view" so the player sees
+ * the SHAPE of the fortnight at a glance, not just the soonest row. Kinds
+ * with zero entries are omitted. Pure — reads only the passed list, so it
+ * honours whatever filter the caller already applied.
+ */
+export function almanacCountParts(
+  entries: readonly AlmanacEntry[],
+): AlmanacCountPart[] {
+  const counts = new Map<AlmanacKind, number>();
+  for (const e of entries) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+  const parts: AlmanacCountPart[] = [];
+  for (const kind of SUMMARY_KIND_ORDER) {
+    const count = counts.get(kind) ?? 0;
+    if (count <= 0) continue;
+    const noun = KIND_NOUN[kind];
+    const text = `${count} ${noun}${count === 1 ? '' : 's'}`;
+    parts.push({ kind, count, text });
+  }
+  return parts;
+}
+
+/**
+ * One-line "2 birthdays, 1 festival, 1 hangout in view" summary, or '' when
+ * the list is empty (the header then renders nothing). Joins the parts with
+ * commas and tacks on " in view" so it reads as a glanceable shape-of-the-
+ * fortnight caption. Pure.
+ */
+export function almanacCountSummary(entries: readonly AlmanacEntry[]): string {
+  const parts = almanacCountParts(entries);
+  if (parts.length === 0) return '';
+  return `${parts.map((p) => p.text).join(', ')} in view`;
+}
+
 /**
  * Split a soonest-first almanac list into TODAY / THIS WEEK / LATER
  * sections so the planner reads as a grouped agenda instead of one long

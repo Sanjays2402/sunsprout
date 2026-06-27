@@ -15,6 +15,7 @@ import {
   applyAlmanacFilter,
   nextAlmanacFilter,
   almanacFilterLabel,
+  almanacCountSummary,
   type AlmanacEntry,
   type AlmanacFilter,
   type AlmanacKind,
@@ -41,6 +42,8 @@ const KIND_STYLE: Record<AlmanacKind, { color: string; tag: string }> = {
 const PANEL_W = 400;
 const ROW_H = 34;
 const HEADER_H = 44;
+/** Extra header band for the per-kind count summary, when there's one. */
+const SUMMARY_H = 16;
 const SECTION_H = 18;
 /** Footer band: filter chip (y+h-30) + close hint (y+h-14) + padding. */
 const FOOTER_H = 40;
@@ -96,9 +99,14 @@ export class AlmanacPanel {
     const entries = applyAlmanacFilter(allEntries, this.filter);
     const sections = almanacSections(entries);
     const bodyRows = Math.max(entries.length, 1);
+    // Per-kind count summary ("2 birthdays, 1 festival ... in view"), tallied
+    // over the FILTERED list so it agrees with what's actually shown. Empty
+    // when nothing's in view, in which case the header band collapses.
+    const summary = almanacCountSummary(entries);
+    const summaryH = summary ? SUMMARY_H : 0;
     // Each section adds a small divider header above its rows; a footer
     // band holds the filter chip + close hint.
-    const h = HEADER_H + bodyRows * ROW_H + sections.length * SECTION_H + FOOTER_H;
+    const h = HEADER_H + summaryH + bodyRows * ROW_H + sections.length * SECTION_H + FOOTER_H;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -123,6 +131,17 @@ export class AlmanacPanel {
     ctx.textAlign = 'right';
     ctx.fillText('next 2 weeks', x + PANEL_W - 16, y + 15);
 
+    // Per-kind count summary under the title — the shape of the fortnight
+    // at a glance ("2 birthdays, 1 festival, 1 hangout in view"). Only when
+    // something's in view; the body offsets down by SUMMARY_H to match.
+    if (summary) {
+      ctx.fillStyle = HINT;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(summary, x + 16, y + HEADER_H - 14);
+    }
+    const bodyY = y + HEADER_H + summaryH;
+
     if (entries.length === 0) {
       // Distinguish a genuinely quiet calendar from a filter that simply
       // hid everything, so the player knows the agenda isn't broken — just
@@ -133,12 +152,12 @@ export class AlmanacPanel {
       ctx.fillStyle = DIM;
       ctx.font = '11px ui-monospace, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(empty, x + PANEL_W / 2, y + HEADER_H + 8);
+      ctx.fillText(empty, x + PANEL_W / 2, bodyY + 8);
     } else {
       // Walk the sections, drawing a small TODAY / THIS WEEK / LATER
       // divider above each group so the agenda reads as buckets rather
       // than one long countdown.
-      let cy = y + HEADER_H;
+      let cy = bodyY;
       for (const section of sections) {
         this.drawSectionHeader(ctx, section.header, x, cy);
         cy += SECTION_H;
