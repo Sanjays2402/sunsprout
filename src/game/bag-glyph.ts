@@ -27,6 +27,7 @@ import {
   FANCY_EGG_INVENTORY_KEY,
   BREEDER_EGG_INVENTORY_KEY,
 } from './coop';
+import { RECIPE_KEYS } from './cooking';
 
 /**
  * A resolved glyph for one bag row. Discriminated by `kind` so the
@@ -150,4 +151,36 @@ export function loreRowGlyph(category: string, id: string): BagGlyph | null {
       // Folk / Rumors — no catalog sprite.
       return null;
   }
+}
+
+/**
+ * Resolve a candidate's adored-gift key into a glyph for the relationship
+ * panel. Gift keys live in a DISPLAY namespace that only partly overlaps
+ * inventory keys: harvest keys (`flower_harvest`) are already valid, but
+ * gems / fish / dishes are stored bare (`ruby`, `frog`, `hearty-stew`)
+ * and need their inventory prefix rebuilt before the shared resolver can
+ * find the sprite. Rather than a brittle per-catalog membership table, we
+ * probe: try the key as-is, then each namespace prefix, returning the
+ * first that resolves to a real sprite (bagGlyphForKey returns `supply`
+ * for anything it can't place, so a non-`supply` result means a hit).
+ * Genuinely off-catalog gifts (`frog`, `amethyst`, `bouquet`) resolve to
+ * nothing and return null, so the panel keeps a clean bullet rather than
+ * a misleading crate. Pure.
+ */
+export function giftKeyGlyph(rawKey: string): BagGlyph | null {
+  const direct = bagGlyphForKey(rawKey);
+  if (direct.kind !== 'supply') return direct;
+  // Gem / fish / forage prefixes self-validate inside bagGlyphForKey (it
+  // checks catalog membership), so a non-`supply` result is a real hit.
+  for (const prefix of ['gem-', 'fish-', 'forage-']) {
+    const g = bagGlyphForKey(`${prefix}${rawKey}`);
+    if (g.kind !== 'supply') return g;
+  }
+  // The dish branch accepts ANY `dish-*` key (premium dishes use compound
+  // keys), so it can't self-validate — gate the dish probe on the bare
+  // key actually being a known recipe before trusting it.
+  if ((RECIPE_KEYS as readonly string[]).includes(rawKey)) {
+    return bagGlyphForKey(`dish-${rawKey}`);
+  }
+  return null;
 }

@@ -5,6 +5,7 @@ import {
   bagGlyph,
   bagGlyphForKey,
   loreRowGlyph,
+  giftKeyGlyph,
   fishGlyphColor,
   EGG_GLYPH_COLOR,
   DISH_GLYPH_COLOR,
@@ -107,6 +108,31 @@ describe('loreRowGlyph', () => {
   it('agrees with bagGlyphForKey on the rebuilt inventory key', () => {
     expect(loreRowGlyph('Gems', 'gold')).toEqual(bagGlyphForKey('gem-gold'));
     expect(loreRowGlyph('Crops', 'pumpkin')).toEqual(bagGlyphForKey('pumpkin'));
+  });
+});
+
+describe('giftKeyGlyph', () => {
+  it('rebuilds the gem prefix for a bare gem gift key', () => {
+    const g = giftKeyGlyph('ruby');
+    expect(g?.kind).toBe('gem');
+    if (g?.kind === 'gem') expect(g.color).toBe(GEMS.ruby.color);
+  });
+
+  it('resolves a bare harvest gift key as a crop glyph', () => {
+    const g = giftKeyGlyph('flower_harvest');
+    expect(g?.kind).toBe('crop');
+    if (g?.kind === 'crop') expect(g.cropKey).toBe('flower');
+  });
+
+  it('rebuilds the dish prefix for a bare dish gift key', () => {
+    const g = giftKeyGlyph('hearty-stew');
+    expect(g?.kind).toBe('dish');
+  });
+
+  it('returns null for off-catalog gift tokens (frog / amethyst / bouquet)', () => {
+    expect(giftKeyGlyph('frog')).toBeNull();
+    expect(giftKeyGlyph('amethyst')).toBeNull();
+    expect(giftKeyGlyph('bouquet')).toBeNull();
   });
 });
 

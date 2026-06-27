@@ -26,6 +26,8 @@ import { giftReadiness } from '../game/gifting';
 import { daysUntilBirthday } from '../game/birthdays';
 import { spouseOf } from '../game/marriage';
 import { fianceOf } from '../game/engagement';
+import { giftKeyGlyph } from '../game/bag-glyph';
+import { drawBagGlyph } from '../render/bag-glyph-sprite';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.92)';
 const PANEL_BORDER = '#4a3b6e';
@@ -77,6 +79,14 @@ export interface RelationshipRow {
   birthdayLine: string;
   /** Short "loves ..." hint naming up to two adored gifts. */
   lovedHint: string;
+  /**
+   * Raw key of the first adored gift whose glyph resolves to a real
+   * catalog sprite, or null when none of this candidate's loves have a
+   * drawable pip (e.g. off-catalog tokens like frog / amethyst). The
+   * panel draws this glyph in place of the "loves" bullet so the player
+   * recognises the gift at a glance.
+   */
+  lovedGlyphKey: string | null;
   status: RelationshipStatus;
   /**
    * True when the player is carrying a giftable item for this candidate
@@ -101,6 +111,19 @@ export function birthdayCountdownLabel(days: number): string {
   if (days <= 0) return 'birthday today';
   if (days === 1) return 'birthday tomorrow';
   return `birthday in ${days}d`;
+}
+
+/**
+ * Pick the first adored-gift key (from the candidate's loved list) that
+ * resolves to a real catalog sprite, so the panel can draw a recognisable
+ * pip beside the "loves" hint. Returns null when none of the loves have a
+ * drawable glyph (e.g. off-catalog tokens like frog / amethyst). Pure.
+ */
+export function lovedGlyphKeyFor(loved: readonly string[]): string | null {
+  for (const key of loved) {
+    if (giftKeyGlyph(key)) return key;
+  }
+  return null;
 }
 
 /**
@@ -131,6 +154,7 @@ export function relationshipRows(
       daysUntilBirthday: days,
       birthdayLine: birthdayCountdownLabel(days),
       lovedHint: loved ? `loves ${loved}` : '',
+      lovedGlyphKey: lovedGlyphKeyFor(def.loved),
       status,
       giftReady: ready.ready,
       giftTaste: ready.taste,
@@ -288,10 +312,25 @@ export function drawHeartsPanel(
     if (row.lovedHint) {
       // Clip the loves hint short of the gift chip so they never overlap.
       const hintMaxX = giftChip ? x + w - 8 - 64 : x + w - 8;
+      // Draw the actual loved-item glyph in place of the bullet when one
+      // of this candidate's adored gifts has a drawable catalog sprite,
+      // so the player recognises the gift at a glance instead of reading
+      // the name. Falls back to the "·" bullet for off-catalog loves.
+      const glyph = row.lovedGlyphKey ? giftKeyGlyph(row.lovedGlyphKey) : null;
       ctx.font = '10px ui-monospace, monospace';
       ctx.fillStyle = LOVE_HINT;
       ctx.textAlign = 'left';
-      ctx.fillText(`· ${row.lovedHint}`, line2X, sy, Math.max(0, hintMaxX - line2X));
+      if (glyph) {
+        drawBagGlyph(ctx, line2X + 5, sy + 4, glyph);
+        ctx.fillText(
+          row.lovedHint,
+          line2X + 13,
+          sy,
+          Math.max(0, hintMaxX - (line2X + 13)),
+        );
+      } else {
+        ctx.fillText(`· ${row.lovedHint}`, line2X, sy, Math.max(0, hintMaxX - line2X));
+      }
     }
   }
 

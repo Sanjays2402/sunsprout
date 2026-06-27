@@ -9,6 +9,7 @@ import {
   statusChipLabel,
   giftChipLabel,
   giftChipColor,
+  lovedGlyphKeyFor,
   heartsSummary,
 } from '../src/ui/hearts-panel';
 import { CANDIDATES, MAX_HEARTS, startingHearts, giveGift } from '../src/game/hearts';
@@ -108,6 +109,36 @@ describe('relationshipRows', () => {
     const rows = heartsSummary(startingHearts());
     expect(rows.length).toBe(Object.keys(CANDIDATES).length);
     for (const r of rows) expect(r.hearts).toBe(0);
+  });
+});
+
+describe('lovedGlyphKey', () => {
+  it('picks the first adored gift with a drawable catalog sprite', () => {
+    // Maple loves ['ruby', 'amethyst'] — ruby has a gem glyph, amethyst
+    // is off-catalog, so ruby is chosen.
+    expect(lovedGlyphKeyFor(CANDIDATES.maple.loved)).toBe('ruby');
+    // Rose loves ['hearty-stew', ...] — the dish resolves.
+    expect(lovedGlyphKeyFor(CANDIDATES.rose.loved)).toBe('hearty-stew');
+  });
+
+  it('skips off-catalog leading loves to find a drawable one', () => {
+    // Finn loves ['frog', 'amethyst'] — neither resolves to a sprite.
+    expect(lovedGlyphKeyFor(CANDIDATES.finn.loved)).toBeNull();
+    // A synthetic list whose first entry is off-catalog but second isn't.
+    expect(lovedGlyphKeyFor(['frog', 'ruby'])).toBe('ruby');
+  });
+
+  it('returns null for an empty loved list', () => {
+    expect(lovedGlyphKeyFor([])).toBeNull();
+  });
+
+  it('threads a lovedGlyphKey onto each relationship row', () => {
+    const p = freshPlayer();
+    const rows = relationshipRows(p, new TimeOfDay(6));
+    const maple = rows.find((r) => r.id === 'maple')!;
+    expect(maple.lovedGlyphKey).toBe('ruby');
+    const finn = rows.find((r) => r.id === 'finn')!;
+    expect(finn.lovedGlyphKey).toBeNull();
   });
 });
 
