@@ -16,6 +16,8 @@ import {
   nextAlmanacFilter,
   almanacFilterLabel,
   almanacCountSummary,
+  almanacLookAhead,
+  almanacLookAheadLine,
   type AlmanacEntry,
   type AlmanacFilter,
   type AlmanacKind,
@@ -146,13 +148,26 @@ export class AlmanacPanel {
       // Distinguish a genuinely quiet calendar from a filter that simply
       // hid everything, so the player knows the agenda isn't broken — just
       // narrowed.
-      const empty = allEntries.length === 0
+      const quiet = allEntries.length === 0;
+      const empty = quiet
         ? 'A quiet stretch ahead — nothing on the calendar.'
         : `Nothing ${almanacFilterLabel(this.filter)} in the next two weeks.`;
       ctx.fillStyle = DIM;
       ctx.font = '11px ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(empty, x + PANEL_W / 2, bodyY + 8);
+      // Peek PAST the two-week horizon so an empty agenda still earns its
+      // keep — name the soonest matching event ("next: Maple's birthday in
+      // 19 days"). Honours the active filter, so this is most useful when
+      // the player narrows to e.g. birthdays and none land this fortnight
+      // (the unfiltered fortnight is essentially never empty — Pip's cart
+      // alone visits every 7 days).
+      const ahead = almanacLookAheadLine(almanacLookAhead(time, this.filter, player));
+      if (ahead) {
+        ctx.fillStyle = TODAY;
+        ctx.font = 'bold 10px ui-monospace, monospace';
+        ctx.fillText(ahead, x + PANEL_W / 2, bodyY + 24);
+      }
     } else {
       // Walk the sections, drawing a small TODAY / THIS WEEK / LATER
       // divider above each group so the agenda reads as buckets rather

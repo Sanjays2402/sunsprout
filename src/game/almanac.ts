@@ -375,5 +375,42 @@ export function highlightChipText(e: AlmanacEntry): string {
   return `${when}: ${e.title}`;
 }
 
+/**
+ * The soonest scheduled event that sits BEYOND the normal 14-day horizon,
+ * honouring the active kind-filter, by scanning the rest of the 28-day
+ * calendar wrap. Used by the planner when the (possibly filtered) two-week
+ * agenda is empty so the `0` panel can still point at what's next ("next:
+ * Maple's birthday in 19 days") instead of a dead calm screen. The
+ * unfiltered fortnight is essentially never empty (Pip's cart alone visits
+ * every 7 days), so in practice this earns its keep on a FILTERED view —
+ * e.g. the player narrows to birthdays and none land this fortnight.
+ * Returns null when nothing of the filtered kind is scheduled anywhere in
+ * the cycle. buildAlmanac returns soonest-first, so the first matching
+ * entry past the horizon is the answer. Pure.
+ */
+export function almanacLookAhead(
+  time: TimeOfDay,
+  filter: AlmanacFilter = 'all',
+  player?: Player,
+): AlmanacEntry | null {
+  // 27 is the farthest a daysUntil can be (mod-28 wrap), so this sees the
+  // entire calendar without double-counting today.
+  const all = buildAlmanac(time, 27, player);
+  for (const e of applyAlmanacFilter(all, filter)) {
+    if (e.daysUntil > ALMANAC_HORIZON_DAYS) return e;
+  }
+  return null;
+}
+
+/**
+ * "next: Maple's birthday in 19 days" caption for a look-ahead entry, or ''
+ * when there's nothing further out. Always reads "in N days" since the
+ * look-ahead only surfaces events beyond the 14-day horizon. Pure.
+ */
+export function almanacLookAheadLine(e: AlmanacEntry | null): string {
+  if (!e) return '';
+  return `next: ${e.title} in ${e.daysUntil} days`;
+}
+
 // Re-export for the panel + tests that want to project an arbitrary offset.
 export { dateInDays };
