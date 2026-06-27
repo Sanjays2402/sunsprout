@@ -1,14 +1,21 @@
 // Achievements panel — `V` toggles a list of earned + locked badges.
 //
 // Layout: centred modal-ish panel, not too big — sits on top of the
-// world but doesn't block movement. Earned rows are highlighted with a
-// gold pip + the "done" copy, locked rows show the teaser hint. A small
-// progress meter sits in the top right of the panel.
+// world but doesn't block movement. Rows are grouped under EARNED /
+// LOCKED section dividers (earned first) so the badge list reads as
+// "what I've unlocked / what's still ahead" instead of one flat scroll
+// keyed only by a pip colour. Earned rows show the "done" copy + the
+// day they landed; locked rows show the teaser hint. A small progress
+// meter sits in the top right of the panel.
+//
+// The list scrolls (26+ badges), so headers + rows are flattened into
+// one display-item list and scrolled together over a fixed pixel budget
+// — the panel height never jumps as a divider scrolls in or out.
 
 import type { Player } from '../world/world';
 import {
-  ACHIEVEMENTS,
   buildAchievements,
+  achievementSections,
   type AchievementRow,
 } from '../game/achievements';
 import { ribbonHallCaption } from '../game/ribbon-hall';
@@ -22,9 +29,23 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const EARNED_PIP = '#F0C24A';
 const LOCKED_PIP = '#7a6a9a';
 const RIBBON_CAPTION = '#E8B23A';
+const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
 
 const PANEL_W = 440;
 const ROW_H = 30;
+/** Section-divider band height (label + a touch of breathing room). */
+const SECTION_H = 20;
+/**
+ * Fixed body budget in pixels — sized to hold ~8 badge rows plus both
+ * section dividers so the player still sees a healthy page, and the
+ * panel height stays constant no matter where the scroll sits.
+ */
+const BODY_H = 8 * ROW_H + 2 * SECTION_H;
+
+/** One drawable line in the scrolled body: a divider or a badge row. */
+type DisplayItem =
+  | { kind: 'header'; header: string; count: number }
+  | { kind: 'row'; row: AchievementRow };
 
 export class AchievementsPanel {
   private opened = false;
@@ -59,9 +80,10 @@ export class AchievementsPanel {
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
   }
 
-  scrollDown(): void {
+  scrollDown(player: Player): void {
     if (!this.opened) return;
-    this.scroll = Math.min(Math.max(0, ACHIEVEMENTS.length - 8), this.scroll + 1);
+    const items = this.displayItems(player);
+    this.scroll = Math.min(this.maxScroll(items), this.scroll + 1);
   }
 
   scrollUp(): void {
@@ -69,14 +91,57 @@ export class AchievementsPanel {
     this.scroll = Math.max(0, this.scroll - 1);
   }
 
+  /** Flatten the earned/locked sections into one scrollable line list. */
+  private displayItems(player: Player): DisplayItem[] {
+    const sections = achievementSections(buildAchievements(player));
+    const items: DisplayItem[] = [];
+    for (const s of sections) {
+      items.push({ kind: 'header', header: s.header, count: s.rows.length });
+      for (const row of s.rows) items.push({ kind: 'row', row });
+    }
+    return items;
+  }
+
+  /** Pixel height of a single display item. */
+  private itemHeight(item: DisplayItem): number {
+    return item.kind === 'header' ? SECTION_H : ROW_H;
+  }
+
+  /** How many items fit in the body budget starting at `start`. */
+  private visibleCountFrom(items: DisplayItem[], start: number): number {
+    let used = 0;
+    let n = 0;
+    for (let i = start; i < items.length; i++) {
+      const ih = this.itemHeight(items[i]);
+      if (used + ih > BODY_H) break;
+      used += ih;
+      n++;
+    }
+    return n;
+  }
+
+  /** Smallest scroll index that still reaches the last item. */
+  private maxScroll(items: DisplayItem[]): number {
+    for (let start = 0; start < items.length; start++) {
+      if (start + this.visibleCountFrom(items, start) >= items.length) return start;
+    }
+    return Math.max(0, items.length - 1);
+  }
+
   /** Render the panel. No-op when closed. */
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
     if (!this.opened) return;
     const rows = buildAchievements(player);
-    const visibleN = Math.min(8, rows.length);
+    const items = this.displayItems(player);
+    // Clamp scroll defensively in case the earn-state shifted while open.
+    this.scroll = Math.min(this.scroll, this.maxScroll(items));
+    const start = this.scroll;
+    const visN = this.visibleCountFrom(items, start);
+    const end = start + visN;
+
     const caption = ribbonHallCaption(player);
     const captionH = caption ? 18 : 0;
-    const h = 50 + visibleN * ROW_H + 22 + captionH;
+    const h = 40 + BODY_H + 22 + captionH;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -103,39 +168,26 @@ export class AchievementsPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${earned}/${rows.length}`, x + PANEL_W - 14, y + 14);
 
-    const start = this.scroll;
-    const end = Math.min(rows.length, start + visibleN);
+    // Walk the visible display items, drawing dividers + rows in one pass
+    // so the EARNED / LOCKED groups stay legible while the list scrolls.
+    let ry = y + 40;
     for (let i = start; i < end; i++) {
-      const r: AchievementRow = rows[i];
-      const ry = y + 40 + (i - start) * ROW_H;
-      // Pip
-      ctx.fillStyle = r.earned ? EARNED_PIP : LOCKED_PIP;
-      ctx.fillRect(x + 14, ry + 8, 6, 6);
-
-      ctx.fillStyle = r.earned ? TEXT_COLOR : DIM;
-      ctx.textAlign = 'left';
-      ctx.font = 'bold 12px ui-monospace, monospace';
-      ctx.fillText(r.name, x + 28, ry + 2);
-
-      ctx.fillStyle = HINT;
-      ctx.font = '10px ui-monospace, monospace';
-      ctx.fillText(r.description, x + 28, ry + 16);
-
-      if (r.earned && r.earnedDay !== null) {
-        ctx.fillStyle = EARNED_PIP;
-        ctx.textAlign = 'right';
-        ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText(`day ${r.earnedDay}`, x + PANEL_W - 14, ry + 6);
+      const item = items[i];
+      if (item.kind === 'header') {
+        this.drawSectionHeader(ctx, item.header, item.count, x, ry);
+      } else {
+        this.drawRow(ctx, item.row, x, ry);
       }
+      ry += this.itemHeight(item);
     }
 
-    // Scroll indicator if list is taller than visible region.
-    if (rows.length > visibleN) {
+    // Scroll indicator if the list is taller than the visible window.
+    if (start > 0 || end < items.length) {
       ctx.fillStyle = HINT;
       ctx.font = '10px ui-monospace, monospace';
       ctx.textAlign = 'center';
       const top = start === 0 ? '' : 'up ';
-      const bot = end >= rows.length ? '' : 'down';
+      const bot = end >= items.length ? '' : 'down';
       ctx.fillText(`${top}${bot}`.trim(), x + PANEL_W / 2, y + h - 30);
     }
 
@@ -155,5 +207,54 @@ export class AchievementsPanel {
     ctx.textAlign = 'center';
     ctx.fillText('V / Esc to close - arrows or w/s to scroll', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /** Small section divider, e.g. "EARNED  7" + a trailing rule. */
+  private drawSectionHeader(
+    ctx: CanvasRenderingContext2D,
+    header: string,
+    count: number,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    const label = `${header}  ${count}`;
+    ctx.fillText(label, x + 14, ry + 7);
+    // A thin rule trailing off to the right so the divider reads as a
+    // section break without shouting (mirrors the codex / almanac).
+    const labelW = ctx.measureText(label).width;
+    ctx.fillStyle = SECTION_RULE;
+    ctx.fillRect(x + 14 + labelW + 8, ry + 11, PANEL_W - 28 - labelW - 8, 1);
+  }
+
+  /** Draw one badge row at top `ry` (height ROW_H). */
+  private drawRow(
+    ctx: CanvasRenderingContext2D,
+    r: AchievementRow,
+    x: number,
+    ry: number,
+  ): void {
+    // Pip
+    ctx.fillStyle = r.earned ? EARNED_PIP : LOCKED_PIP;
+    ctx.fillRect(x + 14, ry + 8, 6, 6);
+
+    ctx.fillStyle = r.earned ? TEXT_COLOR : DIM;
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.fillText(r.name, x + 28, ry + 2);
+
+    ctx.fillStyle = HINT;
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText(r.description, x + 28, ry + 16);
+
+    if (r.earned && r.earnedDay !== null) {
+      ctx.fillStyle = EARNED_PIP;
+      ctx.textAlign = 'right';
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`day ${r.earnedDay}`, x + PANEL_W - 14, ry + 6);
+    }
   }
 }

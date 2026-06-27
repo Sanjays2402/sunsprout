@@ -114,11 +114,12 @@ describe('buildAchievements', () => {
 describe('AchievementsPanel controller', () => {
   it('toggles open + close, scrolls', () => {
     const panel = new AchievementsPanel();
+    const w = new World();
     expect(panel.isVisible()).toBe(false);
     panel.toggle();
     expect(panel.isVisible()).toBe(true);
-    panel.scrollDown();
-    panel.scrollDown();
+    panel.scrollDown(w.player);
+    panel.scrollDown(w.player);
     panel.scrollUp();
     panel.toggle();
     expect(panel.isVisible()).toBe(false);

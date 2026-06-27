@@ -1183,7 +1183,7 @@ export class Game {
       if (this.input.justPressed.has('escape')) {
         this.achievements.close();
       } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
-        this.achievements.scrollDown();
+        this.achievements.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
         this.achievements.scrollUp();
       }

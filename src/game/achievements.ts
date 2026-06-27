@@ -367,3 +367,43 @@ export function buildAchievements(player: Player): AchievementRow[] {
 export function earnedCount(player: Player): number {
   return getEarned(player).length;
 }
+
+/** Earn-state bucket for the panel's section dividers. */
+export type AchievementSectionKey = 'earned' | 'locked';
+
+/** A contiguous run of achievement rows under one divider header. */
+export interface AchievementSection {
+  key: AchievementSectionKey;
+  /** Divider label, e.g. "EARNED". */
+  header: string;
+  rows: AchievementRow[];
+}
+
+/** Header text per earn-state, in display order. */
+const ACHIEVEMENT_SECTION_HEADER: Record<AchievementSectionKey, string> = {
+  earned: 'EARNED',
+  locked: 'LOCKED',
+};
+
+/**
+ * Group achievement rows into EARNED / LOCKED sections so the badge list
+ * reads as "what I've unlocked / what's still ahead" instead of one flat
+ * scroll where the only signal is a pip colour. Earned first (celebrate
+ * the wins), locked last. Each section keeps the input's catalog order;
+ * empty sections are omitted so a fresh save doesn't show a bare EARNED
+ * header and a fully-completed save doesn't show a bare LOCKED one. Pure
+ * — mirrors codexSections / almanacSections.
+ */
+export function achievementSections(
+  rows: readonly AchievementRow[],
+): AchievementSection[] {
+  const order: AchievementSectionKey[] = ['earned', 'locked'];
+  const out: AchievementSection[] = [];
+  for (const key of order) {
+    const group = rows.filter((r) => (key === 'earned' ? r.earned : !r.earned));
+    if (group.length > 0) {
+      out.push({ key, header: ACHIEVEMENT_SECTION_HEADER[key], rows: group });
+    }
+  }
+  return out;
+}
