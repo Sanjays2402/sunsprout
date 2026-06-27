@@ -319,3 +319,14 @@ export function bagSellHint(category: BagCategory): string | null {
 export function bagTotalValue(player: Player): number {
   return buildBag(player).reduce((sum, r) => sum + r.count * r.unitValue, 0);
 }
+
+/**
+ * Total worth of a single bag row — count * unitValue. The per-row figure
+ * the value sort actually orders by, so the panel can surface it as a
+ * right-column number when sorting by value (otherwise the ordering looks
+ * arbitrary next to the per-unit "Ng ea" price). 0 for valueless rows
+ * (seeds, supplies, breeder eggs). Pure.
+ */
+export function bagItemWorth(item: BagItem): number {
+  return item.count * item.unitValue;
+}

@@ -9,6 +9,7 @@ import {
   bagTotalStacks,
   bagTotalValue,
   bagCategoryValue,
+  bagItemWorth,
   bagSellHint,
   bagSortLabel,
   cycleBagSort,
@@ -184,6 +185,38 @@ describe('bag aggregates', () => {
     for (const c of BAG_CATEGORIES) {
       expect(bagItemsForCategory(empty, c)).toEqual([]);
     }
+  });
+});
+
+describe('bagItemWorth', () => {
+  it('is count * unitValue for a valued row', () => {
+    // ruby 1 * 140 = 140; pike 2 * 60 = 120.
+    const ruby = classifyBagKey('gem-ruby', 1)!;
+    const pike = classifyBagKey('fish-pike', 2)!;
+    expect(bagItemWorth(ruby)).toBe(140);
+    expect(bagItemWorth(pike)).toBe(120);
+  });
+
+  it('is 0 for valueless rows (seeds / supplies)', () => {
+    expect(bagItemWorth(classifyBagKey('wheat', 8)!)).toBe(0);
+    expect(bagItemWorth(classifyBagKey('hoe', 1)!)).toBe(0);
+  });
+
+  it('matches the figure the value sort orders by', () => {
+    // Under value sort copper (5*8=40) sits behind ruby (1*140=140);
+    // bagItemWorth must reproduce those totals so the column agrees with
+    // the ordering.
+    const player = mkPlayer({ 'gem-copper': 5, 'gem-ruby': 1 });
+    const byValue = bagItemsForCategory(player, 'Gems', 'value');
+    expect(byValue.map((r) => r.label)).toEqual(['Cave Ruby', 'Copper Nugget']);
+    expect(byValue.map(bagItemWorth)).toEqual([140, 40]);
+  });
+
+  it('per-row worths sum to the category total', () => {
+    const player = mkPlayer({ 'gem-copper': 5, 'gem-ruby': 1, 'gem-iron': 3 });
+    const rows = bagItemsForCategory(player, 'Gems');
+    const summed = rows.reduce((n, r) => n + bagItemWorth(r), 0);
+    expect(summed).toBe(bagCategoryValue(player, 'Gems'));
   });
 });
 

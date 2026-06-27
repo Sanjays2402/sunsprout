@@ -19,6 +19,7 @@ import {
   bagTotalStacks,
   bagTotalValue,
   bagCategoryValue,
+  bagItemWorth,
   bagSellHint,
   bagSortLabel,
   cycleBagSort,
@@ -215,16 +216,26 @@ export class BagPanel {
         ctx.textAlign = 'left';
         ctx.fillText(r.label, x + 34, ry + 3);
 
-        // Count, then optional per-unit value, on the right.
+        // Count, then a value figure, on the right. Under the value sort we
+        // emphasise each row's TOTAL worth (count * unitValue) — the figure
+        // the ordering actually keys on — in bright bold gold, so a player
+        // sorting by value can see why the rows landed in that order. Under
+        // the other sorts the per-unit "Ng ea" price stays (quieter, dim).
         ctx.fillStyle = TITLE_COLOR;
         ctx.font = 'bold 12px ui-monospace, monospace';
         ctx.textAlign = 'right';
         const countX = x + PANEL_W - 14;
         ctx.fillText(`x${r.count}`, countX, ry + 3);
         if (r.unitValue > 0) {
-          ctx.fillStyle = GOLD;
-          ctx.font = '10px ui-monospace, monospace';
-          ctx.fillText(`${r.unitValue}g ea`, countX - 44, ry + 4);
+          if (this.sortMode === 'value') {
+            ctx.fillStyle = GOLD;
+            ctx.font = 'bold 11px ui-monospace, monospace';
+            ctx.fillText(`${bagItemWorth(r)}g`, countX - 44, ry + 3);
+          } else {
+            ctx.fillStyle = GOLD;
+            ctx.font = '10px ui-monospace, monospace';
+            ctx.fillText(`${r.unitValue}g ea`, countX - 44, ry + 4);
+          }
         }
       }
     }
