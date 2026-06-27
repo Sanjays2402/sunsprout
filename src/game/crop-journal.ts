@@ -116,6 +116,23 @@ export function bestSeasonHint(cropKey: string): string {
   return BEST_SEASON_HINT[cropKey] ?? 'any';
 }
 
+/** Season-index → name, for matching a crop's best-season hint to the clock. */
+const SEASON_INDEX_NAME = ['Spring', 'Summer', 'Fall', 'Winter'] as const;
+
+/**
+ * True when a crop's best-season hint matches the CURRENT season, so the
+ * journal can tint "plant this now" advice. A hint of 'any' (crops that
+ * grow year-round, like flowers) is never highlighted — there's no single
+ * best window to call out. Pure: compares the catalog hint string to the
+ * clock's season index. Off-range seasons wrap via modulo so it stays
+ * robust if the season space ever grows.
+ */
+export function isBestSeasonNow(bestSeason: string, season: number): boolean {
+  if (bestSeason === 'any') return false;
+  const name = SEASON_INDEX_NAME[((season % 4) + 4) % 4];
+  return bestSeason === name;
+}
+
 /** Pure summary row for the journal panel + unit tests. */
 export interface CropJournalEntry {
   key: string;

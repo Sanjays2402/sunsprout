@@ -12,6 +12,7 @@ import {
   totalHarvest,
   maxLifetimeHarvest,
   harvestBarSegments,
+  isBestSeasonNow,
 } from '../src/game/crop-journal';
 import { CropJournalPanel } from '../src/ui/crop-journal-panel';
 import { serializeGame, applySnapshot } from '../src/game/persistence';
@@ -278,5 +279,43 @@ describe('harvest mini-bar', () => {
     const segs = harvestBarSegments(mkEntry(200, 0, 1), 201, 84);
     expect(segs.gold).toBeGreaterThanOrEqual(1);
     expect(segs.normal + segs.silver + segs.gold).toBe(segs.total);
+  });
+});
+
+describe('isBestSeasonNow', () => {
+  // Season indices: 0 Spring, 1 Summer, 2 Fall, 3 Winter.
+  it('matches a crop whose best season is the current one', () => {
+    expect(isBestSeasonNow('Spring', 0)).toBe(true);
+    expect(isBestSeasonNow('Summer', 1)).toBe(true);
+    expect(isBestSeasonNow('Fall', 2)).toBe(true);
+    expect(isBestSeasonNow('Winter', 3)).toBe(true);
+  });
+
+  it('is false when the best season is a different one', () => {
+    expect(isBestSeasonNow('Spring', 1)).toBe(false);
+    expect(isBestSeasonNow('Fall', 0)).toBe(false);
+  });
+
+  it("never highlights an 'any'-season crop (no single best window)", () => {
+    for (let s = 0; s < 4; s++) {
+      expect(isBestSeasonNow('any', s)).toBe(false);
+    }
+  });
+
+  it('wraps out-of-range season indices via modulo', () => {
+    // Season 4 wraps back to Spring; -1 wraps to Winter.
+    expect(isBestSeasonNow('Spring', 4)).toBe(true);
+    expect(isBestSeasonNow('Winter', -1)).toBe(true);
+  });
+
+  it("agrees with the catalog hints from buildJournal", () => {
+    const w = new World();
+    const entries = buildJournal(w.player);
+    // Wheat is the Spring crop in the catalog — highlighted in Spring,
+    // not in Summer.
+    const wheat = entries.find((e) => e.key === 'wheat');
+    expect(wheat).toBeDefined();
+    expect(isBestSeasonNow(wheat!.bestSeason, 0)).toBe(true);
+    expect(isBestSeasonNow(wheat!.bestSeason, 1)).toBe(false);
   });
 });

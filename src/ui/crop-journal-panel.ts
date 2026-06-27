@@ -17,6 +17,7 @@ import {
   totalHarvest,
   maxLifetimeHarvest,
   harvestBarSegments,
+  isBestSeasonNow,
   type CropJournalEntry,
 } from '../game/crop-journal';
 import { compostLedgerLine } from '../game/compost';
@@ -130,9 +131,23 @@ export class CropJournalPanel {
       ctx.font = 'bold 12px ui-monospace, monospace';
       ctx.textAlign = 'left';
       ctx.fillText(e.name, x + 12, ry);
-      ctx.fillStyle = HINT;
+      // Best-season + growth line. When the crop's best season is the
+      // CURRENT one, tint the season word green and append an "in season"
+      // tag so the player sees at a glance what to plant now; otherwise it
+      // stays dim like the rest of the reference text.
+      const inSeason = isBestSeasonNow(e.bestSeason, time.season);
       ctx.font = '10px ui-monospace, monospace';
-      ctx.fillText(`${e.bestSeason}  -  ${e.growthDays}d to ripe`, x + 12, ry + 14);
+      ctx.fillStyle = inSeason ? GREEN : HINT;
+      ctx.fillText(e.bestSeason, x + 12, ry + 14);
+      const seasonW = ctx.measureText(e.bestSeason).width;
+      ctx.fillStyle = HINT;
+      ctx.fillText(`  -  ${e.growthDays}d to ripe`, x + 12 + seasonW, ry + 14);
+      if (inSeason) {
+        const restW = ctx.measureText(`  -  ${e.growthDays}d to ripe`).width;
+        ctx.fillStyle = GREEN;
+        ctx.font = 'bold 9px ui-monospace, monospace';
+        ctx.fillText('  in season', x + 12 + seasonW + restW, ry + 14);
+      }
 
       ctx.fillStyle = GOLD;
       ctx.font = 'bold 11px ui-monospace, monospace';
