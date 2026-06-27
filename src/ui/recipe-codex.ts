@@ -12,7 +12,7 @@
 // closes with a second `R` press or Escape.
 
 import type { Player } from '../world/world';
-import { buildCodex, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, type RecipeCodexRow } from '../game/cooking-history';
+import { buildCodex, codexSections, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, type RecipeCodexRow } from '../game/cooking-history';
 import { RECIPES, RECIPE_KEYS } from '../game/cooking';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
@@ -30,6 +30,8 @@ const PREMIUM = '#E8B4F0';
 const PANEL_W = 360;
 const ROW_H = 28;
 const ROW_H_PREMIUM = 40;
+/** Discovery-section divider band height (label + a touch of breathing room). */
+const SECTION_H = 18;
 
 function pretty(key: string): string {
   if (key.endsWith('_harvest')) return key.slice(0, -'_harvest'.length);
@@ -74,13 +76,17 @@ export class RecipeCodex {
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, _canvasH: number): void {
     if (!this.opened) return;
     const rows = buildCodex(player);
-    // Premium rows are slightly taller — pre-sum the actual heights so the
-    // panel chrome scales with the egg-recipe presence.
-    const rowHeights = rows.map((r) =>
-      r.discovery !== 'locked' && r.hasPremium ? ROW_H_PREMIUM : ROW_H,
-    );
-    const rowsTotalH = rowHeights.reduce((a, b) => a + b, 0);
-    const h = 56 + rowsTotalH + 22;
+    // Group into Cooked / Ready / Locked discovery sections so the list
+    // reads as "mastered / can-make-now / still-hidden" rather than one
+    // flat scroll keyed only by a pip colour.
+    const sections = codexSections(rows);
+    // Each row is ROW_H, premium (unlocked egg) rows are taller; each
+    // section adds a divider band. Pre-sum so the chrome scales exactly.
+    const rowH = (r: RecipeCodexRow) =>
+      r.discovery !== 'locked' && r.hasPremium ? ROW_H_PREMIUM : ROW_H;
+    const rowsTotalH = rows.reduce((a, r) => a + rowH(r), 0);
+    const sectionsTotalH = sections.length * SECTION_H;
+    const h = 56 + rowsTotalH + sectionsTotalH + 22;
     const x = canvasW - PANEL_W - 12;
     const y = 40;
 
@@ -112,75 +118,16 @@ export class RecipeCodex {
       : `${cooked}/${total} known  -  ${totalDishes} cooked`;
     ctx.fillText(headerRight, x + PANEL_W - 12, y + 9);
 
-    ctx.font = '11px ui-monospace, monospace';
+    // Walk the discovery sections, drawing a small divider above each
+    // group then its rows.
     let ry = y + 32;
-    for (let i = 0; i < rows.length; i++) {
-      const row: RecipeCodexRow = rows[i];
-      const rowH = rowHeights[i];
-
-      // Status pip on the left.
-      const color =
-        row.discovery === 'cooked' ? COOKED : row.discovery === 'known' ? KNOWN : LOCKED;
-      ctx.fillStyle = color;
-      ctx.fillRect(x + 12, ry + 4, 4, 4);
-
-      // Name (locked rows show "????" so the reveal moment stays intact).
-      ctx.fillStyle = row.discovery === 'locked' ? DIM : TEXT_COLOR;
-      ctx.textAlign = 'left';
-      ctx.font = '11px ui-monospace, monospace';
-      const nameLabel =
-        row.discovery === 'locked'
-          ? row.name.replace(/[A-Za-z]/g, '?')
-          : row.name;
-      ctx.fillText(nameLabel, x + 22, ry + 1);
-
-      // Sell price right-aligned.
-      if (row.discovery !== 'locked') {
-        ctx.fillStyle = GOLD;
-        ctx.textAlign = 'right';
-        ctx.fillText(`${row.sellPrice}g`, x + PANEL_W - 12, ry + 1);
+    for (const section of sections) {
+      this.drawSectionHeader(ctx, section.header, section.rows.length, x, ry);
+      ry += SECTION_H;
+      for (const row of section.rows) {
+        this.drawRow(ctx, row, x, ry);
+        ry += rowH(row);
       }
-
-      // Ingredient row (only when known or cooked).
-      if (row.discovery !== 'locked') {
-        ctx.fillStyle = HINT;
-        ctx.textAlign = 'left';
-        const parts = row.ingredients
-          .map((ing) => `${pretty(ing.key)} ${ing.have}/${ing.count}`)
-          .join('  -  ');
-        ctx.fillText(parts, x + 22, ry + 14);
-        // Premium sub-row — only for egg-bearing recipes the player has
-        // unlocked. Shows the swap markup line + a per-recipe tally so
-        // the player can see at a glance how much they've leaned into
-        // the breeder-egg pipeline.
-        if (row.hasPremium) {
-          const owned = row.premiumOwned;
-          const cooked = row.premiumCookedCount;
-          // Premium tally pip on the right edge — pink so it visually
-          // doesn't compete with the gold sell price above it.
-          if (owned > 0 || cooked > 0) {
-            ctx.fillStyle = PREMIUM;
-            ctx.textAlign = 'right';
-            ctx.font = 'bold 10px ui-monospace, monospace';
-            const tally = owned > 0 ? `x${owned} ready` : `cooked x${cooked}`;
-            ctx.fillText(tally, x + PANEL_W - 12, ry + 26);
-            ctx.font = '11px ui-monospace, monospace';
-          }
-          // Premium markup line — dim pink so the eye picks it up but
-          // it doesn't compete with the primary ingredient line.
-          ctx.fillStyle = 'rgba(232, 180, 240, 0.65)';
-          ctx.textAlign = 'left';
-          ctx.font = '10px ui-monospace, monospace';
-          ctx.fillText(row.premiumLine, x + 22, ry + 28);
-          ctx.font = '11px ui-monospace, monospace';
-        }
-      } else {
-        ctx.fillStyle = DIM;
-        ctx.textAlign = 'left';
-        ctx.fillText('cook the right combo to discover', x + 22, ry + 14);
-      }
-
-      ry += rowH;
     }
 
     ctx.fillStyle = HINT;
@@ -190,5 +137,98 @@ export class RecipeCodex {
 
     ctx.restore();
     void RECIPES;
+  }
+
+  /** Small discovery-section divider, e.g. "COOKED  3" + a trailing rule. */
+  private drawSectionHeader(
+    ctx: CanvasRenderingContext2D,
+    header: string,
+    count: number,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    const label = `${header}  ${count}`;
+    ctx.fillText(label, x + 12, ry + 5);
+    // A thin rule trailing off to the right so the divider reads as a
+    // section break without shouting (mirrors the almanac sections).
+    const labelW = ctx.measureText(label).width;
+    ctx.fillStyle = 'rgba(74, 59, 110, 0.5)';
+    ctx.fillRect(x + 12 + labelW + 8, ry + 9, PANEL_W - 24 - labelW - 8, 1);
+  }
+
+  /** Draw one recipe row at top `ry`. Height is ROW_H / ROW_H_PREMIUM. */
+  private drawRow(
+    ctx: CanvasRenderingContext2D,
+    row: RecipeCodexRow,
+    x: number,
+    ry: number,
+  ): void {
+    // Status pip on the left.
+    const color =
+      row.discovery === 'cooked' ? COOKED : row.discovery === 'known' ? KNOWN : LOCKED;
+    ctx.fillStyle = color;
+    ctx.fillRect(x + 12, ry + 4, 4, 4);
+
+    // Name (locked rows show "????" so the reveal moment stays intact).
+    ctx.fillStyle = row.discovery === 'locked' ? DIM : TEXT_COLOR;
+    ctx.textAlign = 'left';
+    ctx.font = '11px ui-monospace, monospace';
+    const nameLabel =
+      row.discovery === 'locked'
+        ? row.name.replace(/[A-Za-z]/g, '?')
+        : row.name;
+    ctx.fillText(nameLabel, x + 22, ry + 1);
+
+    // Sell price right-aligned.
+    if (row.discovery !== 'locked') {
+      ctx.fillStyle = GOLD;
+      ctx.textAlign = 'right';
+      ctx.fillText(`${row.sellPrice}g`, x + PANEL_W - 12, ry + 1);
+    }
+
+    // Ingredient row (only when known or cooked).
+    if (row.discovery !== 'locked') {
+      ctx.fillStyle = HINT;
+      ctx.textAlign = 'left';
+      ctx.font = '11px ui-monospace, monospace';
+      const parts = row.ingredients
+        .map((ing) => `${pretty(ing.key)} ${ing.have}/${ing.count}`)
+        .join('  -  ');
+      ctx.fillText(parts, x + 22, ry + 14);
+      // Premium sub-row — only for egg-bearing recipes the player has
+      // unlocked. Shows the swap markup line + a per-recipe tally so
+      // the player can see at a glance how much they've leaned into
+      // the breeder-egg pipeline.
+      if (row.hasPremium) {
+        const owned = row.premiumOwned;
+        const cooked = row.premiumCookedCount;
+        // Premium tally pip on the right edge — pink so it visually
+        // doesn't compete with the gold sell price above it.
+        if (owned > 0 || cooked > 0) {
+          ctx.fillStyle = PREMIUM;
+          ctx.textAlign = 'right';
+          ctx.font = 'bold 10px ui-monospace, monospace';
+          const tally = owned > 0 ? `x${owned} ready` : `cooked x${cooked}`;
+          ctx.fillText(tally, x + PANEL_W - 12, ry + 26);
+          ctx.font = '11px ui-monospace, monospace';
+        }
+        // Premium markup line — dim pink so the eye picks it up but
+        // it doesn't compete with the primary ingredient line.
+        ctx.fillStyle = 'rgba(232, 180, 240, 0.65)';
+        ctx.textAlign = 'left';
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillText(row.premiumLine, x + 22, ry + 28);
+        ctx.font = '11px ui-monospace, monospace';
+      }
+    } else {
+      ctx.fillStyle = DIM;
+      ctx.textAlign = 'left';
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.fillText('cook the right combo to discover', x + 22, ry + 14);
+    }
   }
 }

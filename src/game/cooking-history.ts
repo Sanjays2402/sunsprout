@@ -121,6 +121,42 @@ export function buildCodex(player: Player): RecipeCodexRow[] {
   });
 }
 
+/** A contiguous run of codex rows under one discovery-section divider. */
+export interface CodexSection {
+  discovery: RecipeDiscovery;
+  /** Divider label, e.g. "COOKED". */
+  header: string;
+  rows: RecipeCodexRow[];
+}
+
+/** Header text per discovery state, in display order. */
+const CODEX_SECTION_HEADER: Record<RecipeDiscovery, string> = {
+  cooked: 'COOKED',
+  known: 'READY TO COOK',
+  locked: 'UNDISCOVERED',
+};
+
+/**
+ * Group codex rows by discovery state into Cooked / Ready / Locked
+ * sections so the recipe list reads as "what I've mastered / what I can
+ * make right now / what's still hidden" instead of one flat scroll where
+ * the only signal is a tiny pip colour. Order is cooked -> known ->
+ * locked (mastery first, mystery last). Each section keeps the input's
+ * catalog order; empty sections are omitted so a fresh save doesn't show
+ * a bare COOKED header. Pure — mirrors almanacSections' shape.
+ */
+export function codexSections(rows: readonly RecipeCodexRow[]): CodexSection[] {
+  const order: RecipeDiscovery[] = ['cooked', 'known', 'locked'];
+  const out: CodexSection[] = [];
+  for (const d of order) {
+    const group = rows.filter((r) => r.discovery === d);
+    if (group.length > 0) {
+      out.push({ discovery: d, header: CODEX_SECTION_HEADER[d], rows: group });
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------
 // Premium-variant cook tally — parallel to the regular cookCounts map.
 // Lives on `player.premiumCookCounts` so it never collides with the

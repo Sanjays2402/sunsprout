@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { World } from '../src/world/world';
 import {
   buildCodex,
+  codexSections,
   cookedCount,
   discoveryOf,
   getCookCounts,
@@ -87,6 +88,54 @@ describe('buildCodex', () => {
     // Recipe metadata flows through.
     expect(stew.name).toBe(RECIPES['hearty-stew'].name);
     expect(stew.sellPrice).toBe(RECIPES['hearty-stew'].sellPrice);
+  });
+});
+
+describe('codexSections', () => {
+  it('groups rows into cooked / known / locked in that order', () => {
+    const w = new World();
+    const p = w.player;
+    // hearty-stew = known (has ingredients), pumpkin-soup = cooked,
+    // everything else stays locked.
+    p.inventory = { wheat_harvest: 1, tomato_harvest: 1 };
+    recordCook(p, 'pumpkin-soup');
+    const sections = codexSections(buildCodex(p));
+    // Mastery first, mystery last.
+    expect(sections.map((s) => s.discovery)).toEqual(['cooked', 'known', 'locked']);
+    expect(sections[0].rows.every((r) => r.discovery === 'cooked')).toBe(true);
+    expect(sections[1].rows.every((r) => r.discovery === 'known')).toBe(true);
+    expect(sections[2].rows.every((r) => r.discovery === 'locked')).toBe(true);
+  });
+
+  it('headers read COOKED / READY TO COOK / UNDISCOVERED', () => {
+    const w = new World();
+    const p = w.player;
+    p.inventory = { wheat_harvest: 1, tomato_harvest: 1 };
+    recordCook(p, 'pumpkin-soup');
+    const headers = codexSections(buildCodex(p)).map((s) => s.header);
+    expect(headers).toEqual(['COOKED', 'READY TO COOK', 'UNDISCOVERED']);
+  });
+
+  it('omits empty sections — a fresh save is all UNDISCOVERED', () => {
+    const w = new World();
+    w.player.inventory = {};
+    const sections = codexSections(buildCodex(w.player));
+    expect(sections.map((s) => s.discovery)).toEqual(['locked']);
+    expect(sections[0].header).toBe('UNDISCOVERED');
+  });
+
+  it('every codex row lands in exactly one section', () => {
+    const w = new World();
+    const p = w.player;
+    p.inventory = { wheat_harvest: 1, tomato_harvest: 1 };
+    recordCook(p, 'pumpkin-soup');
+    const rows = buildCodex(p);
+    const regrouped = codexSections(rows).flatMap((s) => s.rows);
+    expect(regrouped.length).toBe(rows.length);
+  });
+
+  it('returns nothing for an empty row list', () => {
+    expect(codexSections([])).toEqual([]);
   });
 });
 
