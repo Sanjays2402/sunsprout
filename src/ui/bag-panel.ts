@@ -29,12 +29,13 @@ import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-
 import { drawTabStrip } from './panel-tab-strip';
 import { bagGlyph } from '../game/bag-glyph';
 import { drawBagGlyph } from '../render/bag-glyph-sprite';
+import { bagEmptyState } from '../game/panel-empty';
+import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
 const TITLE_COLOR = '#F5C9A0';
 const TEXT_COLOR = '#F5E9D4';
-const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
@@ -188,16 +189,12 @@ export class BagPanel {
       );
     }
 
-    // Rows or a calm empty state for this category.
+    // Rows or a calm empty state for this category. The empty state now
+    // speaks the shared two-line panel vocabulary (message + how-to hint)
+    // via game/panel-empty.ts, so the bag reads like the money / quest /
+    // lore panels instead of its own one-line dialect.
     if (rows.length === 0) {
-      ctx.fillStyle = DIM;
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(
-        emptyLineFor(this.currentCategory()),
-        x + PANEL_W / 2,
-        y + 78 + ROW_H,
-      );
+      drawEmptyState(ctx, bagEmptyState(this.currentCategory()), x + PANEL_W / 2, y + 78 + 6);
     } else {
       const start = this.scroll;
       const end = Math.min(rows.length, start + visibleN);
@@ -258,25 +255,5 @@ export class BagPanel {
     ctx.textAlign = 'center';
     ctx.fillText('Tab / Esc to close - a/d switch tabs - w/s scroll - f sort', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
-  }
-}
-
-/** A calm, category-specific empty line so a bare tab never reads as broken. */
-function emptyLineFor(category: BagCategory): string {
-  switch (category) {
-    case 'Seeds':
-      return 'No seeds — buy some from Maple to start a field.';
-    case 'Crops':
-      return 'No harvest yet — plant a seed and tend it.';
-    case 'Fish':
-      return 'No fish — cast a line at the water (F).';
-    case 'Gems':
-      return 'No gems — mine the stone outcrop (M).';
-    case 'Forage':
-      return 'No forage — wander the grass at dawn (Y).';
-    case 'Kitchen':
-      return 'No eggs or dishes — cook at the inn (C).';
-    case 'Supplies':
-      return 'No tools or kits stowed here.';
   }
 }

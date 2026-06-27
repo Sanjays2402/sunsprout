@@ -15,6 +15,7 @@ import {
   BAG_CATEGORIES,
   BAG_SORT_MODES,
 } from '../src/game/bag';
+import { bagEmptyState, BAG_EMPTY_STATES } from '../src/game/panel-empty';
 import type { Player } from '../src/world/world';
 
 function mkPlayer(inventory: Record<string, number>): Player {
@@ -239,6 +240,36 @@ describe('bag sort modes', () => {
       // First row stays Seeds, last stays Supplies — sort never crosses tabs.
       expect(cats[0]).toBe('Seeds');
       expect(cats[cats.length - 1]).toBe('Supplies');
+    }
+  });
+});
+
+describe('bag empty states', () => {
+  it('returns a two-part (message + hint) state for every category', () => {
+    for (const c of BAG_CATEGORIES) {
+      const s = bagEmptyState(c);
+      expect(s.message.trim().length).toBeGreaterThan(0);
+      expect(s.hint.trim().length).toBeGreaterThan(0);
+    }
+  });
+
+  it('covers exactly the seven bag categories (total over BagCategory)', () => {
+    expect(Object.keys(BAG_EMPTY_STATES).sort()).toEqual([...BAG_CATEGORIES].sort());
+  });
+
+  it('points each gatherable tab at the verb that fills it', () => {
+    expect(bagEmptyState('Fish').hint).toContain('F)');
+    expect(bagEmptyState('Gems').hint).toContain('M)');
+    expect(bagEmptyState('Forage').hint).toContain('Y)');
+    expect(bagEmptyState('Seeds').hint).toMatch(/Maple/i);
+  });
+
+  it('carries no emoji (game chrome stays monochrome)', () => {
+    const emoji = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}]/u;
+    for (const c of BAG_CATEGORIES) {
+      const s = bagEmptyState(c);
+      expect(emoji.test(s.message)).toBe(false);
+      expect(emoji.test(s.hint)).toBe(false);
     }
   });
 });

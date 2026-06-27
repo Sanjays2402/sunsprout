@@ -16,6 +16,7 @@
 // Pure: type-only imports, no canvas, no engine state.
 
 import type { LoreCategory, RumorFilter } from './lore';
+import type { BagCategory } from './bag';
 
 /** A calm empty state: what's missing + a nudge toward filling it. */
 export interface EmptyState {
@@ -36,6 +37,36 @@ export const PANEL_EMPTY_STATES = {
     hint: 'Read the village notice board by the well.',
   },
 } as const satisfies Record<string, EmptyState>;
+
+/**
+ * Per-category empty states for the inventory bag's seven tabs. The bag
+ * panel used to hand-roll a one-line switch (`emptyLineFor`) that spoke a
+ * different dialect from the money / quest / lore panels — a bare sentence
+ * with the "how to fill it" nudge crammed in after an em dash. Routing it
+ * through the shared two-part EmptyState shape lets every panel speak ONE
+ * calm "nothing here yet + here's how" language, and the bag inherits the
+ * same centred two-line widget the other panels already use.
+ *
+ * Each tab points the player at the verb that fills it (buy seeds, cast a
+ * line, mine, forage, cook), so an empty tab teaches rather than dead-ends.
+ */
+export const BAG_EMPTY_STATES: Record<BagCategory, EmptyState> = {
+  Seeds: { message: 'No seeds yet.', hint: 'Buy some from Maple to start a field.' },
+  Crops: { message: 'No harvest in the bag.', hint: 'Plant a seed and tend it to ripeness.' },
+  Fish: { message: 'No fish in the bag.', hint: 'Cast a line at the water (F).' },
+  Gems: { message: 'No gems in the bag.', hint: 'Mine the stone outcrop (M).' },
+  Forage: { message: 'No forage gathered.', hint: 'Wander the grass at dawn (Y).' },
+  Kitchen: { message: 'No eggs or dishes.', hint: 'Collect eggs or cook at the inn (C).' },
+  Supplies: { message: 'Nothing stowed here.', hint: 'Kits and tickets you buy land here.' },
+};
+
+/**
+ * Resolve the calm empty state for a bag tab. Total over BagCategory, so
+ * the panel never has to special-case a missing key. Pure.
+ */
+export function bagEmptyState(category: BagCategory): EmptyState {
+  return BAG_EMPTY_STATES[category];
+}
 
 /**
  * Empty state for the lore panel's Rumors tab, which is the only lore tab
