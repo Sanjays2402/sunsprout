@@ -10,6 +10,8 @@ import {
   recordHarvest,
   recordSown,
   totalHarvest,
+  maxLifetimeHarvest,
+  harvestBarSegments,
 } from '../src/game/crop-journal';
 import { CropJournalPanel } from '../src/ui/crop-journal-panel';
 import { serializeGame, applySnapshot } from '../src/game/persistence';
@@ -213,5 +215,68 @@ describe('crop ribbon journal', () => {
     expect(row.bestDayHarvest).toBe(2);
     expect(row.ribbonDay).toBe(1);
     expect(row.todayHarvest).toBe(1);
+  });
+});
+
+describe('harvest mini-bar', () => {
+  // Minimal CropJournalEntry factory — only the harvest tiers matter here.
+  const mkEntry = (normal: number, silver: number, gold: number) =>
+    ({
+      key: 'wheat',
+      name: 'Wheat',
+      seedPrice: 2,
+      sellPrice: 8,
+      growthDays: 4,
+      bestSeason: 'Spring',
+      sown: 0,
+      normal,
+      silver,
+      gold,
+      bestStreak: 0,
+      ribbonCount: 0,
+    });
+
+  it('finds the busiest crop total across the journal', () => {
+    const entries = [mkEntry(3, 1, 0), mkEntry(10, 2, 1), mkEntry(0, 0, 0)];
+    // Second crop: 10 + 2 + 1 = 13 is the max.
+    expect(maxLifetimeHarvest(entries)).toBe(13);
+    expect(maxLifetimeHarvest([])).toBe(0);
+  });
+
+  it('returns all-zero widths when nothing is harvested or on a fresh save', () => {
+    expect(harvestBarSegments(mkEntry(0, 0, 0), 0, 84)).toEqual({ normal: 0, silver: 0, gold: 0, total: 0 });
+    expect(harvestBarSegments(mkEntry(5, 0, 0), 0, 84)).toEqual({ normal: 0, silver: 0, gold: 0, total: 0 });
+    expect(harvestBarSegments(mkEntry(5, 0, 0), 10, 0)).toEqual({ normal: 0, silver: 0, gold: 0, total: 0 });
+  });
+
+  it('fills the whole track for the busiest crop', () => {
+    const segs = harvestBarSegments(mkEntry(40, 0, 0), 40, 84);
+    expect(segs.total).toBe(84);
+    expect(segs.normal).toBe(84);
+    expect(segs.silver).toBe(0);
+    expect(segs.gold).toBe(0);
+  });
+
+  it('scales a smaller crop proportionally on the shared denominator', () => {
+    // Half the busiest crop -> about half the track.
+    const segs = harvestBarSegments(mkEntry(20, 0, 0), 40, 84);
+    expect(segs.total).toBe(42);
+    expect(segs.normal).toBe(42);
+  });
+
+  it('splits the bar into tiers that always sum to the bar length', () => {
+    const segs = harvestBarSegments(mkEntry(6, 3, 1), 10, 80);
+    expect(segs.normal + segs.silver + segs.gold).toBe(segs.total);
+    // Roughly 60/30/10 of the full 80px track.
+    expect(segs.total).toBe(80);
+    expect(segs.normal).toBeGreaterThan(segs.silver);
+    expect(segs.silver).toBeGreaterThan(segs.gold);
+  });
+
+  it('never lets a non-zero tier vanish (lone gold star keeps a pixel)', () => {
+    // One gold among a big normal pile — gold must still get >= 1px.
+    const segs = harvestBarSegments(mkEntry(200, 0, 1), 201, 84);
+    expect(segs.gold).toBeGreaterThanOrEqual(1);
+    expect(segs.normal + segs.silver + segs.gold).toBe(segs.total);
   });
 });

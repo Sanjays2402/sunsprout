@@ -15,6 +15,8 @@ import {
   buildJournal,
   nextFestivals,
   totalHarvest,
+  maxLifetimeHarvest,
+  harvestBarSegments,
   type CropJournalEntry,
 } from '../game/crop-journal';
 import { compostLedgerLine } from '../game/compost';
@@ -31,6 +33,9 @@ const GREEN = '#A3D77A';
 
 const PANEL_W = 360;
 const ROW_H = 50;
+/** Harvest mini-bar geometry — sits in each row's bottom-right clear space. */
+const BAR_W = 84;
+const BAR_H = 5;
 
 export class CropJournalPanel {
   private opened = false;
@@ -108,6 +113,10 @@ export class CropJournalPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${totalSown} sown  -  ${totalHarv} reaped`, x + PANEL_W - 12, y + 9);
 
+    // Shared denominator for the per-row harvest mini-bars so every crop's
+    // bar reads on the same scale (busiest crop fills the track).
+    const maxHarvest = maxLifetimeHarvest(entries);
+
     for (let i = 0; i < entries.length; i++) {
       const e: CropJournalEntry = entries[i];
       const ry = y + 30 + i * ROW_H;
@@ -177,6 +186,39 @@ export class CropJournalPanel {
         ctx.textAlign = 'left';
         const tag = e.ribbonWhen ? ` -  ${e.ribbonWhen}` : '';
         ctx.fillText(`ribbon: ${e.ribbonCount} in a day${tag}`, x + 12, ry + 40 - 7);
+      }
+
+      // Harvest mini-bar — a tiny stacked bar in the row's bottom-right
+      // clear space so the lifetime tally scans visually, not just as the
+      // n/s/g text above it. Length is this crop's share of the busiest
+      // crop's total (shared scale); segments are normal / silver / gold
+      // tinted to match the tally colours. A faint track shows the full
+      // scale so a small crop reads as small, not just short. Skipped on a
+      // fresh save / a crop with nothing harvested.
+      const segs = harvestBarSegments(e, maxHarvest, BAR_W);
+      if (segs.total > 0) {
+        const barRight = x + PANEL_W - 12;
+        const barLeft = barRight - BAR_W;
+        const by = ry + 36;
+        // Faint full-width track.
+        ctx.fillStyle = 'rgba(74, 59, 110, 0.45)';
+        ctx.fillRect(barLeft, by, BAR_W, BAR_H);
+        // Stacked filled segments left-to-right: normal, silver, gold.
+        let sx = barLeft;
+        if (segs.normal > 0) {
+          ctx.fillStyle = TEXT_COLOR;
+          ctx.fillRect(sx, by, segs.normal, BAR_H);
+          sx += segs.normal;
+        }
+        if (segs.silver > 0) {
+          ctx.fillStyle = SILVER;
+          ctx.fillRect(sx, by, segs.silver, BAR_H);
+          sx += segs.silver;
+        }
+        if (segs.gold > 0) {
+          ctx.fillStyle = GOLD;
+          ctx.fillRect(sx, by, segs.gold, BAR_H);
+        }
       }
     }
 

@@ -176,3 +176,84 @@ export function nextFestivals(time: TimeOfDay, count: number = 2): string[] {
     .slice(0, count)
     .map((f) => `${f.name}: ${f.daysUntil === 0 ? 'today' : `${f.daysUntil}d`}`);
 }
+
+// ---------------------------------------------------------------------
+// Harvest mini-bar — a tiny inline stacked bar per journal row so the
+// lifetime tally scans visually, not just as text. The bar's overall
+// length encodes how much of this crop you've harvested vs your busiest
+// crop (a shared scale across rows), and it's split into normal / silver
+// / gold segments so the quality mix reads at a glance.
+// ---------------------------------------------------------------------
+
+/** Pixel widths of a crop's stacked harvest bar, by quality tier. */
+export interface HarvestBarSegments {
+  normal: number;
+  silver: number;
+  gold: number;
+  /** Total bar width (normal + silver + gold), 0 when nothing harvested. */
+  total: number;
+}
+
+/**
+ * The largest lifetime harvest total across every journal entry — the
+ * denominator that puts all rows on one comparable scale. 0 on a fresh
+ * save (no bars drawn). Pure.
+ */
+export function maxLifetimeHarvest(entries: readonly CropJournalEntry[]): number {
+  let max = 0;
+  for (const e of entries) {
+    const total = e.normal + e.silver + e.gold;
+    if (total > max) max = total;
+  }
+  return max;
+}
+
+/**
+ * Lay out one crop's stacked harvest bar. The bar's overall length is
+ * `total / maxTotal` of `fullWidth` (so the busiest crop fills the track
+ * and the rest read proportionally), then split into normal / silver /
+ * gold segments by their counts using a largest-remainder allocation so
+ * the three segments always sum exactly to the bar length. Any tier with
+ * a non-zero count is guaranteed at least 1px (stolen from the widest
+ * segment) so a lone gold star never vanishes inside a big normal bar.
+ *
+ * Returns all-zero widths when nothing's been harvested, on a fresh save
+ * (maxTotal 0), or for a non-positive fullWidth. Pure — no canvas.
+ */
+export function harvestBarSegments(
+  entry: CropJournalEntry,
+  maxTotal: number,
+  fullWidth: number,
+): HarvestBarSegments {
+  const counts = [entry.normal, entry.silver, entry.gold];
+  const total = counts[0] + counts[1] + counts[2];
+  if (maxTotal <= 0 || total <= 0 || fullWidth <= 0) {
+    return { normal: 0, silver: 0, gold: 0, total: 0 };
+  }
+  // Overall bar length for this crop on the shared scale (min 1px so an
+  // existing-but-tiny harvest still shows a sliver).
+  const barW = Math.max(1, Math.round((total / maxTotal) * fullWidth));
+  // Largest-remainder allocation of barW across the three tiers.
+  const ideal = counts.map((c) => (c / total) * barW);
+  const widths = ideal.map((v) => Math.floor(v));
+  let used = widths[0] + widths[1] + widths[2];
+  const order = [0, 1, 2].sort((a, b) => (ideal[b] - widths[b]) - (ideal[a] - widths[a]));
+  let k = 0;
+  while (used < barW) {
+    widths[order[k % 3]] += 1;
+    used += 1;
+    k += 1;
+  }
+  // Guarantee a non-zero tier is at least 1px, borrowing from the widest
+  // segment so the total stays exact.
+  for (let i = 0; i < 3; i++) {
+    if (counts[i] > 0 && widths[i] === 0) {
+      const widest = widths.indexOf(Math.max(...widths));
+      if (widths[widest] > 1) {
+        widths[widest] -= 1;
+        widths[i] += 1;
+      }
+    }
+  }
+  return { normal: widths[0], silver: widths[1], gold: widths[2], total: barW };
+}
