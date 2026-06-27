@@ -52,7 +52,7 @@ import { rosterTone } from '../game/peer-roster-tone';
 import { drawEmoteLegend } from '../ui/emote-legend';
 import { drawPeerBubbles } from '../render/peer-bubbles';
 import { PeerToasts } from '../ui/peer-toasts';
-import { drawHeartsPanel } from '../ui/hearts-panel';
+import { drawHeartsPanel, cycleRelationshipSort, type RelationshipSortMode } from '../ui/hearts-panel';
 import { DialogueBox } from '../ui/dialogue';
 import { CookingMenu } from '../ui/cooking-menu';
 import { SleepSummary } from '../ui/sleep-summary';
@@ -451,6 +451,8 @@ export class Game {
   /** Stacked corner notifications so same-frame messages don't clobber. */
   private toasts = new ToastQueue();
   private heartsPanelVisible = false;
+  /** Relationship-panel row sort: closeness (default) or by-birthday. */
+  private heartsSortMode: RelationshipSortMode = 'closeness';
   /** Set when we've already wiped today's forage at dusk. */
   private forageCleared = false;
   /** Day-key of the celebration burst currently playing (null = none). */
@@ -1168,9 +1170,16 @@ export class Game {
       (p as { selectedSlot?: number }).selectedSlot = CROP_KEYS.length;
     }
 
-    // Toggle hearts panel.
+    // Toggle hearts panel. While open, `f` cycles the row sort (closeness
+    // <-> by-birthday for gift planning). The hearts panel is a non-blocking
+    // read-while-walking overlay with no movement verbs of its own, so the
+    // panel-local `f` is safe; the fishing `f` is guarded against it below.
     if (this.input.justPressed.has('h')) {
       this.heartsPanelVisible = !this.heartsPanelVisible;
+      // Reset to the default closeness order each time the panel opens.
+      if (this.heartsPanelVisible) this.heartsSortMode = 'closeness';
+    } else if (this.heartsPanelVisible && this.input.justPressed.has('f')) {
+      this.heartsSortMode = cycleRelationshipSort(this.heartsSortMode);
     }
 
     // R: toggle the recipe codex. While open, `f` cycles the discovery
@@ -2148,9 +2157,10 @@ export class Game {
       }
       // F: fishing — reel during a bite, lock-in timing during reel,
       // otherwise try to cast into water. Suppressed when any panel that
-      // binds `f` to a filter is open and active (lore, almanac, money-log,
-      // recipe-codex, quest-log), so a stray cast can't fire underneath.
-      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible() && !this.questLogPanel.isVisible()) {
+      // binds `f` to a filter/sort is open and active (lore, almanac,
+      // money-log, recipe-codex, quest-log, hearts), so a stray cast can't
+      // fire underneath.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible() && !this.questLogPanel.isVisible() && !this.heartsPanelVisible) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {
@@ -3049,7 +3059,7 @@ export class Game {
         });
       }
     }
-    drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible, this.time);
+    drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible, this.time, this.heartsSortMode);
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, this.fieldCropSamples());
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);

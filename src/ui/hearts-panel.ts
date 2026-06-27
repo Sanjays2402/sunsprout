@@ -41,6 +41,7 @@ const LOVE_HINT = 'rgba(245, 233, 212, 0.5)';
 const STATUS_WED = '#E47ACF';
 const STATUS_RING = '#A3D77A';
 const HINT = 'rgba(245, 233, 212, 0.55)';
+const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 /** Pure summary helper — used by older callers and the panel test. */
 export interface HeartsRow {
@@ -174,6 +175,60 @@ export function relationshipRows(
 }
 
 /**
+ * How the relationships screen is ordered. 'closeness' is the canonical
+ * order relationshipRows() returns (married > engaged > hearts > soonest
+ * birthday > name). 'birthday' re-orders for gift PLANNING — soonest
+ * birthday first — so the player can line up the 8x gift day. Cycled with
+ * a panel-local `f`.
+ */
+export type RelationshipSortMode = 'closeness' | 'birthday';
+
+/** Cycle order for the panel-local `f` keypress. */
+export const RELATIONSHIP_SORT_MODES: readonly RelationshipSortMode[] = [
+  'closeness',
+  'birthday',
+] as const;
+
+/** Advance to the next sort mode, wrapping at the end. Pure. */
+export function cycleRelationshipSort(m: RelationshipSortMode): RelationshipSortMode {
+  const i = RELATIONSHIP_SORT_MODES.indexOf(m);
+  return RELATIONSHIP_SORT_MODES[(i + 1) % RELATIONSHIP_SORT_MODES.length];
+}
+
+/** Short chip label for the active sort mode. Pure. */
+export function relationshipSortLabel(m: RelationshipSortMode): string {
+  return m === 'birthday' ? 'by birthday' : 'by closeness';
+}
+
+/**
+ * Return a re-sorted COPY of the relationship rows for DISPLAY. 'closeness'
+ * is the identity order (the rows already arrive closeness-sorted), so it
+ * returns a shallow copy unchanged. 'birthday' sorts by the soonest
+ * birthday first, tie-broken by hearts (desc) then name, so the gift-
+ * planning view groups the people whose 8x day is closest at the top.
+ *
+ * Crucially this is a SEPARATE display sort: relationshipRows() stays
+ * canonically closeness-ordered so relationshipSummary()'s "closest =
+ * rows[0]" digest stays correct regardless of the player's chosen view.
+ * Pure — never mutates the input.
+ */
+export function sortRelationshipRows(
+  rows: readonly RelationshipRow[],
+  mode: RelationshipSortMode,
+): RelationshipRow[] {
+  const copy = rows.slice();
+  if (mode === 'closeness') return copy;
+  copy.sort((a, b) => {
+    if (a.daysUntilBirthday !== b.daysUntilBirthday) {
+      return a.daysUntilBirthday - b.daysUntilBirthday;
+    }
+    if (a.hearts !== b.hearts) return b.hearts - a.hearts;
+    return a.name.localeCompare(b.name);
+  });
+  return copy;
+}
+
+/**
  * Glance-level digest of the whole relationships screen — the summary
  * cousin of the quest-log %-complete and almanac count-summary headers.
  * Surfaces who the player is closest to, how many marriages / engagements
@@ -299,17 +354,24 @@ export function drawHeartsPanel(
   canvasW: number,
   visible: boolean,
   time: TimeOfDay,
+  sortMode: RelationshipSortMode = 'closeness',
 ): void {
   if (!visible) return;
-  const rows = relationshipRows(player, time);
-  if (rows.length === 0) return;
+  // Canonical closeness order — the summary digest reads rows[0] as the
+  // closest, so it must see this order regardless of the display sort.
+  const canonical = relationshipRows(player, time);
+  if (canonical.length === 0) return;
 
   // Glance-level summary caption under the title — the digest cousin of
   // the quest-log %-complete + almanac count-summary headers. Present
   // only when there are rows (always, here), so the band offsets the
   // first row by a fixed summaryH the same way the other panels do.
-  const summaryLine = relationshipSummaryLine(relationshipSummary(rows));
+  const summaryLine = relationshipSummaryLine(relationshipSummary(canonical));
   const summaryH = summaryLine ? 14 : 0;
+
+  // Display order — a re-sorted COPY so the player can flip to a gift-
+  // planning (soonest-birthday-first) view without disturbing the summary.
+  const rows = sortRelationshipRows(canonical, sortMode);
 
   const w = 264;
   const rowH = 34;
@@ -329,6 +391,17 @@ export function drawHeartsPanel(
   ctx.textAlign = 'left';
   ctx.textBaseline = 'top';
   ctx.fillText('relationships  (H)', x + 8, y + 6);
+
+  // Sort-mode chip — right of the title, surfaced only when the player has
+  // flipped off the default closeness order so the `f` toggle is legible
+  // without shouting on the common view.
+  if (sortMode !== 'closeness') {
+    ctx.fillStyle = SORT_CHIP;
+    ctx.font = '8px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(relationshipSortLabel(sortMode), x + w - 8, y + 8);
+    ctx.textAlign = 'left';
+  }
 
   // Summary caption — dim digest line, drawn in the band under the title.
   if (summaryLine) {
@@ -418,6 +491,6 @@ export function drawHeartsPanel(
   ctx.fillStyle = HINT;
   ctx.font = '10px ui-monospace, monospace';
   ctx.textAlign = 'center';
-  ctx.fillText('H to close', x + w / 2, y + h - 13);
+  ctx.fillText('H to close - f sort', x + w / 2, y + h - 13);
   ctx.restore();
 }
