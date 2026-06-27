@@ -18,7 +18,10 @@ import {
   maxLifetimeHarvest,
   harvestBarSegments,
   isBestSeasonNow,
+  fieldStatusCounts,
+  fieldStatusSummary,
   type CropJournalEntry,
+  type FieldCropSample,
 } from '../game/crop-journal';
 import { compostLedgerLine } from '../game/compost';
 
@@ -76,6 +79,7 @@ export class CropJournalPanel {
     time: TimeOfDay,
     canvasW: number,
     _canvasH: number,
+    fieldSamples: readonly FieldCropSample[] = [],
   ): void {
     if (!this.opened) return;
     void canvasW;
@@ -83,7 +87,13 @@ export class CropJournalPanel {
     const festivals = nextFestivals(time, 2);
     const ledgerLine = compostLedgerLine(player);
     const ledgerExtra = ledgerLine.length > 0 ? 16 : 0;
-    const h = 44 + entries.length * ROW_H + (festivals.length > 0 ? 38 : 12) + ledgerExtra;
+    // Live field-status digest under the title — a "right now" cousin of
+    // the lifetime tallies below it, so the reference panel ties back to
+    // the current farm. Present only when crops are growing; the band
+    // collapses to nothing on a bare field so the layout stays put.
+    const fieldLine = fieldStatusSummary(fieldStatusCounts(fieldSamples));
+    const fieldH = fieldLine ? 14 : 0;
+    const h = 44 + fieldH + entries.length * ROW_H + (festivals.length > 0 ? 38 : 12) + ledgerExtra;
     // Top-left overlay — replaces the quest panel while open (same chrome
     // pattern as the recipe codex overlays the hearts panel on the right).
     const x = 12;
@@ -114,13 +124,23 @@ export class CropJournalPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${totalSown} sown  -  ${totalHarv} reaped`, x + PANEL_W - 12, y + 9);
 
+    // Field-status caption band — green for a field that needs nothing,
+    // amber-tinted wording when crops are thirsty (the summary already
+    // orders ready/growing/thirsty). Drawn dim under the title.
+    if (fieldLine) {
+      ctx.fillStyle = HINT;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(fieldLine, x + 12, y + 24);
+    }
+
     // Shared denominator for the per-row harvest mini-bars so every crop's
     // bar reads on the same scale (busiest crop fills the track).
     const maxHarvest = maxLifetimeHarvest(entries);
 
     for (let i = 0; i < entries.length; i++) {
       const e: CropJournalEntry = entries[i];
-      const ry = y + 30 + i * ROW_H;
+      const ry = y + 30 + fieldH + i * ROW_H;
       // Row separator line.
       if (i > 0) {
         ctx.fillStyle = 'rgba(74, 59, 110, 0.55)';
@@ -239,7 +259,7 @@ export class CropJournalPanel {
 
     // Festival forecast footer.
     if (festivals.length > 0) {
-      const fy = y + 30 + entries.length * ROW_H + 4;
+      const fy = y + 30 + fieldH + entries.length * ROW_H + 4;
       ctx.fillStyle = 'rgba(74, 59, 110, 0.55)';
       ctx.fillRect(x + 12, fy - 4, PANEL_W - 24, 1);
       ctx.fillStyle = TITLE_COLOR;

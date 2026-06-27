@@ -195,6 +195,72 @@ export function nextFestivals(time: TimeOfDay, count: number = 2): string[] {
 }
 
 // ---------------------------------------------------------------------
+// Field status — a live "right now" digest of the crops actually growing
+// in the world, so the reference journal ties back to the current farm.
+// The journal had only lifetime tallies; this header answers "what does
+// my field need today?" at a glance: how many crops are growing, how
+// many are ready to harvest, and how many are thirsty (un-watered today).
+// ---------------------------------------------------------------------
+
+/** One live crop on the field, reduced to just the fields the digest needs. */
+export interface FieldCropSample {
+  /** Current growth stage (0-indexed). */
+  stage: number;
+  /** Stages this crop needs to fully ripen. */
+  growthStages: number;
+  /** True when the crop was watered today (reset at the day rollover). */
+  watered: boolean;
+}
+
+/** Disjoint field tallies. `ready + growing == total`; `thirsty <= growing`. */
+export interface FieldStatus {
+  /** Total crops on the field. */
+  total: number;
+  /** Crops at their final stage — harvest now. */
+  ready: number;
+  /** Crops still maturing (stage below the final one). */
+  growing: number;
+  /** Growing crops not yet watered today — they need attention. */
+  thirsty: number;
+}
+
+/**
+ * Tally the live field into ready / growing / thirsty buckets. A crop is
+ * `ready` once its stage reaches growthStages-1 (the same gate harvest()
+ * uses); everything else is `growing`. Of the growing crops, the ones not
+ * watered today are `thirsty` — a ready crop is never counted thirsty
+ * since watering won't help it. Pure: reads only the samples.
+ */
+export function fieldStatusCounts(samples: readonly FieldCropSample[]): FieldStatus {
+  const status: FieldStatus = { total: 0, ready: 0, growing: 0, thirsty: 0 };
+  for (const s of samples) {
+    status.total += 1;
+    if (s.stage >= s.growthStages - 1) {
+      status.ready += 1;
+    } else {
+      status.growing += 1;
+      if (!s.watered) status.thirsty += 1;
+    }
+  }
+  return status;
+}
+
+/**
+ * Render the field status as one compact, urgency-ordered caption:
+ * \"4 growing, 2 ready to harvest, 1 thirsty\". Ready leads when present
+ * (it's the immediate payoff), then growing, then a thirsty nudge. ''
+ * when the field is empty so the journal collapses the band. Pure.
+ */
+export function fieldStatusSummary(status: FieldStatus): string {
+  if (status.total === 0) return '';
+  const parts: string[] = [];
+  if (status.ready > 0) parts.push(`${status.ready} ready to harvest`);
+  if (status.growing > 0) parts.push(`${status.growing} growing`);
+  if (status.thirsty > 0) parts.push(`${status.thirsty} thirsty`);
+  return parts.join(', ');
+}
+
+// ---------------------------------------------------------------------
 // Harvest mini-bar — a tiny inline stacked bar per journal row so the
 // lifetime tally scans visually, not just as text. The bar's overall
 // length encodes how much of this crop you've harvested vs your busiest

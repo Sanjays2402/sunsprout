@@ -13,6 +13,8 @@ import {
   maxLifetimeHarvest,
   harvestBarSegments,
   isBestSeasonNow,
+  fieldStatusCounts,
+  fieldStatusSummary,
 } from '../src/game/crop-journal';
 import { CropJournalPanel } from '../src/ui/crop-journal-panel';
 import { serializeGame, applySnapshot } from '../src/game/persistence';
@@ -317,5 +319,70 @@ describe('isBestSeasonNow', () => {
     expect(wheat).toBeDefined();
     expect(isBestSeasonNow(wheat!.bestSeason, 0)).toBe(true);
     expect(isBestSeasonNow(wheat!.bestSeason, 1)).toBe(false);
+  });
+});
+
+describe('field status', () => {
+  const sample = (stage: number, growthStages: number, watered: boolean) => ({
+    stage,
+    growthStages,
+    watered,
+  });
+
+  it('returns all-zero counts and empty summary for a bare field', () => {
+    const s = fieldStatusCounts([]);
+    expect(s).toEqual({ total: 0, ready: 0, growing: 0, thirsty: 0 });
+    expect(fieldStatusSummary(s)).toBe('');
+  });
+
+  it('counts a final-stage crop as ready, never thirsty', () => {
+    // stage 3 of a 4-stage crop (growthStages-1) = ready, even if un-watered.
+    const s = fieldStatusCounts([sample(3, 4, false)]);
+    expect(s.ready).toBe(1);
+    expect(s.growing).toBe(0);
+    expect(s.thirsty).toBe(0);
+  });
+
+  it('counts a maturing un-watered crop as growing + thirsty', () => {
+    const s = fieldStatusCounts([sample(1, 4, false)]);
+    expect(s.growing).toBe(1);
+    expect(s.thirsty).toBe(1);
+  });
+
+  it('a watered maturing crop is growing but not thirsty', () => {
+    const s = fieldStatusCounts([sample(1, 4, true)]);
+    expect(s.growing).toBe(1);
+    expect(s.thirsty).toBe(0);
+  });
+
+  it('keeps the invariants ready+growing==total and thirsty<=growing', () => {
+    const s = fieldStatusCounts([
+      sample(3, 4, false), // ready
+      sample(2, 4, false), // growing + thirsty
+      sample(0, 4, true), // growing
+      sample(1, 4, false), // growing + thirsty
+    ]);
+    expect(s.total).toBe(4);
+    expect(s.ready + s.growing).toBe(s.total);
+    expect(s.ready).toBe(1);
+    expect(s.growing).toBe(3);
+    expect(s.thirsty).toBe(2);
+    expect(s.thirsty).toBeLessThanOrEqual(s.growing);
+  });
+
+  it('orders the summary ready-first, then growing, then thirsty', () => {
+    const s = fieldStatusCounts([
+      sample(3, 4, false),
+      sample(1, 4, false),
+      sample(2, 4, true),
+    ]);
+    // 1 ready, 2 growing, 1 thirsty.
+    expect(fieldStatusSummary(s)).toBe('1 ready to harvest, 2 growing, 1 thirsty');
+  });
+
+  it('omits zero buckets from the summary', () => {
+    // All watered + maturing -> only the growing segment shows.
+    const s = fieldStatusCounts([sample(1, 4, true), sample(0, 4, true)]);
+    expect(fieldStatusSummary(s)).toBe('2 growing');
   });
 });

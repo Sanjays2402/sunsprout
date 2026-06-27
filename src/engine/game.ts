@@ -167,7 +167,7 @@ import { ChestMenu } from '../ui/chest-menu';
 import { RECIPES } from '../game/cooking';
 import { recordCook, recordPremiumCook } from '../game/cooking-history';
 import { RecipeCodex } from '../ui/recipe-codex';
-import { recordHarvest, recordSown } from '../game/crop-journal';
+import { recordHarvest, recordSown, type FieldCropSample } from '../game/crop-journal';
 import { CropJournalPanel } from '../ui/crop-journal-panel';
 import { tickAchievements } from '../game/achievements';
 import { AchievementsPanel } from '../ui/achievements-panel';
@@ -609,6 +609,25 @@ export class Game {
       const catalog = CROPS[c.crop];
       if (!catalog) continue;
       samples.push({ waterStreak: c.waterStreak ?? 0, growthStages: catalog.growthStages });
+    }
+    return samples;
+  }
+
+  /**
+   * Build the (stage, growthStages, watered) samples for every crop on the
+   * field so the crop-journal panel can draw a live "ready / growing /
+   * thirsty" field-status header. Mirrors cropFieldSamples' catalog guard.
+   */
+  private fieldCropSamples(): FieldCropSample[] {
+    const samples: FieldCropSample[] = [];
+    for (const c of this.world.crops as unknown as FarmCrop[]) {
+      const catalog = CROPS[c.crop];
+      if (!catalog) continue;
+      samples.push({
+        stage: c.stage,
+        growthStages: catalog.growthStages,
+        watered: c.watered,
+      });
     }
     return samples;
   }
@@ -3012,7 +3031,7 @@ export class Game {
     }
     drawHeartsPanel(this.ctx, this.world.player, this.canvas.width, this.heartsPanelVisible, this.time);
     this.recipeCodex.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
-    this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height);
+    this.cropJournal.draw(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, this.fieldCropSamples());
     this.achievements.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
