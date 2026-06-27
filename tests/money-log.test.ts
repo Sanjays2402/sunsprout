@@ -12,6 +12,11 @@ import {
   classifyMoneyEntry,
   moneyCategoryTotals,
   moneyLogDayGroups,
+  groupMoneyEntriesByDay,
+  applyMoneyFilter,
+  cycleMoneyFilter,
+  moneyFilterLabel,
+  MONEY_FILTERS,
   type MoneyLogEntry,
 } from '../src/game/money-log';
 import { MoneyLogPanel } from '../src/ui/money-log-panel';
@@ -211,6 +216,109 @@ describe('MoneyLogPanel controller', () => {
     expect(m.canAct()).toBe(false);
     m.update(200);
     expect(m.canAct()).toBe(true);
+  });
+
+  it('cycles the filter while open and resets it on open', () => {
+    const m = new MoneyLogPanel();
+    m.open();
+    expect(m.currentFilter()).toBe('all');
+    m.cycleFilter();
+    expect(m.currentFilter()).toBe('sales');
+    m.cycleFilter();
+    expect(m.currentFilter()).toBe('rewards');
+    // Re-opening resets to 'all'.
+    m.close();
+    m.open();
+    expect(m.currentFilter()).toBe('all');
+  });
+
+  it('ignores cycleFilter when closed', () => {
+    const m = new MoneyLogPanel();
+    m.cycleFilter();
+    expect(m.currentFilter()).toBe('all');
+  });
+});
+
+describe('groupMoneyEntriesByDay', () => {
+  it('matches moneyLogDayGroups on the full log (delegation)', () => {
+    const w = new World();
+    logGold(w.player, 100, 'well: harvest', 1);
+    logGold(w.player, -25, 'shop: bouquet', 1);
+    logGold(w.player, 50, 'mining ruby', 2);
+    const viaPlayer = moneyLogDayGroups(w.player);
+    const viaCore = groupMoneyEntriesByDay(getMoneyLog(w.player));
+    expect(viaCore).toEqual(viaPlayer);
+  });
+
+  it('groups an arbitrary filtered slice', () => {
+    const entries: MoneyLogEntry[] = [
+      { delta: 50, reason: 'mining ruby', day: 2 },
+      { delta: 100, reason: 'well: harvest', day: 1 },
+    ];
+    const groups = groupMoneyEntriesByDay(entries);
+    expect(groups.map((g) => g.day)).toEqual([2, 1]);
+    expect(groups[0].net).toBe(50);
+    expect(groups[1].net).toBe(100);
+  });
+
+  it('returns an empty list for no entries', () => {
+    expect(groupMoneyEntriesByDay([])).toEqual([]);
+  });
+});
+
+describe('money-log filter', () => {
+  const mk = (delta: number, reason: string, day = 1): MoneyLogEntry => ({ delta, reason, day });
+
+  it('cycles all -> sales -> rewards -> spending -> all', () => {
+    expect(MONEY_FILTERS).toEqual(['all', 'sales', 'rewards', 'spending']);
+    expect(cycleMoneyFilter('all')).toBe('sales');
+    expect(cycleMoneyFilter('sales')).toBe('rewards');
+    expect(cycleMoneyFilter('rewards')).toBe('spending');
+    expect(cycleMoneyFilter('spending')).toBe('all');
+  });
+
+  it('labels read plainly and stay ASCII', () => {
+    for (const f of MONEY_FILTERS) {
+      const label = moneyFilterLabel(f);
+      expect(label).toBe(f);
+      expect(/^[\x20-\x7E]*$/.test(label)).toBe(true);
+    }
+  });
+
+  it("'all' returns every row (as a fresh array)", () => {
+    const rows = [mk(100, 'well: harvest'), mk(-25, 'shop: bouquet')];
+    const out = applyMoneyFilter(rows, 'all');
+    expect(out).toEqual(rows);
+    expect(out).not.toBe(rows); // copy, not the same ref
+  });
+
+  it('isolates each classifyMoneyEntry bucket', () => {
+    const rows = [
+      mk(100, 'well: harvest'), // sale
+      mk(120, 'hangout: Finn'), // reward
+      mk(-25, 'shop: bouquet'), // purchase
+      mk(60, 'inn: dishes'), // sale
+    ];
+    expect(applyMoneyFilter(rows, 'sales').map((r) => r.reason)).toEqual([
+      'well: harvest',
+      'inn: dishes',
+    ]);
+    expect(applyMoneyFilter(rows, 'rewards').map((r) => r.reason)).toEqual(['hangout: Finn']);
+    expect(applyMoneyFilter(rows, 'spending').map((r) => r.reason)).toEqual(['shop: bouquet']);
+  });
+
+  it('agrees with classifyMoneyEntry for every row it keeps', () => {
+    const rows = [
+      mk(70, 'mining Gold Nugget'),
+      mk(5, 'cart: rumor rebate (Brass Lantern)'),
+      mk(-300, 'shop: chest'),
+    ];
+    for (const f of ['sales', 'rewards', 'spending'] as const) {
+      const cat = f === 'sales' ? 'sale' : f === 'rewards' ? 'reward' : 'purchase';
+      for (const r of applyMoneyFilter(rows, f)) {
+        expect(classifyMoneyEntry(r)).toBe(cat);
+      }
+    }
   });
 });
 

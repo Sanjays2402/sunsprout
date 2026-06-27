@@ -150,8 +150,20 @@ export interface MoneyLogDayGroup {
  * log; preserves the newest-first order.
  */
 export function moneyLogDayGroups(player: Player): MoneyLogDayGroup[] {
+  return groupMoneyEntriesByDay(getMoneyLog(player));
+}
+
+/**
+ * Group an arbitrary (newest-first) entry list into consecutive same-day
+ * runs — the reusable core behind moneyLogDayGroups, split out so the
+ * panel can group a FILTERED slice of the ledger without the run-split
+ * logic being duplicated. Pure; preserves input order.
+ */
+export function groupMoneyEntriesByDay(
+  entries: readonly MoneyLogEntry[],
+): MoneyLogDayGroup[] {
   const groups: MoneyLogDayGroup[] = [];
-  for (const e of getMoneyLog(player)) {
+  for (const e of entries) {
     const last = groups[groups.length - 1];
     if (last && last.day === e.day) {
       last.entries.push(e);
@@ -161,4 +173,62 @@ export function moneyLogDayGroups(player: Player): MoneyLogDayGroup[] {
     }
   }
   return groups;
+}
+
+/**
+ * Panel-local ledger filter so the player can answer "where did my gold
+ * GO this week" without scanning a mixed list. Cycles all -> sales ->
+ * rewards -> spending, each isolating one classifyMoneyEntry bucket (all
+ * shows everything). The Q panel is non-blocking but has no movement
+ * verbs, so a panel-local `f` cycle is safe (the global fishing `f` is
+ * still guarded against it like the lore / almanac filters).
+ */
+export type MoneyFilter = 'all' | 'sales' | 'rewards' | 'spending';
+
+/** Cycle order for the `f` keypress. */
+export const MONEY_FILTERS: readonly MoneyFilter[] = [
+  'all',
+  'sales',
+  'rewards',
+  'spending',
+] as const;
+
+/** Advance to the next filter, wrapping at the end. Pure. */
+export function cycleMoneyFilter(f: MoneyFilter): MoneyFilter {
+  const i = MONEY_FILTERS.indexOf(f);
+  return MONEY_FILTERS[(i + 1) % MONEY_FILTERS.length];
+}
+
+/** Short chip label for the active filter. Pure. */
+export function moneyFilterLabel(f: MoneyFilter): string {
+  return f; // 'all' / 'sales' / 'rewards' / 'spending' read fine as-is.
+}
+
+/** Map a filter to the classifyMoneyEntry category it isolates, or null for 'all'. */
+function filterCategory(f: MoneyFilter): MoneyCategory | null {
+  switch (f) {
+    case 'sales':
+      return 'sale';
+    case 'rewards':
+      return 'reward';
+    case 'spending':
+      return 'purchase';
+    case 'all':
+      return null;
+  }
+}
+
+/**
+ * Filter a ledger slice to the rows matching the active filter, classified
+ * through classifyMoneyEntry so it always agrees with the per-row colour
+ * rail. 'all' returns the input untouched (a new array for caller safety).
+ * Pure.
+ */
+export function applyMoneyFilter(
+  entries: readonly MoneyLogEntry[],
+  filter: MoneyFilter,
+): MoneyLogEntry[] {
+  const cat = filterCategory(filter);
+  if (cat === null) return entries.slice();
+  return entries.filter((e) => classifyMoneyEntry(e) === cat);
 }

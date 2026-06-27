@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, moneyLogDayGroups, type MoneyCategory } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, type MoneyCategory, type MoneyFilter } from '../game/money-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -18,6 +18,7 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const GAIN = '#A3D77A';
 const LOSS = '#E07A8A';
 const GOLD = '#F0C24A';
+const FILTER_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 /**
  * Per-category rail colour, mirroring the toast colour-rail language:
@@ -39,10 +40,12 @@ const DAY_DIVIDER_H = 14;
 export class MoneyLogPanel {
   private opened = false;
   private lockoutMs = 0;
+  private filter: MoneyFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
+    this.filter = 'all';
   }
 
   close(): void {
@@ -62,6 +65,17 @@ export class MoneyLogPanel {
     return this.opened && this.lockoutMs <= 0;
   }
 
+  /** Active ledger filter — exposed for tests. */
+  currentFilter(): MoneyFilter {
+    return this.filter;
+  }
+
+  /** Cycle the category filter (all -> sales -> rewards -> spending). */
+  cycleFilter(): void {
+    if (!this.opened) return;
+    this.filter = cycleMoneyFilter(this.filter);
+  }
+
   update(dtMs: number): void {
     if (!this.opened) return;
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
@@ -70,16 +84,23 @@ export class MoneyLogPanel {
   draw(ctx: CanvasRenderingContext2D, player: Player, _canvasW: number, _canvasH: number): void {
     if (!this.opened) return;
     const log = getMoneyLog(player);
-    const rows = log.slice(0, 20);
+    // The ledger has rows iff the underlying log is non-empty; the active
+    // filter then narrows WHICH rows show. We distinguish "you have no
+    // ledger at all" (the shared empty state) from "nothing matches this
+    // filter" (a filter-specific note) so a filtered-empty view isn't a
+    // dead end.
+    const hasAnyRows = log.length > 0;
+    const filtered = applyMoneyFilter(log.slice(0, 20), this.filter);
+    const rows = filtered;
     const visible = Math.max(rows.length, 1);
     // Day-group dividers add a small "Day N" band above each day's run, so
-    // the panel grows by one band per distinct day in the window.
-    const dayGroups = moneyLogDayGroups(player);
+    // the panel grows by one band per distinct day in the FILTERED window.
+    const dayGroups = groupMoneyEntriesByDay(filtered);
     const dividersH = rows.length === 0 ? 0 : dayGroups.length * DAY_DIVIDER_H;
     // Reserve a second line of body space for the empty state's hint.
-    // When there are rows, reserve a footer band for the per-category
+    // When there's a ledger, reserve a footer band for the per-category
     // totals line (sales / rewards / spent) above the close hint.
-    const footerH = rows.length === 0 ? 0 : 16;
+    const footerH = !hasAnyRows ? 0 : 16;
     const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + dividersH + footerH + 22;
     const x = 12;
     const y = 40;
@@ -97,6 +118,17 @@ export class MoneyLogPanel {
     ctx.fillStyle = TITLE_COLOR;
     ctx.font = 'bold 13px ui-monospace, monospace';
     ctx.fillText('money log  (Q)', x + 12, y + 8);
+
+    // Filter chip — dim pill right of the title showing the active filter
+    // when it's narrowing the view, so the `f` cycle is discoverable and
+    // the current scope is legible. Quiet on 'all' (no narrowing).
+    if (this.filter !== 'all') {
+      ctx.font = 'bold 13px ui-monospace, monospace';
+      const titleW = ctx.measureText('money log  (Q)').width;
+      ctx.fillStyle = FILTER_CHIP;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`- ${moneyFilterLabel(this.filter)}`, x + 12 + titleW + 8, y + 11);
+    }
 
     ctx.fillStyle = GOLD;
     ctx.font = 'bold 11px ui-monospace, monospace';
@@ -117,7 +149,19 @@ export class MoneyLogPanel {
     ctx.fillRect(x + 12, y + 46, PANEL_W - 24, 1);
 
     if (rows.length === 0) {
-      drawEmptyState(ctx, PANEL_EMPTY_STATES.moneyLog, x + PANEL_W / 2, y + 58);
+      // Distinguish a truly empty ledger from a filter that hides every
+      // row: the latter gets a plain "nothing here under this filter" note
+      // pointing at the `f` cycle, so the player isn't left at a dead end.
+      if (!hasAnyRows) {
+        drawEmptyState(ctx, PANEL_EMPTY_STATES.moneyLog, x + PANEL_W / 2, y + 58);
+      } else {
+        ctx.fillStyle = HINT;
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`no ${moneyFilterLabel(this.filter)} this window`, x + PANEL_W / 2, y + 60);
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 76);
+      }
     } else {
       // Walk the day groups, drawing a small "Day N  +/-net" divider above
       // each day's run so the ledger reads as dated buckets. A running ry
@@ -149,12 +193,13 @@ export class MoneyLogPanel {
       }
     }
 
-    // Per-category totals footer — a one-line breakdown of the logged
-    // window tinted to the rail colours (sales green / rewards violet /
-    // spent amber) so the player can read the shape of their economy at
-    // a glance without summing the rows. Only when there's something to
-    // total; sits just above the close hint.
-    if (rows.length > 0) {
+    // Per-category totals footer — a one-line breakdown of the WHOLE
+    // logged window (not the filtered slice) tinted to the rail colours
+    // (sales green / rewards violet / spent amber) so the player can read
+    // the shape of their economy at a glance. Shown whenever there's a
+    // ledger, so it stays put even when a filter hides every row; sits
+    // just above the close hint.
+    if (hasAnyRows) {
       const totals = moneyCategoryTotals(player);
       const fy = y + h - 30;
       ctx.textBaseline = 'top';
@@ -181,7 +226,7 @@ export class MoneyLogPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Q or Esc to close', x + PANEL_W / 2, y + h - 14);
+    ctx.fillText('Q or Esc to close - f filter', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 

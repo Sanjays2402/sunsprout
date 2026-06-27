@@ -1208,11 +1208,18 @@ export class Game {
       }
     }
 
-    // Q: toggle the money log panel.
+    // Q: toggle the money log panel. While open, `f` cycles the category
+    // filter (all -> sales -> rewards -> spending). The money-log panel is
+    // non-blocking but has no movement verbs, so the panel-local `f` is
+    // safe; the global fishing `f` is guarded against it below.
     if (this.input.justPressed.has('q')) {
       this.moneyLogPanel.toggle();
-    } else if (this.moneyLogPanel.isVisible() && this.moneyLogPanel.canAct() && this.input.justPressed.has('escape')) {
-      this.moneyLogPanel.close();
+    } else if (this.moneyLogPanel.isVisible() && this.moneyLogPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.moneyLogPanel.close();
+      } else if (this.input.justPressed.has('f')) {
+        this.moneyLogPanel.cycleFilter();
+      }
     }
 
     // ': toggle the quest log panel.
@@ -2127,10 +2134,11 @@ export class Game {
         }
       }
       // F: fishing — reel during a bite, lock-in timing during reel,
-      // otherwise try to cast into water. Suppressed when the lore or
-      // almanac panel is open and active, because both use `f` to cycle
-      // their filter and we don't want a stray cast firing underneath.
-      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible()) {
+      // otherwise try to cast into water. Suppressed when the lore,
+      // almanac, or money-log panel is open and active, because all three
+      // use `f` to cycle their filter and we don't want a stray cast
+      // firing underneath.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible()) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {
