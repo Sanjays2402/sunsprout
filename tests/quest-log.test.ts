@@ -6,6 +6,7 @@ import {
   formatReward,
   questCounts,
   questHint,
+  questLogSections,
 } from '../src/game/quest-log';
 import { QuestLogPanel } from '../src/ui/quest-log-panel';
 import { startingQuests, checkQuests, type Quest } from '../src/game/quests';
@@ -87,6 +88,56 @@ describe('questCounts', () => {
     const after = questCounts(w.player);
     expect(after.completed).toBe(1);
     expect(after.active).toBe(after.total - 1);
+  });
+});
+
+describe('questLogSections', () => {
+  it('splits rows into ACTIVE then DONE', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    // Complete the first quest so both buckets exist.
+    const qs = w.player.quests as Quest[];
+    qs[0].complete = true;
+    qs[0].progress = qs[0].goal;
+    const sections = questLogSections(buildQuestLog(w.player));
+    expect(sections.map((s) => s.key)).toEqual(['active', 'completed']);
+    expect(sections[0].header).toBe('ACTIVE');
+    expect(sections[1].header).toBe('DONE');
+    // The completed quest is the only DONE row.
+    expect(sections[1].rows.every((r) => r.status === 'completed')).toBe(true);
+    expect(sections[0].rows.every((r) => r.status === 'active')).toBe(true);
+  });
+
+  it('omits the DONE bucket when nothing is finished', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    const sections = questLogSections(buildQuestLog(w.player));
+    expect(sections.map((s) => s.key)).toEqual(['active']);
+  });
+
+  it('omits the ACTIVE bucket when every quest is done', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    for (const q of w.player.quests as Quest[]) {
+      q.complete = true;
+      q.progress = q.goal;
+    }
+    const sections = questLogSections(buildQuestLog(w.player));
+    expect(sections.map((s) => s.key)).toEqual(['completed']);
+  });
+
+  it('returns nothing for an empty board', () => {
+    expect(questLogSections([])).toEqual([]);
+  });
+
+  it('every quest row lands in exactly one section', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    (w.player.quests[0] as Quest).complete = true;
+    const rows = buildQuestLog(w.player);
+    const sections = questLogSections(rows);
+    const regrouped = sections.flatMap((s) => s.rows);
+    expect(regrouped).toHaveLength(rows.length);
   });
 });
 

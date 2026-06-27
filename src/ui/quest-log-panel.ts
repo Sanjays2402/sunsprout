@@ -2,9 +2,20 @@
 // with progress bars, hints, and reward lines. Matches the design language
 // of AchievementsPanel and MoneyLogPanel so the cozy panel family stays
 // consistent.
+//
+// Rows are grouped under ACTIVE / DONE section dividers (active first) so
+// the log reads as "what I'm working on / what I've finished" instead of
+// one flat scroll keyed only by a pip colour. Headers + rows flatten into
+// one display-item list scrolled over a fixed pixel budget, so the panel
+// height never jumps as a divider scrolls in or out.
 
 import type { Player } from '../world/world';
-import { buildQuestLog, questCounts, type QuestLogEntry } from '../game/quest-log';
+import {
+  buildQuestLog,
+  questCounts,
+  questLogSections,
+  type QuestLogEntry,
+} from '../game/quest-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -18,9 +29,19 @@ const ACCENT = '#F0C24A';
 const DONE_PIP = '#A3D77A';
 const ACTIVE_PIP = '#F0C24A';
 const SECTION_LINE = 'rgba(74, 59, 110, 0.6)';
+const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
 
 const PANEL_W = 460;
 const ROW_H = 46;
+/** Section-divider band height (label + breathing room). */
+const SECTION_H = 18;
+/** Fixed body budget — holds ~6 quest rows plus both dividers. */
+const BODY_H = 6 * ROW_H + 2 * SECTION_H;
+
+/** One drawable line in the scrolled body: a divider or a quest row. */
+type DisplayItem =
+  | { kind: 'header'; header: string; count: number }
+  | { kind: 'row'; row: QuestLogEntry };
 
 export class QuestLogPanel {
   private opened = false;
@@ -57,8 +78,8 @@ export class QuestLogPanel {
 
   scrollDown(player: Player): void {
     if (!this.opened) return;
-    const max = Math.max(0, buildQuestLog(player).length - 6);
-    this.scroll = Math.min(max, this.scroll + 1);
+    const items = this.displayItems(player);
+    this.scroll = Math.min(this.maxScroll(items), this.scroll + 1);
   }
 
   scrollUp(): void {
@@ -66,15 +87,58 @@ export class QuestLogPanel {
     this.scroll = Math.max(0, this.scroll - 1);
   }
 
+  /** Flatten the active/done sections into one scrollable line list. */
+  private displayItems(player: Player): DisplayItem[] {
+    const sections = questLogSections(buildQuestLog(player));
+    const items: DisplayItem[] = [];
+    for (const s of sections) {
+      items.push({ kind: 'header', header: s.header, count: s.rows.length });
+      for (const row of s.rows) items.push({ kind: 'row', row });
+    }
+    return items;
+  }
+
+  /** Pixel height of a single display item. */
+  private itemHeight(item: DisplayItem): number {
+    return item.kind === 'header' ? SECTION_H : ROW_H;
+  }
+
+  /** How many items fit in the body budget starting at `start`. */
+  private visibleCountFrom(items: DisplayItem[], start: number): number {
+    let used = 0;
+    let n = 0;
+    for (let i = start; i < items.length; i++) {
+      const ih = this.itemHeight(items[i]);
+      if (used + ih > BODY_H) break;
+      used += ih;
+      n++;
+    }
+    return n;
+  }
+
+  /** Smallest scroll index that still reaches the last item. */
+  private maxScroll(items: DisplayItem[]): number {
+    for (let start = 0; start < items.length; start++) {
+      if (start + this.visibleCountFrom(items, start) >= items.length) return start;
+    }
+    return Math.max(0, items.length - 1);
+  }
+
   /** Render the panel. No-op when closed. */
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
     if (!this.opened) return;
     const rows = buildQuestLog(player);
     const counts = questCounts(player);
-    const visibleN = Math.min(6, Math.max(1, rows.length));
-    // Empty board reserves two body rows for the message + hint.
-    const bodyRows = rows.length === 0 ? 2 : visibleN;
-    const h = 70 + bodyRows * ROW_H + 22;
+    const items = this.displayItems(player);
+    this.scroll = Math.min(this.scroll, this.maxScroll(items));
+    const start = this.scroll;
+    const visN = this.visibleCountFrom(items, start);
+    const end = start + visN;
+
+    // Empty board reserves two body rows for the message + hint; otherwise
+    // the fixed body budget keeps the panel height constant.
+    const bodyH = rows.length === 0 ? 2 * ROW_H : BODY_H;
+    const h = 70 + bodyH + 22;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -99,57 +163,33 @@ export class QuestLogPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${counts.completed}/${counts.total} done`, x + PANEL_W - 14, y + 14);
 
-    // Section divider — keep header tidy.
+    // Section divider under the header — keeps the title tidy.
     ctx.fillStyle = SECTION_LINE;
     ctx.fillRect(x + 14, y + 38, PANEL_W - 28, 1);
 
     if (rows.length === 0) {
       drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
     } else {
-      const start = this.scroll;
-      const end = Math.min(rows.length, start + visibleN);
+      // Walk the visible display items, drawing ACTIVE / DONE dividers +
+      // quest rows in one pass so the groups stay legible while scrolling.
+      let ry = y + 50;
       for (let i = start; i < end; i++) {
-        const r: QuestLogEntry = rows[i];
-        const ry = y + 50 + (i - start) * ROW_H;
-        // Pip color: gold for active, green for done.
-        ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACTIVE_PIP;
-        ctx.fillRect(x + 14, ry + 12, 6, 6);
-        // Title row
-        ctx.fillStyle = r.status === 'completed' ? DIM : TEXT_COLOR;
-        ctx.font = 'bold 12px ui-monospace, monospace';
-        ctx.textAlign = 'left';
-        ctx.fillText(r.name, x + 28, ry + 4);
-        // Hint / description line
-        ctx.fillStyle = HINT;
-        ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText(r.hint, x + 28, ry + 18);
-        // Reward line — right side
-        ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACCENT;
-        ctx.font = 'bold 10px ui-monospace, monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(r.rewardLine, x + PANEL_W - 14, ry + 6);
-        // Progress bar
-        const barW = PANEL_W - 56;
-        const barX = x + 28;
-        const barY = ry + 30;
-        ctx.fillStyle = 'rgba(40, 30, 60, 0.85)';
-        ctx.fillRect(barX, barY, barW, 6);
-        const filledW = Math.max(0, Math.min(barW, (r.progress / r.goal) * barW));
-        ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACTIVE_PIP;
-        ctx.fillRect(barX, barY, filledW, 6);
-        ctx.fillStyle = DIM;
-        ctx.font = '9px ui-monospace, monospace';
-        ctx.textAlign = 'right';
-        ctx.fillText(`${r.progress}/${r.goal}`, x + PANEL_W - 14, barY - 1);
+        const item = items[i];
+        if (item.kind === 'header') {
+          this.drawSectionHeader(ctx, item.header, item.count, x, ry);
+        } else {
+          this.drawRow(ctx, item.row, x, ry);
+        }
+        ry += this.itemHeight(item);
       }
     }
 
-    if (rows.length > visibleN) {
+    if (start > 0 || end < items.length) {
       ctx.fillStyle = HINT;
       ctx.font = '10px ui-monospace, monospace';
       ctx.textAlign = 'center';
-      const top = this.scroll === 0 ? '' : 'up ';
-      const bot = this.scroll + visibleN >= rows.length ? '' : 'down';
+      const top = start === 0 ? '' : 'up ';
+      const bot = end >= items.length ? '' : 'down';
       ctx.fillText(`${top}${bot}`.trim(), x + PANEL_W / 2, y + h - 30);
     }
 
@@ -158,5 +198,63 @@ export class QuestLogPanel {
     ctx.textAlign = 'center';
     ctx.fillText("' or Esc to close - arrows or w/s to scroll", x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /** Small section divider, e.g. "ACTIVE  2" + a trailing rule. */
+  private drawSectionHeader(
+    ctx: CanvasRenderingContext2D,
+    header: string,
+    count: number,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    const label = `${header}  ${count}`;
+    ctx.fillText(label, x + 14, ry + 5);
+    const labelW = ctx.measureText(label).width;
+    ctx.fillStyle = SECTION_RULE;
+    ctx.fillRect(x + 14 + labelW + 8, ry + 9, PANEL_W - 28 - labelW - 8, 1);
+  }
+
+  /** Draw one quest row at top `ry` (height ROW_H). */
+  private drawRow(
+    ctx: CanvasRenderingContext2D,
+    r: QuestLogEntry,
+    x: number,
+    ry: number,
+  ): void {
+    // Pip color: gold for active, green for done.
+    ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACTIVE_PIP;
+    ctx.fillRect(x + 14, ry + 12, 6, 6);
+    // Title row
+    ctx.fillStyle = r.status === 'completed' ? DIM : TEXT_COLOR;
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(r.name, x + 28, ry + 4);
+    // Hint / description line
+    ctx.fillStyle = HINT;
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.fillText(r.hint, x + 28, ry + 18);
+    // Reward line — right side
+    ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACCENT;
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(r.rewardLine, x + PANEL_W - 14, ry + 6);
+    // Progress bar
+    const barW = PANEL_W - 56;
+    const barX = x + 28;
+    const barY = ry + 30;
+    ctx.fillStyle = 'rgba(40, 30, 60, 0.85)';
+    ctx.fillRect(barX, barY, barW, 6);
+    const filledW = Math.max(0, Math.min(barW, (r.progress / r.goal) * barW));
+    ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACTIVE_PIP;
+    ctx.fillRect(barX, barY, filledW, 6);
+    ctx.fillStyle = DIM;
+    ctx.font = '9px ui-monospace, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${r.progress}/${r.goal}`, x + PANEL_W - 14, barY - 1);
   }
 }

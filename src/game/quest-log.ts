@@ -110,3 +110,41 @@ export function questCounts(player: Player): { active: number; completed: number
   }
   return { active, completed, total: quests.length };
 }
+
+/** Earn-state bucket for the panel's section dividers. */
+export type QuestSectionKey = 'active' | 'completed';
+
+/** A contiguous run of quest rows under one divider header. */
+export interface QuestSection {
+  key: QuestSectionKey;
+  /** Divider label, e.g. "ACTIVE". */
+  header: string;
+  rows: QuestLogEntry[];
+}
+
+/** Header text per status, in display order. */
+const QUEST_SECTION_HEADER: Record<QuestSectionKey, string> = {
+  active: 'ACTIVE',
+  completed: 'DONE',
+};
+
+/**
+ * Group quest rows into ACTIVE / DONE sections so the log reads as "what
+ * I'm working on / what I've finished" instead of one flat scroll keyed
+ * only by a pip colour. Active first (the live work), done last. buildQuestLog
+ * already emits active-then-completed in catalog order, so each section
+ * keeps that order; empty sections are omitted so a board with no completed
+ * quests doesn't show a bare DONE header. Pure — mirrors achievementSections.
+ */
+export function questLogSections(rows: readonly QuestLogEntry[]): QuestSection[] {
+  const order: QuestSectionKey[] = ['active', 'completed'];
+  const out: QuestSection[] = [];
+  for (const key of order) {
+    const status: QuestStatus = key === 'active' ? 'active' : 'completed';
+    const group = rows.filter((r) => r.status === status);
+    if (group.length > 0) {
+      out.push({ key, header: QUEST_SECTION_HEADER[key], rows: group });
+    }
+  }
+  return out;
+}
