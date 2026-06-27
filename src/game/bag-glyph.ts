@@ -73,13 +73,14 @@ export function fishGlyphColor(key: FishKey): string {
 }
 
 /**
- * Resolve a bag row into its glyph. Mirrors classifyBagKey's key parsing
- * so the pip always matches the row's category. Anything unrecognised
- * falls back to the generic `supply` crate so every row still gets a pip.
+ * Resolve a raw inventory key into its glyph. Mirrors classifyBagKey's
+ * key parsing so the pip always matches the row's category. Anything
+ * unrecognised falls back to the generic `supply` crate so every row
+ * still gets a pip. Pure — the core resolver behind both bagGlyph (which
+ * reads a BagItem) and loreRowGlyph (which maps a bestiary row's catalog
+ * id onto the right inventory-key shape).
  */
-export function bagGlyph(item: BagItem): BagGlyph {
-  const key = item.key;
-
+export function bagGlyphForKey(key: string): BagGlyph {
   // Seeds — a bare crop key.
   if (CROPS[key]) return { kind: 'crop', cropKey: key };
 
@@ -117,4 +118,36 @@ export function bagGlyph(item: BagItem): BagGlyph {
 
   // Everything else — a generic crate pip.
   return { kind: 'supply' };
+}
+
+/**
+ * Resolve a bag row into its glyph. Thin wrapper over bagGlyphForKey —
+ * the BagItem only contributes its key.
+ */
+export function bagGlyph(item: BagItem): BagGlyph {
+  return bagGlyphForKey(item.key);
+}
+
+/**
+ * Resolve a bestiary (lore-panel) row into its glyph so the discovery
+ * log scans like the bag. The lore catalogue keys entries by a BARE
+ * catalog id (e.g. `minnow`, `copper`, `berry`, `wheat`) within a
+ * category, so we rebuild the inventory-key shape bagGlyphForKey expects
+ * and resolve through it. Folk + Rumors rows have no item sprite, so they
+ * return null and the panel keeps its plain pip for those tabs. Pure.
+ */
+export function loreRowGlyph(category: string, id: string): BagGlyph | null {
+  switch (category) {
+    case 'Fish':
+      return bagGlyphForKey(`fish-${id}`);
+    case 'Gems':
+      return bagGlyphForKey(`gem-${id}`);
+    case 'Forage':
+      return bagGlyphForKey(`forage-${id}`);
+    case 'Crops':
+      return bagGlyphForKey(id);
+    default:
+      // Folk / Rumors — no catalog sprite.
+      return null;
+  }
 }

@@ -22,6 +22,8 @@ import { tabStripLayout, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
 import { loreEmptyState } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
+import { loreRowGlyph } from '../game/bag-glyph';
+import { drawBagGlyph } from '../render/bag-glyph-sprite';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -187,8 +189,18 @@ export class LorePanel {
     for (let i = start; i < end; i++) {
       const r = rows[i];
       const ry = y + 78 + (i - start) * ROW_H;
-      ctx.fillStyle = r.discovered ? ROW_PIP_ON : ROW_PIP_OFF;
-      ctx.fillRect(x + 14, ry + 8, 6, 6);
+      // Discovery glyph — discovered Fish/Gems/Forage/Crops rows draw the
+      // actual catalog sprite (fish/gem silhouette, forage + crop sprites)
+      // so the bestiary scans visually like the bag; Folk / Rumors rows
+      // and any locked row fall back to the plain pip. The glyph sits in
+      // the same left margin the pip used, so the name column never shifts.
+      const glyph = r.discovered ? loreRowGlyph(r.category, r.id) : null;
+      if (glyph) {
+        drawBagGlyph(ctx, x + 17, ry + 9, glyph);
+      } else {
+        ctx.fillStyle = r.discovered ? ROW_PIP_ON : ROW_PIP_OFF;
+        ctx.fillRect(x + 14, ry + 8, 6, 6);
+      }
 
       ctx.fillStyle = r.discovered ? TEXT_COLOR : DIM;
       ctx.textAlign = 'left';

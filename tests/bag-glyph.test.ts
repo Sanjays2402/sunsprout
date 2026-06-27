@@ -3,6 +3,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   bagGlyph,
+  bagGlyphForKey,
+  loreRowGlyph,
   fishGlyphColor,
   EGG_GLYPH_COLOR,
   DISH_GLYPH_COLOR,
@@ -69,6 +71,42 @@ describe('bagGlyph', () => {
   it('falls back to a supply crate for tools / kits', () => {
     expect(glyphFor('hoe', 1).kind).toBe('supply');
     expect(glyphFor('greenhouse-kit', 1).kind).toBe('supply');
+  });
+});
+
+describe('loreRowGlyph', () => {
+  it('maps a Fish bestiary row onto the fish glyph', () => {
+    const g = loreRowGlyph('Fish', 'pike');
+    expect(g?.kind).toBe('fish');
+    if (g?.kind === 'fish') expect(g.color).toBe(fishGlyphColor('pike'));
+  });
+
+  it('maps a Gems row onto the gem glyph from the catalog colour', () => {
+    const g = loreRowGlyph('Gems', 'ruby');
+    expect(g?.kind).toBe('gem');
+    if (g?.kind === 'gem') expect(g.color).toBe(GEMS.ruby.color);
+  });
+
+  it('maps a Forage row onto the forage glyph', () => {
+    const g = loreRowGlyph('Forage', 'berry');
+    expect(g?.kind).toBe('forage');
+    if (g?.kind === 'forage') expect(g.forage).toBe('berry');
+  });
+
+  it('maps a Crops row onto the crop glyph for that crop', () => {
+    const g = loreRowGlyph('Crops', 'wheat');
+    expect(g?.kind).toBe('crop');
+    if (g?.kind === 'crop') expect(g.cropKey).toBe('wheat');
+  });
+
+  it('returns null for Folk and Rumors rows (no catalog sprite)', () => {
+    expect(loreRowGlyph('Folk', 'maple')).toBeNull();
+    expect(loreRowGlyph('Rumors', '0-brass-lantern-1')).toBeNull();
+  });
+
+  it('agrees with bagGlyphForKey on the rebuilt inventory key', () => {
+    expect(loreRowGlyph('Gems', 'gold')).toEqual(bagGlyphForKey('gem-gold'));
+    expect(loreRowGlyph('Crops', 'pumpkin')).toEqual(bagGlyphForKey('pumpkin'));
   });
 });
 
