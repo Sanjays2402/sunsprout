@@ -9,6 +9,8 @@ import {
   netChange,
   totalIn,
   totalOut,
+  classifyMoneyEntry,
+  type MoneyLogEntry,
 } from '../src/game/money-log';
 import { MoneyLogPanel } from '../src/ui/money-log-panel';
 import { serializeGame, applySnapshot } from '../src/game/persistence';
@@ -54,6 +56,40 @@ describe('money-log buffer', () => {
     expect(totalIn(w.player)).toBe(150);
     expect(totalOut(w.player)).toBe(25);
     expect(netChange(w.player)).toBe(125);
+  });
+});
+
+describe('classifyMoneyEntry', () => {
+  const mk = (delta: number, reason: string): MoneyLogEntry => ({ delta, reason, day: 1 });
+
+  it('treats every spend (negative delta) as a purchase', () => {
+    expect(classifyMoneyEntry(mk(-25, 'shop: bouquet'))).toBe('purchase');
+    expect(classifyMoneyEntry(mk(-200, 'bath house: soak'))).toBe('purchase');
+    expect(classifyMoneyEntry(mk(-40, 'owl post: Maple'))).toBe('purchase');
+    expect(classifyMoneyEntry(mk(-1, 'auto-restock wheat'))).toBe('purchase');
+  });
+
+  it('marks counter goods-sales as sales', () => {
+    expect(classifyMoneyEntry(mk(100, 'well: harvest'))).toBe('sale');
+    expect(classifyMoneyEntry(mk(80, 'well: gems'))).toBe('sale');
+    expect(classifyMoneyEntry(mk(60, 'inn: dishes'))).toBe('sale');
+    expect(classifyMoneyEntry(mk(12, 'fishing Old Pike'))).toBe('sale');
+    expect(classifyMoneyEntry(mk(70, 'mining Gold Nugget'))).toBe('sale');
+    expect(classifyMoneyEntry(mk(72, 'cart: breeder trade (x1)'))).toBe('sale');
+  });
+
+  it('marks other credits as rewards', () => {
+    expect(classifyMoneyEntry(mk(120, 'hangout: Finn'))).toBe('reward');
+    expect(classifyMoneyEntry(mk(8, 'farm dog streak'))).toBe('reward');
+    expect(classifyMoneyEntry(mk(50, 'quest: First Sprout'))).toBe('reward');
+    expect(classifyMoneyEntry(mk(30, 'board: Fetch Quest'))).toBe('reward');
+    expect(classifyMoneyEntry(mk(5, 'compost recycle'))).toBe('reward');
+  });
+
+  it('does not mistake a cart rebate/streak credit for a breeder-trade sale', () => {
+    // Both are positive cart credits, but only the breeder trade is a sale.
+    expect(classifyMoneyEntry(mk(3, 'cart: rumor rebate (Brass Lantern)'))).toBe('reward');
+    expect(classifyMoneyEntry(mk(5, 'cart: rumor streak (Brass Lantern)'))).toBe('reward');
   });
 });
 

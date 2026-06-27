@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, type MoneyCategory } from '../game/money-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -18,6 +18,18 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const GAIN = '#A3D77A';
 const LOSS = '#E07A8A';
 const GOLD = '#F0C24A';
+
+/**
+ * Per-category rail colour, mirroring the toast colour-rail language:
+ * sale = green (income earned), reward = violet (a gift/payout), purchase
+ * = amber (money spent). Drawn as a thin left rail so a busy ledger scans
+ * by hue, the same way the toast stack does.
+ */
+const RAIL_COLOR: Record<MoneyCategory, string> = {
+  sale: '#7FB069',
+  reward: '#C8A0E8',
+  purchase: '#E0A24A',
+};
 
 const PANEL_W = 340;
 const ROW_H = 18;
@@ -101,15 +113,20 @@ export class MoneyLogPanel {
       for (let i = 0; i < rows.length; i++) {
         const r = rows[i];
         const ry = y + 54 + i * ROW_H;
+        // Category colour rail — a thin left bar tinted sale/reward/purchase
+        // so the ledger scans by hue like the toast stack. Drawn first so
+        // the day stamp + reason text sit just to its right.
+        ctx.fillStyle = RAIL_COLOR[classifyMoneyEntry(r)];
+        ctx.fillRect(x + 12, ry, 3, ROW_H - 3);
         // Day stamp
         ctx.fillStyle = DIM;
         ctx.textAlign = 'left';
         ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText(`d${r.day}`, x + 12, ry + 2);
+        ctx.fillText(`d${r.day}`, x + 20, ry + 2);
         // Reason in the middle
         ctx.fillStyle = TEXT_COLOR;
         ctx.font = '11px ui-monospace, monospace';
-        ctx.fillText(r.reason, x + 42, ry + 1);
+        ctx.fillText(r.reason, x + 48, ry + 1);
         // Delta in colour on the right
         ctx.fillStyle = r.delta >= 0 ? GAIN : LOSS;
         ctx.font = 'bold 11px ui-monospace, monospace';

@@ -58,3 +58,46 @@ export function totalOut(player: Player): number {
 export function netChange(player: Player): number {
   return totalIn(player) - totalOut(player);
 }
+
+/**
+ * Coarse category for a ledger row, used by the money-log panel to draw a
+ * per-row colour rail so a busy ledger scans by hue the way the toast
+ * stack does. Three buckets:
+ *   - `purchase`: money leaving the purse (shop buys, upgrades, soaks,
+ *     owl fees, auto-restock). Every spend in the current economy posts a
+ *     negative delta, so the sign alone identifies it unambiguously.
+ *   - `sale`: a direct goods-sale at a counter (the well, the inn) or the
+ *     fishing / mining grade bonus / cart breeder trade-in — income you
+ *     earned by handing over produce.
+ *   - `reward`: any other credit — streak tips, spouse/hangout gifts,
+ *     board + tournament + quest payouts, compost recycle, rumor rebates.
+ */
+export type MoneyCategory = 'sale' | 'purchase' | 'reward';
+
+/**
+ * Reason prefixes that mark a positive delta as a direct goods-sale
+ * rather than a reward. Anchored at the start so e.g. "cart: rumor rebate"
+ * (a reward) doesn't get swept in by a loose "cart" match — only the
+ * literal "cart: breeder trade" sale-back is a sale.
+ */
+const SALE_REASON_PATTERNS: readonly RegExp[] = [
+  /^well:/,
+  /^inn:/,
+  /^fishing /,
+  /^mining /,
+  /^cart: breeder trade/,
+];
+
+/**
+ * Classify a single ledger entry into its colour-rail bucket. Pure: reads
+ * only the entry's signed delta + reason text, no player state.
+ */
+export function classifyMoneyEntry(entry: MoneyLogEntry): MoneyCategory {
+  // Money out is always a purchase/spend in the current economy.
+  if (entry.delta < 0) return 'purchase';
+  // Money in: a counter goods-sale, else a reward/tip/payout.
+  for (const re of SALE_REASON_PATTERNS) {
+    if (re.test(entry.reason)) return 'sale';
+  }
+  return 'reward';
+}
