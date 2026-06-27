@@ -12,7 +12,7 @@
 // closes with a second `R` press or Escape.
 
 import type { Player } from '../world/world';
-import { buildCodex, codexSections, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, type RecipeCodexRow } from '../game/cooking-history';
+import { buildCodex, codexSections, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, applyCodexFilter, cycleCodexFilter, codexFilterLabel, type RecipeCodexRow, type RecipeCodexFilter } from '../game/cooking-history';
 import { RECIPES, RECIPE_KEYS } from '../game/cooking';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
@@ -26,6 +26,7 @@ const COOKED = '#F0C24A';
 const LOCKED = '#7a6a9a';
 const GOLD = '#F0C24A';
 const PREMIUM = '#E8B4F0';
+const FILTER_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 const PANEL_W = 360;
 const ROW_H = 28;
@@ -44,10 +45,12 @@ function pretty(key: string): string {
 export class RecipeCodex {
   private opened = false;
   private lockoutMs = 0;
+  private filter: RecipeCodexFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
+    this.filter = 'all';
   }
 
   close(): void {
@@ -67,6 +70,17 @@ export class RecipeCodex {
     return this.opened && this.lockoutMs <= 0;
   }
 
+  /** Active discovery filter — exposed for tests. */
+  currentFilter(): RecipeCodexFilter {
+    return this.filter;
+  }
+
+  /** Cycle the discovery filter (all -> cooked -> ready -> undiscovered). */
+  cycleFilter(): void {
+    if (!this.opened) return;
+    this.filter = cycleCodexFilter(this.filter);
+  }
+
   update(dtMs: number): void {
     if (!this.opened) return;
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
@@ -75,7 +89,11 @@ export class RecipeCodex {
   /** Renders the codex on top of the world. No-op when closed. */
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, _canvasH: number): void {
     if (!this.opened) return;
-    const rows = buildCodex(player);
+    const allRows = buildCodex(player);
+    // The active filter narrows WHICH recipes show; the header tally still
+    // reflects the whole book so the player keeps the full picture.
+    const rows = applyCodexFilter(allRows, this.filter);
+    const hasAnyRows = allRows.length > 0;
     // Group into Cooked / Ready / Locked discovery sections so the list
     // reads as "mastered / can-make-now / still-hidden" rather than one
     // flat scroll keyed only by a pip colour.
@@ -86,7 +104,10 @@ export class RecipeCodex {
       r.discovery !== 'locked' && r.hasPremium ? ROW_H_PREMIUM : ROW_H;
     const rowsTotalH = rows.reduce((a, r) => a + rowH(r), 0);
     const sectionsTotalH = sections.length * SECTION_H;
-    const h = 56 + rowsTotalH + sectionsTotalH + 22;
+    // When a filter hides every recipe, reserve two rows for the note so
+    // the panel doesn't collapse to a sliver and the message has room.
+    const emptyH = rows.length === 0 ? 2 * ROW_H : 0;
+    const h = 56 + rowsTotalH + sectionsTotalH + emptyH + 22;
     const x = canvasW - PANEL_W - 12;
     const y = 40;
 
@@ -104,6 +125,17 @@ export class RecipeCodex {
     ctx.font = 'bold 13px ui-monospace, monospace';
     ctx.fillText('recipe codex  (R)', x + 12, y + 8);
 
+    // Filter chip — dim pill right of the title when the filter is
+    // narrowing the view, so the `f` cycle is discoverable and the current
+    // scope is legible. Quiet on 'all' (no narrowing).
+    if (this.filter !== 'all') {
+      ctx.font = 'bold 13px ui-monospace, monospace';
+      const titleW = ctx.measureText('recipe codex  (R)').width;
+      ctx.fillStyle = FILTER_CHIP;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`- ${codexFilterLabel(this.filter)}`, x + 12 + titleW + 8, y + 11);
+    }
+
     const cooked = recipesCooked(player);
     const total = RECIPE_KEYS.length;
     const totalDishes = totalDishesCooked(player);
@@ -118,22 +150,38 @@ export class RecipeCodex {
       : `${cooked}/${total} known  -  ${totalDishes} cooked`;
     ctx.fillText(headerRight, x + PANEL_W - 12, y + 9);
 
-    // Walk the discovery sections, drawing a small divider above each
-    // group then its rows.
-    let ry = y + 32;
-    for (const section of sections) {
-      this.drawSectionHeader(ctx, section.header, section.rows.length, x, ry);
-      ry += SECTION_H;
-      for (const row of section.rows) {
-        this.drawRow(ctx, row, x, ry);
-        ry += rowH(row);
+    if (rows.length === 0) {
+      // A filter hid every recipe (the book is never truly empty — RECIPES
+      // is a static catalog). Point the player at the `f` cycle so they're
+      // not left at a dead end.
+      ctx.fillStyle = HINT;
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`no ${codexFilterLabel(this.filter)} recipes`, x + PANEL_W / 2, y + 44);
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 60);
+    } else {
+      // Walk the discovery sections, drawing a small divider above each
+      // group then its rows.
+      let ry = y + 32;
+      for (const section of sections) {
+        this.drawSectionHeader(ctx, section.header, section.rows.length, x, ry);
+        ry += SECTION_H;
+        for (const row of section.rows) {
+          this.drawRow(ctx, row, x, ry);
+          ry += rowH(row);
+        }
       }
     }
 
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('R or Esc to close', x + PANEL_W / 2, y + h - 14);
+    ctx.fillText(
+      hasAnyRows ? 'R or Esc to close - f filter' : 'R or Esc to close',
+      x + PANEL_W / 2,
+      y + h - 14,
+    );
 
     ctx.restore();
     void RECIPES;

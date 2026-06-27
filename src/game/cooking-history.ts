@@ -157,6 +157,64 @@ export function codexSections(rows: readonly RecipeCodexRow[]): CodexSection[] {
   return out;
 }
 
+/**
+ * Panel-local codex filter so a player hunting "what can I cook right now"
+ * can drop the noise of the locked + already-cooked rows. Cycles all ->
+ * cooked -> ready -> undiscovered, each isolating one RecipeDiscovery
+ * bucket (all keeps every row). The codex is a non-blocking read-while-
+ * walking overlay with no a/d tab nav, so a panel-local `f` cycle is the
+ * right shape (mirrors the money-log / almanac / lore-Rumors filters); the
+ * global fishing `f` is guarded against the open codex like those panels.
+ */
+export type RecipeCodexFilter = 'all' | 'cooked' | 'ready' | 'undiscovered';
+
+/** Cycle order for the `f` keypress. */
+export const CODEX_FILTERS: readonly RecipeCodexFilter[] = [
+  'all',
+  'cooked',
+  'ready',
+  'undiscovered',
+] as const;
+
+/** Advance to the next filter, wrapping at the end. Pure. */
+export function cycleCodexFilter(f: RecipeCodexFilter): RecipeCodexFilter {
+  const i = CODEX_FILTERS.indexOf(f);
+  return CODEX_FILTERS[(i + 1) % CODEX_FILTERS.length];
+}
+
+/** Short chip label for the active filter. Pure. */
+export function codexFilterLabel(f: RecipeCodexFilter): string {
+  return f; // 'all' / 'cooked' / 'ready' / 'undiscovered' read fine as-is.
+}
+
+/** Map a filter to the RecipeDiscovery it isolates, or null for 'all'. */
+function codexFilterDiscovery(f: RecipeCodexFilter): RecipeDiscovery | null {
+  switch (f) {
+    case 'cooked':
+      return 'cooked';
+    case 'ready':
+      return 'known';
+    case 'undiscovered':
+      return 'locked';
+    case 'all':
+      return null;
+  }
+}
+
+/**
+ * Keep only the codex rows matching the active filter, by discovery state.
+ * 'all' returns the input untouched (a fresh array for caller safety),
+ * preserving the catalog order in every case. Pure.
+ */
+export function applyCodexFilter(
+  rows: readonly RecipeCodexRow[],
+  filter: RecipeCodexFilter,
+): RecipeCodexRow[] {
+  const d = codexFilterDiscovery(filter);
+  if (d === null) return rows.slice();
+  return rows.filter((r) => r.discovery === d);
+}
+
 // ---------------------------------------------------------------------
 // Premium-variant cook tally — parallel to the regular cookCounts map.
 // Lives on `player.premiumCookCounts` so it never collides with the
