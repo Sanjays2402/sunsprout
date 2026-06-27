@@ -10,7 +10,8 @@ import {
   type LoreCategory,
   applyRumorFilter,
   buildLoreRows,
-  loreCompletion,
+  loreCompletionSummary,
+  loreCompletionSummaryLine,
   loreProgress,
   loreTabDetailLine,
   loreTabFooter,
@@ -161,11 +162,17 @@ export class LorePanel {
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('village lore  (`)', x + 14, y + 12);
 
-    const completion = Math.round(loreCompletion(player) * 100);
+    // Header digest — overall discovered count + percent + how many tabs
+    // are fully complete, the "surface the panel's shape" move the almanac
+    // count-summary + quest-log %-complete headers make. Replaces the bare
+    // "N% discovered" stat in the same right-aligned header slot, so it's
+    // strictly more glanceable with no layout change. Rumors excluded (a
+    // visit log, not a catalogue) so a skipped headliner can't drag it.
+    const summaryLine = loreCompletionSummaryLine(loreCompletionSummary(player));
     ctx.fillStyle = HINT;
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'right';
-    ctx.fillText(`${completion}% discovered`, x + PANEL_W - 14, y + 14);
+    ctx.fillText(summaryLine, x + PANEL_W - 14, y + 14);
 
     // Tabs — laid out + drawn through the shared panel tab-strip so the
     // lore panel and the bag panel speak one tab dialect. The layout

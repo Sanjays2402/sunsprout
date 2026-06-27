@@ -256,6 +256,59 @@ export function loreCompletion(player: Player): number {
 }
 
 /**
+ * A glance-level digest of the whole bestiary for the lore panel's header,
+ * the same "surface the panel's shape" move the almanac count-summary and
+ * quest-log %-complete headers make. Aggregates the per-tab progress into
+ * overall discovered / total counts plus how many tabs are fully complete,
+ * so a player opening the panel sees the big picture without tabbing
+ * through every category. Pure — derives from loreProgress.
+ *
+ * The Rumors tab is EXCLUDED (mirroring loreCompletion): rumor entries are
+ * a visit LOG, not a discovery catalogue, so a skipped headliner shouldn't
+ * drag the completion digest around.
+ */
+export interface LoreCompletionSummary {
+  discovered: number;
+  total: number;
+  /** Whole-percent discovered (0..100), 0 when there's nothing to discover. */
+  pct: number;
+  /** Catalogue tabs (Rumors excluded) that are fully discovered. */
+  tabsComplete: number;
+  /** Total catalogue tabs (Rumors excluded). */
+  tabsTotal: number;
+}
+
+export function loreCompletionSummary(player: Player): LoreCompletionSummary {
+  const tabs = loreProgress(player).filter((p) => p.category !== 'Rumors');
+  let discovered = 0;
+  let total = 0;
+  let tabsComplete = 0;
+  for (const t of tabs) {
+    discovered += t.discovered;
+    total += t.total;
+    // A tab with rows all discovered is complete; an empty tab can't be.
+    if (t.total > 0 && t.discovered === t.total) tabsComplete += 1;
+  }
+  const pct = total === 0 ? 0 : Math.floor((discovered / total) * 100);
+  return { discovered, total, pct, tabsComplete, tabsTotal: tabs.length };
+}
+
+/**
+ * One-line "discovered 18/40 (45%) - 2 tabs complete" caption for the lore
+ * panel header, or '' when there's nothing to discover (the panel then
+ * draws no caption). The "N tabs complete" tail only appears once at least
+ * one tab is finished, so a fresh save reads as just the count + percent.
+ * Pure.
+ */
+export function loreCompletionSummaryLine(s: LoreCompletionSummary): string {
+  if (s.total === 0) return '';
+  const base = `discovered ${s.discovered}/${s.total} (${s.pct}%)`;
+  if (s.tabsComplete <= 0) return base;
+  const noun = s.tabsComplete === 1 ? 'tab' : 'tabs';
+  return `${base}  -  ${s.tabsComplete} ${noun} complete`;
+}
+
+/**
  * Per-tab footer line — currently surfaces the lifetime mining career
  * recap inside the Gems tab. Returns the empty string for tabs that
  * have nothing extra to say so the panel can render nothing without
