@@ -12,7 +12,11 @@ import {
   whenLabel,
   dateLabel,
   almanacSections,
+  applyAlmanacFilter,
+  nextAlmanacFilter,
+  almanacFilterLabel,
   type AlmanacEntry,
+  type AlmanacFilter,
   type AlmanacKind,
 } from '../game/almanac';
 
@@ -23,6 +27,7 @@ const TEXT_COLOR = '#F5E9D4';
 const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const TODAY = '#A3D77A';
+const FILTER_CHIP = '#C8A0E8';
 
 /** Per-kind accent colour + one-letter tag for the left rail. */
 const KIND_STYLE: Record<AlmanacKind, { color: string; tag: string }> = {
@@ -37,14 +42,19 @@ const PANEL_W = 400;
 const ROW_H = 34;
 const HEADER_H = 44;
 const SECTION_H = 18;
+/** Footer band: filter chip (y+h-30) + close hint (y+h-14) + padding. */
+const FOOTER_H = 40;
 
 export class AlmanacPanel {
   private opened = false;
   private lockoutMs = 0;
+  /** Active kind-filter. Resets to 'all' on open. */
+  private filter: AlmanacFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
+    this.filter = 'all';
   }
 
   close(): void {
@@ -69,13 +79,26 @@ export class AlmanacPanel {
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
   }
 
+  /** Cycle the kind-filter (all -> village -> birthdays -> personal). */
+  cycleFilter(): void {
+    if (!this.opened) return;
+    this.filter = nextAlmanacFilter(this.filter);
+  }
+
+  /** Read-only filter accessor — used by tests. */
+  currentFilter(): AlmanacFilter {
+    return this.filter;
+  }
+
   draw(ctx: CanvasRenderingContext2D, time: TimeOfDay, canvasW: number, canvasH: number, player?: Player): void {
     if (!this.opened) return;
-    const entries = buildAlmanac(time, undefined, player);
+    const allEntries = buildAlmanac(time, undefined, player);
+    const entries = applyAlmanacFilter(allEntries, this.filter);
     const sections = almanacSections(entries);
     const bodyRows = Math.max(entries.length, 1);
-    // Each section adds a small divider header above its rows.
-    const h = HEADER_H + bodyRows * ROW_H + sections.length * SECTION_H + 24;
+    // Each section adds a small divider header above its rows; a footer
+    // band holds the filter chip + close hint.
+    const h = HEADER_H + bodyRows * ROW_H + sections.length * SECTION_H + FOOTER_H;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -101,10 +124,16 @@ export class AlmanacPanel {
     ctx.fillText('next 2 weeks', x + PANEL_W - 16, y + 15);
 
     if (entries.length === 0) {
+      // Distinguish a genuinely quiet calendar from a filter that simply
+      // hid everything, so the player knows the agenda isn't broken — just
+      // narrowed.
+      const empty = allEntries.length === 0
+        ? 'A quiet stretch ahead — nothing on the calendar.'
+        : `Nothing ${almanacFilterLabel(this.filter)} in the next two weeks.`;
       ctx.fillStyle = DIM;
       ctx.font = '11px ui-monospace, monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('A quiet stretch ahead — nothing on the calendar.', x + PANEL_W / 2, y + HEADER_H + 8);
+      ctx.fillText(empty, x + PANEL_W / 2, y + HEADER_H + 8);
     } else {
       // Walk the sections, drawing a small TODAY / THIS WEEK / LATER
       // divider above each group so the agenda reads as buckets rather
@@ -119,6 +148,17 @@ export class AlmanacPanel {
         }
       }
     }
+
+    // Filter chip — surfaces even on 'all' so the `f` cycle is discoverable,
+    // and shows how many of the full agenda the active filter is showing.
+    ctx.fillStyle = FILTER_CHIP;
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(
+      `filter: ${almanacFilterLabel(this.filter)} (${entries.length}/${allEntries.length})  -  f to cycle`,
+      x + PANEL_W / 2,
+      y + h - 30,
+    );
 
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';

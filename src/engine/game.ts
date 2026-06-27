@@ -1286,11 +1286,17 @@ export class Game {
       }
     }
 
-    // 0: toggle the almanac of upcoming events.
+    // 0: toggle the almanac of upcoming events. While open, `f` cycles the
+    // kind-filter (all -> village -> birthdays -> personal); the global
+    // fishing `f` is guarded against the almanac being open below.
     if (this.input.justPressed.has('0')) {
       this.almanacPanel.toggle();
-    } else if (this.almanacPanel.isVisible() && this.almanacPanel.canAct() && this.input.justPressed.has('escape')) {
-      this.almanacPanel.close();
+    } else if (this.almanacPanel.isVisible() && this.almanacPanel.canAct()) {
+      if (this.input.justPressed.has('escape')) {
+        this.almanacPanel.close();
+      } else if (this.input.justPressed.has('f')) {
+        this.almanacPanel.cycleFilter();
+      }
     }
 
     // Tab: toggle the inventory / bag panel. While open, a/d (or arrows)
@@ -2102,11 +2108,10 @@ export class Game {
         }
       }
       // F: fishing — reel during a bite, lock-in timing during reel,
-      // otherwise try to cast into water. Suppressed when the lore
-      // panel is open and active, because the panel uses `f` to
-      // cycle the Rumors tab filter and we don't want a stray cast
-      // to fire underneath the panel.
-      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible()) {
+      // otherwise try to cast into water. Suppressed when the lore or
+      // almanac panel is open and active, because both use `f` to cycle
+      // their filter and we don't want a stray cast firing underneath.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible()) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {

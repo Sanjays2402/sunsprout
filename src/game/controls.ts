@@ -102,7 +102,7 @@ export const CONTROL_GROUPS: ControlGroup[] = [
       { keys: '?', label: 'This controls overlay' },
       { keys: 'Tab', label: 'Inventory / bag (f to sort)' },
       { keys: '9', label: 'Village minimap' },
-      { keys: '0', label: 'Almanac of upcoming days' },
+      { keys: '0', label: 'Almanac of upcoming days (f to filter)' },
       { keys: 'H', label: 'Hearts / relationships' },
       { keys: 'R', label: 'Recipe codex' },
       { keys: ';', label: 'Crop journal' },

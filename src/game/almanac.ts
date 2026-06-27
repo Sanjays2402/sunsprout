@@ -198,6 +198,63 @@ export interface AlmanacSection {
 export const ALMANAC_WEEK_MAX_DAYS = 6;
 
 /**
+ * Kind-filter for the planner so a player hunting one type of event ("when
+ * is the next birthday?") isn't scanning every row. A small, complete
+ * cycle that covers every AlmanacKind without a six-state slog:
+ *   - all:       everything (the default)
+ *   - village:   the village-wide scheduled happenings — festivals, Pip's
+ *                cart, and the friendship tournament
+ *   - birthdays: NPC birthdays
+ *   - personal:  the player's own accepted hangout commitments
+ * Mirrors the lore Rumors `f`-filter shape (a fixed cycle + a chip + the
+ * shared empty state when a filter matches nothing).
+ */
+export type AlmanacFilter = 'all' | 'village' | 'birthdays' | 'personal';
+
+/** Filter cycle order — `f` advances through these, wrapping at the end. */
+export const ALMANAC_FILTERS: readonly AlmanacFilter[] = ['all', 'village', 'birthdays', 'personal'] as const;
+
+/** Which AlmanacKinds each filter admits. 'all' admits everything. */
+const FILTER_KINDS: Record<Exclude<AlmanacFilter, 'all'>, readonly AlmanacKind[]> = {
+  village: ['festival', 'cart', 'tournament'],
+  birthdays: ['birthday'],
+  personal: ['personal'],
+};
+
+/** Advance to the next filter in the cycle, wrapping at the end. Pure. */
+export function nextAlmanacFilter(filter: AlmanacFilter): AlmanacFilter {
+  const i = ALMANAC_FILTERS.indexOf(filter);
+  return ALMANAC_FILTERS[(i + 1) % ALMANAC_FILTERS.length];
+}
+
+/** Short chip label for the active filter, e.g. "birthdays". Pure. */
+export function almanacFilterLabel(filter: AlmanacFilter): string {
+  switch (filter) {
+    case 'all':
+      return 'all';
+    case 'village':
+      return 'village';
+    case 'birthdays':
+      return 'birthdays';
+    case 'personal':
+      return 'personal';
+  }
+}
+
+/**
+ * Keep only the entries a filter admits, preserving the input order
+ * (already soonest-first). 'all' returns the list untouched. Pure.
+ */
+export function applyAlmanacFilter(
+  entries: readonly AlmanacEntry[],
+  filter: AlmanacFilter,
+): AlmanacEntry[] {
+  if (filter === 'all') return [...entries];
+  const kinds = FILTER_KINDS[filter];
+  return entries.filter((e) => kinds.includes(e.kind));
+}
+
+/**
  * Split a soonest-first almanac list into TODAY / THIS WEEK / LATER
  * sections so the planner reads as a grouped agenda instead of one long
  * countdown. Buckets by daysUntil:
