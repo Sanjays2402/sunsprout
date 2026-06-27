@@ -11,6 +11,7 @@ import {
   totalOut,
   classifyMoneyEntry,
   moneyCategoryTotals,
+  moneyLogDayGroups,
   type MoneyLogEntry,
 } from '../src/game/money-log';
 import { MoneyLogPanel } from '../src/ui/money-log-panel';
@@ -130,6 +131,67 @@ describe('moneyCategoryTotals', () => {
     const t = moneyCategoryTotals(w.player);
     expect(t.rewards).toBe(5);
     expect(t.sales).toBe(0);
+  });
+});
+
+describe('moneyLogDayGroups', () => {
+  function mkPlayer() {
+    return new World().player;
+  }
+
+  it('returns an empty list for an empty log', () => {
+    expect(moneyLogDayGroups(mkPlayer())).toEqual([]);
+  });
+
+  it('groups consecutive same-day rows into one run with its net', () => {
+    const p = mkPlayer();
+    logGold(p, 100, 'well: harvest', 1);
+    logGold(p, -25, 'shop: bouquet', 1);
+    logGold(p, 50, 'mining ruby', 2);
+    const groups = moneyLogDayGroups(p);
+    // Newest-first: day 2 group leads, day 1 group follows.
+    expect(groups.map((g) => g.day)).toEqual([2, 1]);
+    expect(groups[0].entries).toHaveLength(1);
+    expect(groups[0].net).toBe(50);
+    expect(groups[1].entries).toHaveLength(2);
+    expect(groups[1].net).toBe(75); // 100 - 25
+  });
+
+  it('preserves the newest-first row order inside a group', () => {
+    const p = mkPlayer();
+    logGold(p, 10, 'a', 3);
+    logGold(p, 20, 'b', 3);
+    const groups = moneyLogDayGroups(p);
+    expect(groups).toHaveLength(1);
+    // b was logged last so it sits at the front of the group.
+    expect(groups[0].entries.map((e) => e.reason)).toEqual(['b', 'a']);
+  });
+
+  it('every entry lands in exactly one group, in log order', () => {
+    const p = mkPlayer();
+    logGold(p, 5, 'one', 1);
+    logGold(p, 6, 'two', 2);
+    logGold(p, 7, 'three', 2);
+    logGold(p, 8, 'four', 4);
+    const groups = moneyLogDayGroups(p);
+    const flat = groups.flatMap((g) => g.entries);
+    expect(flat).toEqual(getMoneyLog(p));
+    // Three distinct days -> three groups.
+    expect(groups.map((g) => g.day)).toEqual([4, 2, 1]);
+  });
+
+  it('starts a new group if the same day reappears non-contiguously', () => {
+    // Defensive: if days ever interleave, the run-splitter must not merge
+    // the two day-N runs into one group.
+    const p = mkPlayer();
+    const log = getMoneyLog(p);
+    // Hand-build a non-contiguous order: day 1, day 2, day 1.
+    log.unshift({ delta: 1, reason: 'x', day: 1 });
+    log.unshift({ delta: 2, reason: 'y', day: 2 });
+    log.unshift({ delta: 3, reason: 'z', day: 1 });
+    const groups = moneyLogDayGroups(p);
+    expect(groups.map((g) => g.day)).toEqual([1, 2, 1]);
+    expect(groups.map((g) => g.entries.length)).toEqual([1, 1, 1]);
   });
 });
 

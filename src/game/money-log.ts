@@ -126,3 +126,39 @@ export function moneyCategoryTotals(player: Player): MoneyCategoryTotals {
   }
   return totals;
 }
+
+/**
+ * A run of consecutive same-day ledger rows, for the panel's day dividers.
+ * `net` is the signed sum of the run's deltas so the divider can carry a
+ * tiny per-day subtotal ("Day 4   +85g").
+ */
+export interface MoneyLogDayGroup {
+  day: number;
+  net: number;
+  entries: MoneyLogEntry[];
+}
+
+/**
+ * Group the (newest-first) ledger into runs of consecutive same-day rows
+ * so the panel can draw a small "Day N" divider above each run and the
+ * ledger reads as dated buckets instead of one flat list. Because the log
+ * is appended in chronological order (newest unshifted to the front) and
+ * trimmed from the back, same-day rows are always contiguous, so a simple
+ * consecutive-run split is correct — and stays robust if days ever
+ * interleave (it just starts a new group). Each group carries its signed
+ * net so the divider can show a per-day subtotal. Pure — reads only the
+ * log; preserves the newest-first order.
+ */
+export function moneyLogDayGroups(player: Player): MoneyLogDayGroup[] {
+  const groups: MoneyLogDayGroup[] = [];
+  for (const e of getMoneyLog(player)) {
+    const last = groups[groups.length - 1];
+    if (last && last.day === e.day) {
+      last.entries.push(e);
+      last.net += e.delta;
+    } else {
+      groups.push({ day: e.day, net: e.delta, entries: [e] });
+    }
+  }
+  return groups;
+}

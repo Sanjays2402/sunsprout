@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, type MoneyCategory } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, moneyLogDayGroups, type MoneyCategory } from '../game/money-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -33,6 +33,8 @@ const RAIL_COLOR: Record<MoneyCategory, string> = {
 
 const PANEL_W = 340;
 const ROW_H = 18;
+/** Day-divider band height — a small "Day N" header above each day's run. */
+const DAY_DIVIDER_H = 14;
 
 export class MoneyLogPanel {
   private opened = false;
@@ -70,11 +72,15 @@ export class MoneyLogPanel {
     const log = getMoneyLog(player);
     const rows = log.slice(0, 20);
     const visible = Math.max(rows.length, 1);
+    // Day-group dividers add a small "Day N" band above each day's run, so
+    // the panel grows by one band per distinct day in the window.
+    const dayGroups = moneyLogDayGroups(player);
+    const dividersH = rows.length === 0 ? 0 : dayGroups.length * DAY_DIVIDER_H;
     // Reserve a second line of body space for the empty state's hint.
     // When there are rows, reserve a footer band for the per-category
     // totals line (sales / rewards / spent) above the close hint.
     const footerH = rows.length === 0 ? 0 : 16;
-    const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + footerH + 22;
+    const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + dividersH + footerH + 22;
     const x = 12;
     const y = 40;
 
@@ -113,29 +119,33 @@ export class MoneyLogPanel {
     if (rows.length === 0) {
       drawEmptyState(ctx, PANEL_EMPTY_STATES.moneyLog, x + PANEL_W / 2, y + 58);
     } else {
-      for (let i = 0; i < rows.length; i++) {
-        const r = rows[i];
-        const ry = y + 54 + i * ROW_H;
-        // Category colour rail — a thin left bar tinted sale/reward/purchase
-        // so the ledger scans by hue like the toast stack. Drawn first so
-        // the day stamp + reason text sit just to its right.
-        ctx.fillStyle = RAIL_COLOR[classifyMoneyEntry(r)];
-        ctx.fillRect(x + 12, ry, 3, ROW_H - 3);
-        // Day stamp
-        ctx.fillStyle = DIM;
-        ctx.textAlign = 'left';
-        ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText(`d${r.day}`, x + 20, ry + 2);
-        // Reason in the middle
-        ctx.fillStyle = TEXT_COLOR;
-        ctx.font = '11px ui-monospace, monospace';
-        ctx.fillText(r.reason, x + 48, ry + 1);
-        // Delta in colour on the right
-        ctx.fillStyle = r.delta >= 0 ? GAIN : LOSS;
-        ctx.font = 'bold 11px ui-monospace, monospace';
-        ctx.textAlign = 'right';
-        const tag = r.delta >= 0 ? `+${r.delta}g` : `${r.delta}g`;
-        ctx.fillText(tag, x + PANEL_W - 12, ry + 1);
+      // Walk the day groups, drawing a small "Day N  +/-net" divider above
+      // each day's run so the ledger reads as dated buckets. A running ry
+      // advances by a divider band then each row in the group.
+      let ry = y + 54;
+      for (const group of dayGroups) {
+        this.drawDayDivider(ctx, group.day, group.net, x, ry);
+        ry += DAY_DIVIDER_H;
+        for (const r of group.entries) {
+          // Category colour rail — a thin left bar tinted sale/reward/purchase
+          // so the ledger scans by hue like the toast stack. Drawn first so
+          // the reason text sits just to its right (the day stamp is now the
+          // divider's job, so the row leads with the reason).
+          ctx.fillStyle = RAIL_COLOR[classifyMoneyEntry(r)];
+          ctx.fillRect(x + 12, ry, 3, ROW_H - 3);
+          // Reason on the left, indented past the rail.
+          ctx.fillStyle = TEXT_COLOR;
+          ctx.textAlign = 'left';
+          ctx.font = '11px ui-monospace, monospace';
+          ctx.fillText(r.reason, x + 22, ry + 1);
+          // Delta in colour on the right
+          ctx.fillStyle = r.delta >= 0 ? GAIN : LOSS;
+          ctx.font = 'bold 11px ui-monospace, monospace';
+          ctx.textAlign = 'right';
+          const tag = r.delta >= 0 ? `+${r.delta}g` : `${r.delta}g`;
+          ctx.fillText(tag, x + PANEL_W - 12, ry + 1);
+          ry += ROW_H;
+        }
       }
     }
 
@@ -173,5 +183,37 @@ export class MoneyLogPanel {
     ctx.textAlign = 'center';
     ctx.fillText('Q or Esc to close', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /**
+   * Small "Day N" divider above a day's run of rows, with a faint signed
+   * net subtotal on the right so the player can read each day's bottom line
+   * at a glance. Mirrors the section-divider language of the codex /
+   * almanac panels (dim bold label + a trailing rule).
+   */
+  private drawDayDivider(
+    ctx: CanvasRenderingContext2D,
+    day: number,
+    net: number,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = DIM;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    const label = `DAY ${day}`;
+    ctx.fillText(label, x + 12, ry + 3);
+    const labelW = ctx.measureText(label).width;
+    // Signed net subtotal, right-aligned and tinted like a delta but dim so
+    // it reads as a summary, not a row.
+    const netTag = `${net >= 0 ? '+' : ''}${net}g`;
+    ctx.textAlign = 'right';
+    ctx.fillStyle = net >= 0 ? 'rgba(163, 215, 122, 0.6)' : 'rgba(224, 122, 138, 0.6)';
+    ctx.fillText(netTag, x + PANEL_W - 12, ry + 3);
+    const netW = ctx.measureText(netTag).width;
+    // A thin rule between the label and the net tag.
+    ctx.fillStyle = 'rgba(74, 59, 110, 0.5)';
+    ctx.fillRect(x + 12 + labelW + 8, ry + 7, PANEL_W - 24 - labelW - netW - 16, 1);
   }
 }
