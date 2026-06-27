@@ -4,6 +4,8 @@ import { World } from '../src/world/world';
 import { TimeOfDay } from '../src/game/time';
 import {
   relationshipRows,
+  relationshipSummary,
+  relationshipSummaryLine,
   birthdayCountdownLabel,
   prettyGiftKey,
   statusChipLabel,
@@ -188,5 +190,90 @@ describe('gift-readiness chip', () => {
       expect(label.length).toBeLessThanOrEqual(12);
       expect(giftChipColor(r.giftTaste)).toMatch(/^#[0-9A-Fa-f]{6}$/);
     }
+  });
+});
+
+describe('relationshipSummary', () => {
+  it('returns an empty digest for no rows', () => {
+    const s = relationshipSummary([]);
+    expect(s.closest).toBeNull();
+    expect(s.married).toBe(0);
+    expect(s.engaged).toBe(0);
+    expect(s.nextBirthday).toBeNull();
+    expect(relationshipSummaryLine(s)).toBe('');
+  });
+
+  it('names the closest candidate (the sorted first row)', () => {
+    const p = freshPlayer();
+    const t = new TimeOfDay(6);
+    for (let d = 1; d <= 4; d++) giveGift(p.hearts!, 'maple', 'ruby', d);
+    const rows = relationshipRows(p, t);
+    const s = relationshipSummary(rows);
+    expect(s.closest?.name).toBe(rows[0].name);
+    expect(s.closest?.hearts).toBe(rows[0].hearts);
+    expect(s.closest?.max).toBe(MAX_HEARTS);
+    expect(relationshipSummaryLine(s)).toContain(`closest ${rows[0].name}`);
+  });
+
+  it('tallies marriages and engagements', () => {
+    const p = freshPlayer();
+    p.marriage = { npcId: 'rose', day: 4 };
+    p.engagement = { npcId: 'finn', day: 2 };
+    const s = relationshipSummary(relationshipRows(p, new TimeOfDay(6)));
+    expect(s.married).toBe(1);
+    expect(s.engaged).toBe(1);
+  });
+
+  it('finds the single soonest birthday across all candidates', () => {
+    const p = freshPlayer();
+    const t = new TimeOfDay(6);
+    const b = BIRTHDAYS.maple;
+    t.season = b.season;
+    t.day = b.day; // Maple's birthday is today (0 days).
+    const s = relationshipSummary(relationshipRows(p, t));
+    expect(s.nextBirthday?.name).toBe(CANDIDATES.maple.name);
+    expect(s.nextBirthday?.days).toBe(0);
+  });
+
+  it('prioritises an imminent birthday over a marriage tally in the line', () => {
+    const p = freshPlayer();
+    const t = new TimeOfDay(6);
+    p.marriage = { npcId: 'rose', day: 4 };
+    const b = BIRTHDAYS.maple;
+    t.season = b.season;
+    t.day = b.day;
+    const line = relationshipSummaryLine(relationshipSummary(relationshipRows(p, t)));
+    expect(line).toContain('bday today');
+    expect(line).not.toContain('wed');
+  });
+
+  it('falls back to the wed/vow tally when no birthday is imminent', () => {
+    const s = relationshipSummary([
+      {
+        id: 'rose',
+        name: 'Rose',
+        hearts: 8,
+        max: MAX_HEARTS,
+        daysUntilBirthday: 20,
+        birthdayLine: 'birthday in 20d',
+        lovedHint: '',
+        lovedGlyphKey: null,
+        status: 'married',
+        giftReady: false,
+        giftTaste: null,
+      },
+    ]);
+    const line = relationshipSummaryLine(s);
+    expect(line).toContain('1 wed');
+    expect(line).not.toContain('bday');
+  });
+
+  it('keeps the line ASCII and reasonably short', () => {
+    const p = freshPlayer();
+    const line = relationshipSummaryLine(
+      relationshipSummary(relationshipRows(p, new TimeOfDay(6))),
+    );
+    expect(/^[\x20-\x7E]*$/.test(line)).toBe(true);
+    expect(line.length).toBeLessThanOrEqual(48);
   });
 });

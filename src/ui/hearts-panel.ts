@@ -173,6 +173,73 @@ export function relationshipRows(
   return rows;
 }
 
+/**
+ * Glance-level digest of the whole relationships screen — the summary
+ * cousin of the quest-log %-complete and almanac count-summary headers.
+ * Surfaces who the player is closest to, how many marriages / engagements
+ * are on the books, and the single soonest birthday across everyone so
+ * the player doesn't have to scan all four rows to find the next 8x gift
+ * day. Pure: derives entirely from the already-built relationship rows.
+ */
+export interface RelationshipSummary {
+  /** The closest candidate (rows are pre-sorted by closeness), or null. */
+  closest: { name: string; hearts: number; max: number } | null;
+  /** How many candidates the player has married / is engaged to. */
+  married: number;
+  engaged: number;
+  /** The soonest upcoming birthday across all candidates, or null. */
+  nextBirthday: { name: string; days: number } | null;
+}
+
+export function relationshipSummary(
+  rows: readonly RelationshipRow[],
+): RelationshipSummary {
+  if (rows.length === 0) {
+    return { closest: null, married: 0, engaged: 0, nextBirthday: null };
+  }
+  // rows[0] is the closest by the existing closeness sort.
+  const closest = { name: rows[0].name, hearts: rows[0].hearts, max: rows[0].max };
+  let married = 0;
+  let engaged = 0;
+  let nextBirthday: { name: string; days: number } | null = null;
+  for (const r of rows) {
+    if (r.status === 'married') married += 1;
+    else if (r.status === 'engaged') engaged += 1;
+    if (nextBirthday === null || r.daysUntilBirthday < nextBirthday.days) {
+      nextBirthday = { name: r.name, days: r.daysUntilBirthday };
+    }
+  }
+  return { closest, married, engaged, nextBirthday };
+}
+
+/**
+ * Render the relationship summary as one compact caption line. Always
+ * leads with the closest candidate; then appends the single most useful
+ * second segment — an imminent birthday (within 14 days, since that's the
+ * actionable 8x gift window) takes priority over a marriage/engagement
+ * tally so the time-sensitive cue wins. '' when there are no rows (the
+ * panel then draws no caption + collapses the band). Pure.
+ */
+export function relationshipSummaryLine(s: RelationshipSummary): string {
+  if (!s.closest) return '';
+  const segs = [`closest ${s.closest.name} ${s.closest.hearts}/${s.closest.max}`];
+  if (s.nextBirthday && s.nextBirthday.days <= 14) {
+    const d = s.nextBirthday.days;
+    const when = d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `${d}d`;
+    // Drop the repeated name when the soonest birthday belongs to the
+    // person we just named as closest (common on a fresh save where the
+    // closeness tie breaks on birthday), so the line doesn't stutter.
+    const who = s.nextBirthday.name === s.closest.name ? '' : `${s.nextBirthday.name} `;
+    segs.push(`${who}bday ${when}`);
+  } else if (s.married > 0 || s.engaged > 0) {
+    const tags: string[] = [];
+    if (s.married > 0) tags.push(`${s.married} wed`);
+    if (s.engaged > 0) tags.push(`${s.engaged} vow`);
+    segs.push(tags.join(', '));
+  }
+  return segs.join('  -  ');
+}
+
 /** Short status chip label, or '' for a single candidate. */
 export function statusChipLabel(status: RelationshipStatus): string {
   if (status === 'married') return 'wed';
@@ -237,9 +304,16 @@ export function drawHeartsPanel(
   const rows = relationshipRows(player, time);
   if (rows.length === 0) return;
 
+  // Glance-level summary caption under the title — the digest cousin of
+  // the quest-log %-complete + almanac count-summary headers. Present
+  // only when there are rows (always, here), so the band offsets the
+  // first row by a fixed summaryH the same way the other panels do.
+  const summaryLine = relationshipSummaryLine(relationshipSummary(rows));
+  const summaryH = summaryLine ? 14 : 0;
+
   const w = 264;
   const rowH = 34;
-  const h = 32 + rows.length * rowH + 6;
+  const h = 32 + summaryH + rows.length * rowH + 6;
   const x = canvasW - w - 12;
   const y = 40;
 
@@ -256,9 +330,16 @@ export function drawHeartsPanel(
   ctx.textBaseline = 'top';
   ctx.fillText('relationships  (H)', x + 8, y + 6);
 
+  // Summary caption — dim digest line, drawn in the band under the title.
+  if (summaryLine) {
+    ctx.fillStyle = HINT;
+    ctx.font = '9px ui-monospace, monospace';
+    ctx.fillText(summaryLine, x + 8, y + 20);
+  }
+
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const ry = y + 26 + i * rowH;
+    const ry = y + 26 + summaryH + i * rowH;
 
     // Line 1: name (+ status chip) on the left, heart strip on the right.
     ctx.font = '11px ui-monospace, monospace';
