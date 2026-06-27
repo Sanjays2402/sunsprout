@@ -15,7 +15,11 @@ import {
   questCounts,
   questLogSections,
   questProgressSummary,
+  applyQuestFilter,
+  cycleQuestFilter,
+  questFilterLabel,
   type QuestLogEntry,
+  type QuestFilter,
 } from '../game/quest-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
@@ -31,6 +35,7 @@ const DONE_PIP = '#A3D77A';
 const ACTIVE_PIP = '#F0C24A';
 const SECTION_LINE = 'rgba(74, 59, 110, 0.6)';
 const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
+const FILTER_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 const PANEL_W = 460;
 const ROW_H = 46;
@@ -50,11 +55,14 @@ export class QuestLogPanel {
   private opened = false;
   private lockoutMs = 0;
   private scroll = 0;
+  /** Panel-local status filter. Resets to 'all' on open. */
+  private filter: QuestFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
     this.scroll = 0;
+    this.filter = 'all';
   }
 
   close(): void {
@@ -72,6 +80,18 @@ export class QuestLogPanel {
 
   canAct(): boolean {
     return this.opened && this.lockoutMs <= 0;
+  }
+
+  /** Active status filter — exposed for tests. */
+  currentFilter(): QuestFilter {
+    return this.filter;
+  }
+
+  /** Cycle the status filter (all -> active -> done). Resets scroll. */
+  cycleFilter(): void {
+    if (!this.opened) return;
+    this.filter = cycleQuestFilter(this.filter);
+    this.scroll = 0;
   }
 
   update(dtMs: number): void {
@@ -92,7 +112,8 @@ export class QuestLogPanel {
 
   /** Flatten the active/done sections into one scrollable line list. */
   private displayItems(player: Player): DisplayItem[] {
-    const sections = questLogSections(buildQuestLog(player));
+    const filtered = applyQuestFilter(buildQuestLog(player), this.filter);
+    const sections = questLogSections(filtered);
     const items: DisplayItem[] = [];
     for (const s of sections) {
       items.push({ kind: 'header', header: s.header, count: s.rows.length });
@@ -138,12 +159,19 @@ export class QuestLogPanel {
     const visN = this.visibleCountFrom(items, start);
     const end = start + visN;
 
-    // Empty board reserves two body rows for the message + hint; otherwise
-    // the fixed body budget keeps the panel height constant. A progress
-    // summary band sits under the header whenever there are quests.
+    // The whole board having quests vs. the active FILTER hiding every row
+    // are different empty states: the former shows the shared empty panel,
+    // the latter a "nothing X - press f" note so the player isn't stranded.
+    const hasAnyRows = rows.length > 0;
+    const filterEmpty = hasAnyRows && items.length === 0;
+    const showEmpty = !hasAnyRows || filterEmpty;
+
+    // Empty board / filtered-empty reserves two body rows for the message +
+    // hint; otherwise the fixed body budget keeps the panel height constant.
+    // A progress summary band sits under the header whenever there are quests.
     const summary = questProgressSummary(player);
     const summaryH = rows.length === 0 ? 0 : SUMMARY_H;
-    const bodyH = rows.length === 0 ? 2 * ROW_H : BODY_H;
+    const bodyH = showEmpty ? 2 * ROW_H : BODY_H;
     const h = 70 + summaryH + bodyH + 22;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
@@ -163,6 +191,16 @@ export class QuestLogPanel {
     ctx.fillStyle = TITLE_COLOR;
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText("quest log  ( ' )", x + 14, y + 12);
+
+    // Filter chip — dim pill right of the title when the filter narrows the
+    // view, so the `f` cycle is discoverable. Quiet on 'all' (no narrowing).
+    if (this.filter !== 'all') {
+      ctx.font = 'bold 14px ui-monospace, monospace';
+      const titleW = ctx.measureText("quest log  ( ' )").width;
+      ctx.fillStyle = FILTER_CHIP;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`- ${questFilterLabel(this.filter)}`, x + 14 + titleW + 8, y + 15);
+    }
 
     ctx.fillStyle = DIM;
     ctx.font = '11px ui-monospace, monospace';
@@ -192,8 +230,19 @@ export class QuestLogPanel {
     ctx.fillStyle = SECTION_LINE;
     ctx.fillRect(x + 14, y + 38 + summaryH, PANEL_W - 28, 1);
 
-    if (rows.length === 0) {
-      drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
+    if (showEmpty) {
+      if (filterEmpty) {
+        // The board has quests but the filter hid them all — a plain note
+        // pointing at the `f` cycle so the view isn't a dead end.
+        ctx.fillStyle = HINT;
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(`no ${questFilterLabel(this.filter)} quests`, x + PANEL_W / 2, y + 56 + summaryH);
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 72 + summaryH);
+      } else {
+        drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
+      }
     } else {
       // Walk the visible display items, drawing ACTIVE / DONE dividers +
       // quest rows in one pass so the groups stay legible while scrolling.
@@ -221,7 +270,10 @@ export class QuestLogPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText("' or Esc to close - arrows or w/s to scroll", x + PANEL_W / 2, y + h - 14);
+    const closeHint = hasAnyRows
+      ? "' or Esc to close - w/s scroll - f filter"
+      : "' or Esc to close - arrows or w/s to scroll";
+    ctx.fillText(closeHint, x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 

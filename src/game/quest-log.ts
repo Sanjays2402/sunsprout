@@ -196,3 +196,42 @@ export function questLogSections(rows: readonly QuestLogEntry[]): QuestSection[]
   }
   return out;
 }
+
+/**
+ * Panel-local quest filter so a player on a long board can isolate just
+ * the active work (or just review what they've finished) without scanning
+ * past the other group. Cycles all -> active -> done, each keeping one
+ * QuestStatus (all keeps everything). The quest log is a non-blocking
+ * read-while-walking overlay with no a/d nav, so a panel-local `f` cycle
+ * is the right shape (mirrors the money-log / almanac / codex filters);
+ * the global fishing `f` is guarded against the open panel.
+ */
+export type QuestFilter = 'all' | 'active' | 'done';
+
+/** Cycle order for the `f` keypress. */
+export const QUEST_FILTERS: readonly QuestFilter[] = ['all', 'active', 'done'] as const;
+
+/** Advance to the next filter, wrapping at the end. Pure. */
+export function cycleQuestFilter(f: QuestFilter): QuestFilter {
+  const i = QUEST_FILTERS.indexOf(f);
+  return QUEST_FILTERS[(i + 1) % QUEST_FILTERS.length];
+}
+
+/** Short chip label for the active filter. Pure. */
+export function questFilterLabel(f: QuestFilter): string {
+  return f; // 'all' / 'active' / 'done' read fine as-is.
+}
+
+/**
+ * Keep only the quest rows matching the active filter, by status. 'all'
+ * returns the input untouched (a fresh array for caller safety),
+ * preserving the active-then-done order in every case. Pure.
+ */
+export function applyQuestFilter(
+  rows: readonly QuestLogEntry[],
+  filter: QuestFilter,
+): QuestLogEntry[] {
+  if (filter === 'all') return rows.slice();
+  const status: QuestStatus = filter === 'active' ? 'active' : 'completed';
+  return rows.filter((r) => r.status === status);
+}

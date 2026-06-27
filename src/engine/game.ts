@@ -1230,12 +1230,17 @@ export class Game {
       }
     }
 
-    // ': toggle the quest log panel.
+    // ': toggle the quest log panel. While open, `f` cycles the status
+    // filter (all -> active -> done); arrows / w/s scroll. Non-blocking
+    // read-while-walking overlay, so the panel-local `f` is guarded out of
+    // the fishing path below like the other filter panels.
     if (this.input.justPressed.has("'")) {
       this.questLogPanel.toggle();
     } else if (this.questLogPanel.isVisible() && this.questLogPanel.canAct()) {
       if (this.input.justPressed.has('escape')) {
         this.questLogPanel.close();
+      } else if (this.input.justPressed.has('f')) {
+        this.questLogPanel.cycleFilter();
       } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
         this.questLogPanel.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
@@ -2142,11 +2147,10 @@ export class Game {
         }
       }
       // F: fishing — reel during a bite, lock-in timing during reel,
-      // otherwise try to cast into water. Suppressed when the lore,
-      // almanac, money-log, or recipe-codex panel is open and active,
-      // because all of them use `f` to cycle their filter and we don't
-      // want a stray cast firing underneath.
-      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible()) {
+      // otherwise try to cast into water. Suppressed when any panel that
+      // binds `f` to a filter is open and active (lore, almanac, money-log,
+      // recipe-codex, quest-log), so a stray cast can't fire underneath.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible() && !this.questLogPanel.isVisible()) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {
