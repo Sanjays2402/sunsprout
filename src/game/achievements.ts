@@ -368,6 +368,47 @@ export function earnedCount(player: Player): number {
   return getEarned(player).length;
 }
 
+/**
+ * Glance-level "what's next" digest for the achievements panel header —
+ * the summary cousin of the quest-log %-complete + relationship summary.
+ * Names the next locked badge (in catalog/display order, the natural
+ * "up next" the panel scrolls toward) plus the earned/remaining tally so
+ * the player has a goal without scanning the whole list. `nextName` is
+ * null once every badge is earned. Pure: reads the built rows.
+ */
+export interface AchievementsNextUp {
+  earned: number;
+  total: number;
+  remaining: number;
+  /** Name of the next locked badge, or null when all are earned. */
+  nextName: string | null;
+}
+
+export function achievementsNextUp(
+  rows: readonly AchievementRow[],
+): AchievementsNextUp {
+  const earned = rows.filter((r) => r.earned).length;
+  const next = rows.find((r) => !r.earned) ?? null;
+  return {
+    earned,
+    total: rows.length,
+    remaining: rows.length - earned,
+    nextName: next ? next.name : null,
+  };
+}
+
+/**
+ * Render the next-up digest as one caption line:
+ *   "7 earned, 19 to go - next: Star Grower"
+ * Drops the "next:" clause once everything is earned ("26 earned - all
+ * done!"). '' when the catalog is somehow empty. Pure.
+ */
+export function achievementsNextUpLine(n: AchievementsNextUp): string {
+  if (n.total === 0) return '';
+  if (n.nextName === null) return `${n.earned} earned - all done!`;
+  return `${n.earned} earned, ${n.remaining} to go - next: ${n.nextName}`;
+}
+
 /** Earn-state bucket for the panel's section dividers. */
 export type AchievementSectionKey = 'earned' | 'locked';
 

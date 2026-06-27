@@ -16,6 +16,8 @@ import type { Player } from '../world/world';
 import {
   buildAchievements,
   achievementSections,
+  achievementsNextUp,
+  achievementsNextUpLine,
   type AchievementRow,
 } from '../game/achievements';
 import { ribbonHallCaption } from '../game/ribbon-hall';
@@ -29,6 +31,7 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const EARNED_PIP = '#F0C24A';
 const LOCKED_PIP = '#7a6a9a';
 const RIBBON_CAPTION = '#E8B23A';
+const NEXTUP_CAPTION = 'rgba(245, 233, 212, 0.6)';
 const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
 
 const PANEL_W = 440;
@@ -141,7 +144,14 @@ export class AchievementsPanel {
 
     const caption = ribbonHallCaption(player);
     const captionH = caption ? 18 : 0;
-    const h = 40 + BODY_H + 22 + captionH;
+    // Next-up digest band under the title — names the next locked badge +
+    // the earned/remaining tally so the player has a goal at a glance. The
+    // header already shows the bare earned/total fraction top-right; this
+    // adds the actionable "next" target. Always present (the catalog is
+    // never empty), so it's a fixed band that offsets the body.
+    const nextUpLine = achievementsNextUpLine(achievementsNextUp(rows));
+    const nextUpH = nextUpLine ? 16 : 0;
+    const h = 40 + nextUpH + BODY_H + 22 + captionH;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -168,9 +178,19 @@ export class AchievementsPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${earned}/${rows.length}`, x + PANEL_W - 14, y + 14);
 
+    // Next-up caption — dim digest under the title naming the badge the
+    // player is closest to (next locked in display order). Drawn in the
+    // band the body offset reserves.
+    if (nextUpLine) {
+      ctx.fillStyle = NEXTUP_CAPTION;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(nextUpLine, x + 14, y + 32);
+    }
+
     // Walk the visible display items, drawing dividers + rows in one pass
     // so the EARNED / LOCKED groups stay legible while the list scrolls.
-    let ry = y + 40;
+    let ry = y + 40 + nextUpH;
     for (let i = start; i < end; i++) {
       const item = items[i];
       if (item.kind === 'header') {
