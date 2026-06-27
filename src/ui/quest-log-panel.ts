@@ -14,6 +14,7 @@ import {
   buildQuestLog,
   questCounts,
   questLogSections,
+  questProgressSummary,
   type QuestLogEntry,
 } from '../game/quest-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
@@ -35,6 +36,8 @@ const PANEL_W = 460;
 const ROW_H = 46;
 /** Section-divider band height (label + breathing room). */
 const SECTION_H = 18;
+/** Header progress-summary band — "X% done - next: <quest>" caption. */
+const SUMMARY_H = 16;
 /** Fixed body budget — holds ~6 quest rows plus both dividers. */
 const BODY_H = 6 * ROW_H + 2 * SECTION_H;
 
@@ -136,9 +139,12 @@ export class QuestLogPanel {
     const end = start + visN;
 
     // Empty board reserves two body rows for the message + hint; otherwise
-    // the fixed body budget keeps the panel height constant.
+    // the fixed body budget keeps the panel height constant. A progress
+    // summary band sits under the header whenever there are quests.
+    const summary = questProgressSummary(player);
+    const summaryH = rows.length === 0 ? 0 : SUMMARY_H;
     const bodyH = rows.length === 0 ? 2 * ROW_H : BODY_H;
-    const h = 70 + bodyH + 22;
+    const h = 70 + summaryH + bodyH + 22;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -163,16 +169,35 @@ export class QuestLogPanel {
     ctx.textAlign = 'right';
     ctx.fillText(`${counts.completed}/${counts.total} done`, x + PANEL_W - 14, y + 14);
 
+    // Progress summary caption — overall completion percent + the active
+    // quest nearest to done, so the player sees how far the whole board is
+    // AND what they're about to finish. Only when there are quests; the
+    // divider + body shift down by SUMMARY_H to match.
+    if (rows.length > 0) {
+      const pctText = `${summary.completedPct}% complete`;
+      const nextText = summary.closest
+        ? `  -  next: ${summary.closest.name} (${summary.closest.progress}/${summary.closest.goal})`
+        : '  -  all quests complete';
+      ctx.textAlign = 'left';
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.fillStyle = ACCENT;
+      ctx.fillText(pctText, x + 14, y + 32);
+      const pctW = ctx.measureText(pctText).width;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillStyle = HINT;
+      ctx.fillText(nextText, x + 14 + pctW, y + 32);
+    }
+
     // Section divider under the header — keeps the title tidy.
     ctx.fillStyle = SECTION_LINE;
-    ctx.fillRect(x + 14, y + 38, PANEL_W - 28, 1);
+    ctx.fillRect(x + 14, y + 38 + summaryH, PANEL_W - 28, 1);
 
     if (rows.length === 0) {
       drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
     } else {
       // Walk the visible display items, drawing ACTIVE / DONE dividers +
       // quest rows in one pass so the groups stay legible while scrolling.
-      let ry = y + 50;
+      let ry = y + 50 + summaryH;
       for (let i = start; i < end; i++) {
         const item = items[i];
         if (item.kind === 'header') {

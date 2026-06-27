@@ -7,6 +7,7 @@ import {
   questCounts,
   questHint,
   questLogSections,
+  questProgressSummary,
 } from '../src/game/quest-log';
 import { QuestLogPanel } from '../src/ui/quest-log-panel';
 import { startingQuests, checkQuests, type Quest } from '../src/game/quests';
@@ -138,6 +139,66 @@ describe('questLogSections', () => {
     const sections = questLogSections(rows);
     const regrouped = sections.flatMap((s) => s.rows);
     expect(regrouped).toHaveLength(rows.length);
+  });
+});
+
+describe('questProgressSummary', () => {
+  it('reports 0% and no closest on an empty board', () => {
+    const w = new World();
+    const s = questProgressSummary(w.player);
+    expect(s.completedPct).toBe(0);
+    expect(s.closest).toBeNull();
+  });
+
+  it('floors the completed percentage', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    const total = (w.player.quests as Quest[]).length;
+    // Complete one of 11 -> 9.09% -> floors to 9.
+    (w.player.quests[0] as Quest).complete = true;
+    const s = questProgressSummary(w.player);
+    expect(s.completedPct).toBe(Math.floor((1 / total) * 100));
+  });
+
+  it('picks the active quest nearest to done by progress fraction', () => {
+    const w = new World();
+    const qs = startingQuests();
+    // wheat-five is 4/5 (0.8); good-neighbor 1/4 (0.25). The 4/5 wins.
+    const wheat = qs.find((q) => q.id === 'wheat-five')!;
+    wheat.progress = 4;
+    const neighbor = qs.find((q) => q.id === 'good-neighbor')!;
+    neighbor.progress = 1;
+    (w.player as { quests: Quest[] }).quests = qs;
+    const s = questProgressSummary(w.player);
+    expect(s.closest?.name).toBe(wheat.name);
+    expect(s.closest?.progress).toBe(4);
+    expect(s.closest?.goal).toBe(5);
+  });
+
+  it('skips completed quests when choosing the closest', () => {
+    const w = new World();
+    const qs = startingQuests();
+    // The most-progressed quest is complete — must be ignored.
+    const wheat = qs.find((q) => q.id === 'wheat-five')!;
+    wheat.progress = wheat.goal;
+    wheat.complete = true;
+    const neighbor = qs.find((q) => q.id === 'good-neighbor')!;
+    neighbor.progress = 2; // 2/4 = 0.5, the best ACTIVE fraction
+    (w.player as { quests: Quest[] }).quests = qs;
+    const s = questProgressSummary(w.player);
+    expect(s.closest?.name).toBe(neighbor.name);
+  });
+
+  it('returns a null closest when every quest is complete', () => {
+    const w = new World();
+    (w.player as { quests: Quest[] }).quests = startingQuests();
+    for (const q of w.player.quests as Quest[]) {
+      q.complete = true;
+      q.progress = q.goal;
+    }
+    const s = questProgressSummary(w.player);
+    expect(s.completedPct).toBe(100);
+    expect(s.closest).toBeNull();
   });
 });
 

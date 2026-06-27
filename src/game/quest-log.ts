@@ -111,6 +111,54 @@ export function questCounts(player: Player): { active: number; completed: number
   return { active, completed, total: quests.length };
 }
 
+/** A glanceable progress digest for the quest-log header. */
+export interface QuestProgressSummary {
+  /** Whole-percent of quests completed (0..100), 0 when there are none. */
+  completedPct: number;
+  /**
+   * The active quest nearest completion — highest progress/goal fraction,
+   * ties broken by FEWER steps remaining, then catalog order. Null when
+   * every quest is done (or there are none), so the header can fall back
+   * to a plain "all done" note.
+   */
+  closest: { name: string; progress: number; goal: number } | null;
+}
+
+/**
+ * Digest the quest board for the header: an overall completion percentage
+ * plus the active quest nearest to done, so a player opening the log sees
+ * BOTH how far along the whole board is and what they're about to finish —
+ * the same "surface the shape" move the almanac count summary makes. Pure:
+ * reads only player.quests. The percentage floors to a whole number; the
+ * "closest" pick maximises progress/goal (a quest with no goal can't
+ * occur — goals are always >= 1), tie-breaks to the one with the fewest
+ * remaining steps, then keeps catalog order via a stable scan.
+ */
+export function questProgressSummary(player: Player): QuestProgressSummary {
+  const quests = (player.quests as Quest[]) ?? [];
+  const total = quests.length;
+  const completed = quests.filter((q) => q.complete).length;
+  const completedPct = total === 0 ? 0 : Math.floor((completed / total) * 100);
+
+  let closest: { name: string; progress: number; goal: number } | null = null;
+  let bestFrac = -1;
+  let bestRemaining = Infinity;
+  for (const q of quests) {
+    if (q.complete) continue;
+    const goal = Math.max(1, q.goal);
+    const frac = q.progress / goal;
+    const remaining = goal - q.progress;
+    // Strictly-greater keeps the first-seen (catalog order) on a tie of
+    // fraction; within an equal fraction prefer fewer remaining steps.
+    if (frac > bestFrac || (frac === bestFrac && remaining < bestRemaining)) {
+      bestFrac = frac;
+      bestRemaining = remaining;
+      closest = { name: q.name, progress: q.progress, goal: q.goal };
+    }
+  }
+  return { completedPct, closest };
+}
+
 /** Earn-state bucket for the panel's section dividers. */
 export type QuestSectionKey = 'active' | 'completed';
 
