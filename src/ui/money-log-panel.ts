@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, type MoneyCategory } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, type MoneyCategory } from '../game/money-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -71,7 +71,10 @@ export class MoneyLogPanel {
     const rows = log.slice(0, 20);
     const visible = Math.max(rows.length, 1);
     // Reserve a second line of body space for the empty state's hint.
-    const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + 22;
+    // When there are rows, reserve a footer band for the per-category
+    // totals line (sales / rewards / spent) above the close hint.
+    const footerH = rows.length === 0 ? 0 : 16;
+    const h = 60 + (rows.length === 0 ? 2 : visible) * ROW_H + footerH + 22;
     const x = 12;
     const y = 40;
 
@@ -133,6 +136,35 @@ export class MoneyLogPanel {
         ctx.textAlign = 'right';
         const tag = r.delta >= 0 ? `+${r.delta}g` : `${r.delta}g`;
         ctx.fillText(tag, x + PANEL_W - 12, ry + 1);
+      }
+    }
+
+    // Per-category totals footer — a one-line breakdown of the logged
+    // window tinted to the rail colours (sales green / rewards violet /
+    // spent amber) so the player can read the shape of their economy at
+    // a glance without summing the rows. Only when there's something to
+    // total; sits just above the close hint.
+    if (rows.length > 0) {
+      const totals = moneyCategoryTotals(player);
+      const fy = y + h - 30;
+      ctx.textBaseline = 'top';
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      // Draw the three segments left-to-right, each prefixed by a small
+      // swatch of its rail colour so the line reads as the same dialect
+      // as the per-row rails above it.
+      const segs: Array<{ color: string; text: string }> = [
+        { color: RAIL_COLOR.sale, text: `sales +${totals.sales}g` },
+        { color: RAIL_COLOR.reward, text: `rewards +${totals.rewards}g` },
+        { color: RAIL_COLOR.purchase, text: `spent -${totals.spent}g` },
+      ];
+      let sx = x + 12;
+      for (const seg of segs) {
+        // Swatch
+        ctx.fillStyle = seg.color;
+        ctx.fillRect(sx, fy + 1, 3, 9);
+        ctx.textAlign = 'left';
+        ctx.fillText(seg.text, sx + 7, fy);
+        sx += 7 + ctx.measureText(seg.text).width + 12;
       }
     }
 

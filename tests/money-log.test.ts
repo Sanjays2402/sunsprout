@@ -10,6 +10,7 @@ import {
   totalIn,
   totalOut,
   classifyMoneyEntry,
+  moneyCategoryTotals,
   type MoneyLogEntry,
 } from '../src/game/money-log';
 import { MoneyLogPanel } from '../src/ui/money-log-panel';
@@ -90,6 +91,45 @@ describe('classifyMoneyEntry', () => {
     // Both are positive cart credits, but only the breeder trade is a sale.
     expect(classifyMoneyEntry(mk(3, 'cart: rumor rebate (Brass Lantern)'))).toBe('reward');
     expect(classifyMoneyEntry(mk(5, 'cart: rumor streak (Brass Lantern)'))).toBe('reward');
+  });
+});
+
+describe('moneyCategoryTotals', () => {
+  it('buckets the log into sales / rewards / spent', () => {
+    const w = new World();
+    logGold(w.player, 100, 'well: harvest', 1); // sale
+    logGold(w.player, 60, 'inn: dishes', 1); // sale
+    logGold(w.player, 120, 'hangout: Finn', 2); // reward
+    logGold(w.player, -25, 'shop: bouquet', 2); // spent
+    logGold(w.player, -200, 'bath house: soak', 3); // spent
+    const t = moneyCategoryTotals(w.player);
+    expect(t.sales).toBe(160);
+    expect(t.rewards).toBe(120);
+    expect(t.spent).toBe(225);
+  });
+
+  it('keeps the invariant sales+rewards==totalIn and spent==totalOut', () => {
+    const w = new World();
+    logGold(w.player, 70, 'mining Gold Nugget', 1); // sale
+    logGold(w.player, 30, 'board: Fetch Quest', 1); // reward
+    logGold(w.player, 5, 'compost recycle', 2); // reward
+    logGold(w.player, -300, 'shop: chest', 2); // spent
+    const t = moneyCategoryTotals(w.player);
+    expect(t.sales + t.rewards).toBe(totalIn(w.player));
+    expect(t.spent).toBe(totalOut(w.player));
+  });
+
+  it('returns zeros for an empty log', () => {
+    const w = new World();
+    expect(moneyCategoryTotals(w.player)).toEqual({ sales: 0, rewards: 0, spent: 0 });
+  });
+
+  it('does not count a cart rebate/streak credit as a sale', () => {
+    const w = new World();
+    logGold(w.player, 5, 'cart: rumor rebate (Brass Lantern)', 1);
+    const t = moneyCategoryTotals(w.player);
+    expect(t.rewards).toBe(5);
+    expect(t.sales).toBe(0);
   });
 });
 

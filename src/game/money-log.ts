@@ -101,3 +101,28 @@ export function classifyMoneyEntry(entry: MoneyLogEntry): MoneyCategory {
   }
   return 'reward';
 }
+
+/**
+ * Per-category totals across the whole logged window, derived through
+ * classifyMoneyEntry so the breakdown always agrees with the per-row
+ * colour rail. `sales` + `rewards` are positive inflows by category;
+ * `spent` is the absolute outflow (always >= 0). The three are disjoint
+ * and sum back to the gross flow: sales + rewards == totalIn, spent ==
+ * totalOut. Pure — reads only the log.
+ */
+export interface MoneyCategoryTotals {
+  sales: number;
+  rewards: number;
+  spent: number;
+}
+
+export function moneyCategoryTotals(player: Player): MoneyCategoryTotals {
+  const totals: MoneyCategoryTotals = { sales: 0, rewards: 0, spent: 0 };
+  for (const e of getMoneyLog(player)) {
+    const cat = classifyMoneyEntry(e);
+    if (cat === 'purchase') totals.spent += Math.abs(e.delta);
+    else if (cat === 'sale') totals.sales += e.delta;
+    else totals.rewards += e.delta;
+  }
+  return totals;
+}
