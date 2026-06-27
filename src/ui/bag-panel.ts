@@ -20,6 +20,7 @@ import {
   bagTotalValue,
   bagCategoryValue,
   bagItemWorth,
+  bagWorthShares,
   bagSellHint,
   bagSortLabel,
   cycleBagSort,
@@ -41,6 +42,22 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 const SELL_HINT = 'rgba(159, 205, 122, 0.66)';
+
+/**
+ * Per-category tint for the worth share bar — distinct, readable hues in
+ * the cozy palette so each slice is identifiable against the legend chip.
+ * Seeds / Supplies never carry worth so they're muted neutrals (they
+ * won't appear in the bar, but the map is total for type-safety).
+ */
+const CATEGORY_COLOR: Record<BagCategory, string> = {
+  Seeds: '#7a6a9a',
+  Crops: '#A3D77A',
+  Fish: '#6FB8D8',
+  Gems: '#E07AB0',
+  Forage: '#D8A24A',
+  Kitchen: '#F0C24A',
+  Supplies: '#9D8FB8',
+};
 
 const PANEL_W = 460;
 const ROW_H = 26;
@@ -163,6 +180,34 @@ export class BagPanel {
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`${stacks} stacks  -  ~${worth}g`, x + PANEL_W - 14, y + 14);
+
+    // Worth share bar — a tiny stacked bar in the gap under the title
+    // showing each category's SHARE of the whole-bag worth, so "where's
+    // my money" reads visually (like the crop-journal harvest mini-bar).
+    // The active tab's slice is outlined so the player can locate the
+    // current category in the mix. Drawn only when the bag has worth.
+    const BAR_FULL_W = PANEL_W - 28;
+    const shares = bagWorthShares(player, BAR_FULL_W);
+    if (shares.length > 0) {
+      const barX = x + 14;
+      const barY = y + 30;
+      const barH = 4;
+      // Faint track behind the segments.
+      ctx.fillStyle = 'rgba(74, 59, 110, 0.45)';
+      ctx.fillRect(barX, barY, BAR_FULL_W, barH);
+      let sx = barX;
+      for (const seg of shares) {
+        ctx.fillStyle = CATEGORY_COLOR[seg.category];
+        ctx.fillRect(sx, barY, seg.width, barH);
+        // Outline the active tab's slice so it stands out in the mix.
+        if (seg.category === this.currentCategory()) {
+          ctx.strokeStyle = TEXT_COLOR;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sx - 0.5, barY - 1.5, seg.width + 1, barH + 3);
+        }
+        sx += seg.width;
+      }
+    }
 
     // Tabs through the shared strip — one per bag category, sub line shows
     // each category's non-zero stack count.

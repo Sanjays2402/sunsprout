@@ -330,3 +330,65 @@ export function bagTotalValue(player: Player): number {
 export function bagItemWorth(item: BagItem): number {
   return item.count * item.unitValue;
 }
+
+/** One category's slice of the whole-bag worth, for the share bar. */
+export interface BagWorthSegment {
+  category: BagCategory;
+  /** Sellable worth of this category (count * unitValue summed). */
+  worth: number;
+  /** Pixel width of this category's segment in the stacked bar. */
+  width: number;
+}
+
+/**
+ * Lay out a stacked "where's my money" bar: one segment per category,
+ * each sized to its SHARE of the whole-bag worth, in the canonical
+ * category order. The widths use the same largest-remainder allocation as
+ * the crop-journal harvest mini-bar so they always sum exactly to
+ * `fullWidth`, and any category with a non-zero worth is guaranteed at
+ * least 1px (borrowed from the widest segment) so a small-but-real slice
+ * never vanishes. Categories with zero worth get a zero-width segment and
+ * are dropped, so the returned list only carries the bars worth drawing.
+ *
+ * Returns an empty list when the bag has no sellable worth or fullWidth is
+ * non-positive (the panel then draws nothing). Pure — no canvas.
+ */
+export function bagWorthShares(
+  player: Player,
+  fullWidth: number,
+): BagWorthSegment[] {
+  const worths = BAG_CATEGORIES.map((category) => ({
+    category,
+    worth: bagCategoryValue(player, category),
+  }));
+  const total = worths.reduce((s, w) => s + w.worth, 0);
+  if (total <= 0 || fullWidth <= 0) return [];
+  // Largest-remainder allocation of fullWidth across the categories by
+  // worth, so the segments always sum exactly to fullWidth.
+  const ideal = worths.map((w) => (w.worth / total) * fullWidth);
+  const widths = ideal.map((v) => Math.floor(v));
+  let used = widths.reduce((s, v) => s + v, 0);
+  const order = worths
+    .map((_, i) => i)
+    .sort((a, b) => (ideal[b] - widths[b]) - (ideal[a] - widths[a]));
+  let k = 0;
+  while (used < fullWidth) {
+    widths[order[k % widths.length]] += 1;
+    used += 1;
+    k += 1;
+  }
+  // Guarantee a non-zero-worth category is at least 1px, borrowing from
+  // the widest segment so the total stays exact.
+  for (let i = 0; i < widths.length; i++) {
+    if (worths[i].worth > 0 && widths[i] === 0) {
+      const widest = widths.indexOf(Math.max(...widths));
+      if (widths[widest] > 1) {
+        widths[widest] -= 1;
+        widths[i] += 1;
+      }
+    }
+  }
+  return worths
+    .map((w, i) => ({ category: w.category, worth: w.worth, width: widths[i] }))
+    .filter((s) => s.worth > 0);
+}

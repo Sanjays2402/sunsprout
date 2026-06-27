@@ -10,6 +10,7 @@ import {
   bagTotalValue,
   bagCategoryValue,
   bagItemWorth,
+  bagWorthShares,
   bagSellHint,
   bagSortLabel,
   cycleBagSort,
@@ -304,5 +305,62 @@ describe('bag empty states', () => {
       expect(emoji.test(s.message)).toBe(false);
       expect(emoji.test(s.hint)).toBe(false);
     }
+  });
+});
+
+describe('bagWorthShares', () => {
+  it('returns an empty list for a worthless or empty bag', () => {
+    expect(bagWorthShares(mkPlayer({}), 200)).toEqual([]);
+    // Seeds + supplies carry no sell value.
+    expect(bagWorthShares(mkPlayer({ wheat: 9, hoe: 1 }), 200)).toEqual([]);
+  });
+
+  it('returns an empty list for a non-positive width', () => {
+    expect(bagWorthShares(mkPlayer({ 'gem-ruby': 4 }), 0)).toEqual([]);
+    expect(bagWorthShares(mkPlayer({ 'gem-ruby': 4 }), -5)).toEqual([]);
+  });
+
+  it('only carries categories that actually hold worth', () => {
+    // Gems + crops have value; seeds do not.
+    const player = mkPlayer({ 'gem-ruby': 2, wheat_harvest: 3, wheat: 5 });
+    const segs = bagWorthShares(player, 200);
+    const cats = segs.map((s) => s.category);
+    expect(cats).toContain('Gems');
+    expect(cats).toContain('Crops');
+    expect(cats).not.toContain('Seeds');
+  });
+
+  it('keeps the canonical category order', () => {
+    const player = mkPlayer({ 'gem-ruby': 2, wheat_harvest: 3, 'fish-pike': 1 });
+    const segs = bagWorthShares(player, 200);
+    // Crops < Fish < Gems in BAG_CATEGORIES order.
+    expect(segs.map((s) => s.category)).toEqual(['Crops', 'Fish', 'Gems']);
+  });
+
+  it('segment widths sum exactly to the full width', () => {
+    const player = mkPlayer({ 'gem-ruby': 2, wheat_harvest: 7, 'fish-pike': 3 });
+    const segs = bagWorthShares(player, 137); // an awkward width to stress rounding
+    const sum = segs.reduce((s, seg) => s + seg.width, 0);
+    expect(sum).toBe(137);
+  });
+
+  it('sizes each segment proportionally to its worth share', () => {
+    // Make Gems worth roughly 3x Crops and confirm the wider slice wins.
+    const player = mkPlayer({ 'gem-ruby': 6, wheat_harvest: 2 });
+    const segs = bagWorthShares(player, 200);
+    const gems = segs.find((s) => s.category === 'Gems')!;
+    const crops = segs.find((s) => s.category === 'Crops')!;
+    expect(gems.worth).toBeGreaterThan(crops.worth);
+    expect(gems.width).toBeGreaterThan(crops.width);
+  });
+
+  it('never lets a small-but-real category vanish (>= 1px)', () => {
+    // One cheap crop against a huge gem pile — the crop slice must keep 1px.
+    const player = mkPlayer({ 'gem-ruby': 500, wheat_harvest: 1 });
+    const segs = bagWorthShares(player, 120);
+    const crops = segs.find((s) => s.category === 'Crops')!;
+    expect(crops.width).toBeGreaterThanOrEqual(1);
+    const sum = segs.reduce((s, seg) => s + seg.width, 0);
+    expect(sum).toBe(120);
   });
 });
