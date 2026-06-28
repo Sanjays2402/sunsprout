@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, type MoneyCategory, type MoneyFilter } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, type MoneyCategory, type MoneyFilter } from '../game/money-log';
 import { PANEL_EMPTY_STATES } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -19,6 +19,8 @@ const GAIN = '#A3D77A';
 const LOSS = '#E07A8A';
 const GOLD = '#F0C24A';
 const FILTER_CHIP = 'rgba(200, 182, 232, 0.7)';
+/** Faint running-balance figure — dim so it trails the delta, not competes. */
+const BALANCE_COLOR = 'rgba(245, 233, 212, 0.36)';
 
 /**
  * Per-category rail colour, mirroring the toast colour-rail language:
@@ -166,6 +168,14 @@ export class MoneyLogPanel {
       // Walk the day groups, drawing a small "Day N  +/-net" divider above
       // each day's run so the ledger reads as dated buckets. A running ry
       // advances by a divider band then each row in the group.
+      // Running-balance lookup is computed over the WHOLE log (anchored on
+      // current gold) so each shown row's "= Ng" trailing figure is the
+      // true purse after it posted, even when a filter hides rows between.
+      const balances = runningBalanceMap(player);
+      // Reserve a fixed right region for the delta + balance columns so the
+      // reason text clips before it can collide with either (a 5-digit
+      // balance like "= 20000g" is the widest the column gets).
+      const RIGHT_RESERVE = 120;
       let ry = y + 54;
       for (const group of dayGroups) {
         this.drawDayDivider(ctx, group.day, group.net, x, ry);
@@ -177,17 +187,27 @@ export class MoneyLogPanel {
           // divider's job, so the row leads with the reason).
           ctx.fillStyle = RAIL_COLOR[classifyMoneyEntry(r)];
           ctx.fillRect(x + 12, ry, 3, ROW_H - 3);
-          // Reason on the left, indented past the rail.
+          // Reason on the left, indented past the rail. Clipped to leave the
+          // right reserve free for the balance + delta columns.
           ctx.fillStyle = TEXT_COLOR;
           ctx.textAlign = 'left';
           ctx.font = '11px ui-monospace, monospace';
-          ctx.fillText(r.reason, x + 22, ry + 1);
+          ctx.fillText(r.reason, x + 22, ry + 1, PANEL_W - 22 - RIGHT_RESERVE);
           // Delta in colour on the right
           ctx.fillStyle = r.delta >= 0 ? GAIN : LOSS;
           ctx.font = 'bold 11px ui-monospace, monospace';
           ctx.textAlign = 'right';
           const tag = r.delta >= 0 ? `+${r.delta}g` : `${r.delta}g`;
           ctx.fillText(tag, x + PANEL_W - 12, ry + 1);
+          // Running balance — a faint "= Ng" just left of the delta so the
+          // player can trace how the purse reached its current value. Right-
+          // aligned at a fixed offset so the column stays tidy down the list.
+          const bal = balances.get(r);
+          if (bal !== undefined) {
+            ctx.fillStyle = BALANCE_COLOR;
+            ctx.font = '10px ui-monospace, monospace';
+            ctx.fillText(`= ${bal}g`, x + PANEL_W - 12 - 52, ry + 2);
+          }
           ry += ROW_H;
         }
       }

@@ -232,3 +232,56 @@ export function applyMoneyFilter(
   if (cat === null) return entries.slice();
   return entries.filter((e) => classifyMoneyEntry(e) === cat);
 }
+
+/**
+ * One ledger row paired with the gold-on-hand the player held immediately
+ * AFTER that row posted, so the panel can draw a faint running-balance
+ * column ("= 412g") letting the player trace how the purse reached its
+ * current value.
+ */
+export interface MoneyBalanceRow {
+  entry: MoneyLogEntry;
+  /** Gold on hand right after this entry posted. */
+  balance: number;
+}
+
+/**
+ * Reconstruct each ledger row's running balance by anchoring on the
+ * player's CURRENT gold and walking the newest-first log backwards: the
+ * newest entry's balance is exactly `player.gold` (it's the most recent
+ * change), and every older row's balance is the current gold minus the
+ * sum of every delta that posted AFTER it. Because the log is capped at
+ * MAX_ENTRIES the oldest visible balance is still exact — earlier trimmed
+ * deltas are already baked into `player.gold`, so anchoring forward keeps
+ * every shown figure honest even though we can't see past the window.
+ *
+ * Returns rows in the same newest-first order as the log, each carrying
+ * its source entry so a filtered/grouped view can look its balance up by
+ * reference (the filter + day-group pipeline preserves entry identity).
+ * Pure: reads only the log + player.gold.
+ */
+export function runningBalances(player: Player): MoneyBalanceRow[] {
+  const log = getMoneyLog(player);
+  const out: MoneyBalanceRow[] = [];
+  // `newerSum` accumulates the deltas of every row already visited (which
+  // are all newer than the current one, since we walk front = newest).
+  let newerSum = 0;
+  for (const entry of log) {
+    out.push({ entry, balance: player.gold - newerSum });
+    newerSum += entry.delta;
+  }
+  return out;
+}
+
+/**
+ * Build a reference-keyed lookup from ledger entry to its running balance,
+ * so a panel walking a FILTERED or day-grouped slice (which preserves the
+ * original entry object references) can fetch each row's true balance —
+ * computed over the WHOLE log so hidden rows still count toward the
+ * figure. Pure.
+ */
+export function runningBalanceMap(player: Player): Map<MoneyLogEntry, number> {
+  const map = new Map<MoneyLogEntry, number>();
+  for (const row of runningBalances(player)) map.set(row.entry, row.balance);
+  return map;
+}
