@@ -68,6 +68,38 @@ export function questRewardGlyphs(reward: QuestReward): RewardGlyphKind[] {
 }
 
 /**
+ * Per-kind tint for the reward pips, drawn from the same toast-rail palette
+ * the money-log uses: a coin is gold, an item crate is green, a cosmetic
+ * star is violet. Tinting each pip by its KIND (rather than mono-tinting the
+ * whole cluster to one row colour) lets the player read \"this pays gold +
+ * an item\" from the hues alone — the reward TYPE scans by colour the way the
+ * money-log rails classify a ledger row.
+ */
+export const REWARD_GLYPH_COLOR: Record<RewardGlyphKind, string> = {
+  gold: '#F0C24A',
+  item: '#A3D77A',
+  cosmetic: '#C8A0E8',
+};
+
+/**
+ * Uniform dim tint for a COMPLETED quest's reward pips, so a finished reward
+ * reads muted (matching the row's dimmed text) instead of shouting its kind
+ * colours after the work is done.
+ */
+export const REWARD_GLYPH_DONE_COLOR = 'rgba(245, 233, 212, 0.42)';
+
+/**
+ * The colour to draw a single reward pip in. While the quest is still
+ * `active` each pip takes its KIND hue (gold/green/violet) so the reward
+ * type scans by colour; once `completed` every pip drops to one dim tint so
+ * the earned reward recedes. Pure: a static palette lookup keyed on the kind
+ * + the done flag.
+ */
+export function rewardGlyphColor(kind: RewardGlyphKind, done: boolean): string {
+  return done ? REWARD_GLYPH_DONE_COLOR : REWARD_GLYPH_COLOR[kind];
+}
+
+/**
  * Format a quest's reward block as a single line.
  *   `{gold:50, items:{tomato:3}}` → "+50g, +3 tomato"
  *   `{gold:10}`                   → "+10g"

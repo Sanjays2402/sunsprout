@@ -18,6 +18,7 @@ import {
   applyQuestFilter,
   cycleQuestFilter,
   questFilterLabel,
+  rewardGlyphColor,
   type QuestLogEntry,
   type QuestFilter,
   type RewardGlyphKind,
@@ -322,9 +323,13 @@ export class QuestLogPanel {
     ctx.fillText(r.hint, x + 28, ry + 18);
     // Reward line — right side. A small glyph pip (coin / crate / star)
     // sits just LEFT of the text per reward segment so the board scans like
-    // the bag, not as a wall of "+50g, +3 tomato" strings. Pips are tinted
-    // to the row's earned/active colour so a done quest's reward reads dim.
-    const rewardColor = r.status === 'completed' ? DONE_PIP : ACCENT;
+    // the bag, not as a wall of "+50g, +3 tomato" strings. The reward TEXT
+    // keeps the row's earned/active tint, but each PIP is tinted by its own
+    // kind (coin gold / crate green / star violet — the toast-rail palette)
+    // so the reward type reads from the hues alone; a completed quest drops
+    // every pip to one dim tint so the earned reward recedes.
+    const done = r.status === 'completed';
+    const rewardColor = done ? DONE_PIP : ACCENT;
     ctx.fillStyle = rewardColor;
     ctx.font = 'bold 10px ui-monospace, monospace';
     ctx.textAlign = 'right';
@@ -342,7 +347,7 @@ export class QuestLogPanel {
       const textLeft = x + PANEL_W - 14 - rewardW;
       let gx = textLeft - 6 - clusterW;
       for (const kind of pips) {
-        this.drawRewardGlyph(ctx, kind, gx, ry + 3, rewardColor);
+        this.drawRewardGlyph(ctx, kind, gx, ry + 3, rewardGlyphColor(kind, done));
         gx += GLYPH_W + GLYPH_GAP;
       }
     }
