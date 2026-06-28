@@ -29,12 +29,74 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const CONFIRM_BG = 'rgba(150, 60, 60, 0.85)';
 const CONFIRM_BORDER = '#E07A8A';
 const ACCENT = '#F0C24A';
+const SECTION_LABEL = 'rgba(245, 233, 212, 0.42)';
+const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
 
 const PANEL_W = 460;
 
 type RowKey = 'autoSave' | 'nightTint' | 'hudScale' | 'reduceMotion' | 'reset' | 'close';
 
 const ROWS: RowKey[] = ['autoSave', 'nightTint', 'hudScale', 'reduceMotion', 'reset', 'close'];
+
+/**
+ * Earn the family dialect: group the flat settings rows into labelled
+ * sections (GENERAL / DISPLAY / DATA) with the same divider language the
+ * codex / almanac / quest-log panels use, so settings reads as the rest
+ * of the panel family instead of one undifferentiated list. The grouping
+ * is CONTIGUOUS over the existing ROWS order so the index-based keyboard
+ * navigation (selectNext / selectPrev / confirm) is byte-identical — only
+ * the visual layout gains dividers. The trailing `close` action carries no
+ * header (it's the dismiss verb, not a setting), so its section key is
+ * null. Pure: a static map over RowKey.
+ */
+export type SettingsSectionKey = 'general' | 'display' | 'data';
+
+/** Header text per section, in display order. */
+const SETTINGS_SECTION_HEADER: Record<SettingsSectionKey, string> = {
+  general: 'GENERAL',
+  display: 'DISPLAY',
+  data: 'SAVE DATA',
+};
+
+/** The section each row belongs to, or null for the headerless close verb. */
+const ROW_SECTION: Record<RowKey, SettingsSectionKey | null> = {
+  autoSave: 'general',
+  nightTint: 'display',
+  hudScale: 'display',
+  reduceMotion: 'display',
+  reset: 'data',
+  close: null,
+};
+
+/** A contiguous run of setting rows under one divider header. */
+export interface SettingsSection {
+  key: SettingsSectionKey;
+  header: string;
+  /** Row keys in this section, in panel order. */
+  rows: RowKey[];
+}
+
+/**
+ * Walk the ROWS order, grouping each maximal run of same-section rows
+ * under its header. Headerless rows (close) are skipped — the panel draws
+ * them after the sections with no divider. Because ROW_SECTION assigns
+ * sections so same-section rows are already adjacent, this is a simple
+ * run-grouping that preserves the canonical order. Pure.
+ */
+export function settingsSections(rows: readonly RowKey[] = ROWS): SettingsSection[] {
+  const out: SettingsSection[] = [];
+  for (const row of rows) {
+    const key = ROW_SECTION[row];
+    if (key === null) continue;
+    const last = out[out.length - 1];
+    if (last && last.key === key) {
+      last.rows.push(row);
+    } else {
+      out.push({ key, header: SETTINGS_SECTION_HEADER[key], rows: [row] });
+    }
+  }
+  return out;
+}
 
 /** Outcome of a confirm in the settings panel. */
 export type SettingsAction =
@@ -143,7 +205,15 @@ export class SettingsPanel {
     const settings = getSettings(player);
 
     const rowH = 36;
-    const h = 80 + ROWS.length * (rowH + 4) + 26;
+    const rowGap = 4;
+    const sectionH = 18;
+    const sections = settingsSections();
+    // Count headerless rows (close) drawn after the sections.
+    const looseRows = ROWS.filter((r) => ROW_SECTION[r] === null);
+    const bodyH =
+      sections.length * sectionH +
+      ROWS.length * (rowH + rowGap);
+    const h = 70 + bodyH + 26;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -167,31 +237,23 @@ export class SettingsPanel {
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillText('arrows or w-s to move - enter to change - esc to close', x + 16, y + 36);
 
-    for (let i = 0; i < ROWS.length; i++) {
-      const row = ROWS[i];
-      const ry = y + 64 + i * (rowH + 4);
-      const isSelected = i === this.index;
-      const isReset = row === 'reset';
-      const showResetWarn = isReset && this.resetArmed;
-      ctx.fillStyle = showResetWarn ? CONFIRM_BG : isSelected ? ROW_BG_SELECTED : ROW_BG;
-      ctx.fillRect(x + 14, ry, PANEL_W - 28, rowH);
-      ctx.strokeStyle = showResetWarn ? CONFIRM_BORDER : isSelected ? TITLE_COLOR : ROW_BORDER;
-      ctx.lineWidth = isSelected || showResetWarn ? 2 : 1;
-      ctx.strokeRect(x + 14 + 0.5, ry + 0.5, PANEL_W - 29, rowH - 1);
-
-      ctx.fillStyle = TEXT_COLOR;
-      ctx.font = 'bold 13px ui-monospace, monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(rowLabel(row), x + 26, ry + 6);
-
-      ctx.font = '11px ui-monospace, monospace';
-      ctx.fillStyle = HINT;
-      ctx.fillText(rowHint(row, settings, this.resetArmed), x + 26, ry + 22);
-
-      ctx.font = 'bold 12px ui-monospace, monospace';
-      ctx.fillStyle = ACCENT;
-      ctx.textAlign = 'right';
-      ctx.fillText(rowValue(row, settings, this.resetArmed), x + PANEL_W - 26, ry + 10);
+    // Walk the sections, drawing a divider header above each run of rows,
+    // then the headerless close verb at the end. A running ry threads the
+    // dividers + rows so the panel reads as the rest of the family while
+    // the index-based selection highlight stays exact.
+    let ry = y + 60;
+    for (const section of sections) {
+      this.drawSectionHeader(ctx, section.header, x, ry);
+      ry += sectionH;
+      for (const row of section.rows) {
+        this.drawRow(ctx, row, ROWS.indexOf(row), settings, x, ry, rowH);
+        ry += rowH + rowGap;
+      }
+    }
+    // Loose rows (close) — no header, drawn after the sections.
+    for (const row of looseRows) {
+      this.drawRow(ctx, row, ROWS.indexOf(row), settings, x, ry, rowH);
+      ry += rowH + rowGap;
     }
 
     ctx.fillStyle = HINT;
@@ -199,6 +261,59 @@ export class SettingsPanel {
     ctx.textAlign = 'center';
     ctx.fillText('Reset Save erases your local farm permanently.', x + PANEL_W / 2, y + h - 16);
     ctx.restore();
+  }
+
+  /** Small section divider, e.g. "DISPLAY" + a trailing rule. Mirrors the
+   * codex / almanac / quest-log dividers so settings speaks the dialect. */
+  private drawSectionHeader(
+    ctx: CanvasRenderingContext2D,
+    header: string,
+    x: number,
+    ry: number,
+  ): void {
+    ctx.textBaseline = 'top';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = SECTION_LABEL;
+    ctx.font = 'bold 9px ui-monospace, monospace';
+    ctx.fillText(header, x + 16, ry + 5);
+    const labelW = ctx.measureText(header).width;
+    ctx.fillStyle = SECTION_RULE;
+    ctx.fillRect(x + 16 + labelW + 8, ry + 9, PANEL_W - 32 - labelW - 8, 1);
+  }
+
+  /** Draw one settings row at top `ry` (height rowH). `gi` is the row's
+   * global ROWS index, used for the selection highlight. */
+  private drawRow(
+    ctx: CanvasRenderingContext2D,
+    row: RowKey,
+    gi: number,
+    settings: Settings,
+    x: number,
+    ry: number,
+    rowH: number,
+  ): void {
+    const isSelected = gi === this.index;
+    const isReset = row === 'reset';
+    const showResetWarn = isReset && this.resetArmed;
+    ctx.fillStyle = showResetWarn ? CONFIRM_BG : isSelected ? ROW_BG_SELECTED : ROW_BG;
+    ctx.fillRect(x + 14, ry, PANEL_W - 28, rowH);
+    ctx.strokeStyle = showResetWarn ? CONFIRM_BORDER : isSelected ? TITLE_COLOR : ROW_BORDER;
+    ctx.lineWidth = isSelected || showResetWarn ? 2 : 1;
+    ctx.strokeRect(x + 14 + 0.5, ry + 0.5, PANEL_W - 29, rowH - 1);
+
+    ctx.fillStyle = TEXT_COLOR;
+    ctx.font = 'bold 13px ui-monospace, monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(rowLabel(row), x + 26, ry + 6);
+
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.fillStyle = HINT;
+    ctx.fillText(rowHint(row, settings, this.resetArmed), x + 26, ry + 22);
+
+    ctx.font = 'bold 12px ui-monospace, monospace';
+    ctx.fillStyle = ACCENT;
+    ctx.textAlign = 'right';
+    ctx.fillText(rowValue(row, settings, this.resetArmed), x + PANEL_W - 26, ry + 10);
   }
 }
 
