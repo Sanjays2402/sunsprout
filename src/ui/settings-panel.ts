@@ -116,9 +116,14 @@ export type SettingsRowPreview =
   | { kind: 'tint'; alpha: number }
   | { kind: 'scale'; scale: number }
   | { kind: 'toggle'; on: boolean }
+  | { kind: 'danger'; armed: boolean }
   | { kind: 'none' };
 
-export function settingsRowPreview(row: RowKey, s: Settings): SettingsRowPreview {
+export function settingsRowPreview(
+  row: RowKey,
+  s: Settings,
+  resetArmed: boolean = false,
+): SettingsRowPreview {
   switch (row) {
     case 'nightTint':
       // The stored scale is a multiplier on the night overlay alpha, so a
@@ -131,6 +136,11 @@ export function settingsRowPreview(row: RowKey, s: Settings): SettingsRowPreview
     case 'reduceMotion':
       return { kind: 'toggle', on: s.reduceMotion };
     case 'reset':
+      // A warning glyph so the destructive row reads as dangerous at a
+      // glance — dim while idle, brightening once the player has armed the
+      // two-step confirm so the "this will erase your farm" state is
+      // visible, not just in the text.
+      return { kind: 'danger', armed: resetArmed };
     case 'close':
       return { kind: 'none' };
   }
@@ -362,7 +372,7 @@ export class SettingsPanel {
     // instead of only a text value. The reset/close rows have no preview.
     const valueW = ctx.measureText(valueText).width;
     const previewRight = x + PANEL_W - 26 - valueW - 10;
-    this.drawValuePreview(ctx, settingsRowPreview(row, settings), previewRight, ry + rowH / 2);
+    this.drawValuePreview(ctx, settingsRowPreview(row, settings, this.resetArmed), previewRight, ry + rowH / 2);
   }
 
   /**
@@ -423,6 +433,36 @@ export class SettingsPanel {
           ctx.arc(px, cy, r, 0, Math.PI * 2);
           ctx.stroke();
         }
+        break;
+      }
+      case 'danger': {
+        // A warning triangle with a bang, so the destructive reset row reads
+        // as dangerous before the player commits. Dim while idle; once armed
+        // (the two-step confirm), it brightens to the confirm red so the
+        // "about to erase" state is visible in the glyph, not only the text.
+        const w = 11;
+        const hh = 9;
+        const sx = rx - w;
+        const sy = Math.round(cy - hh / 2);
+        ctx.fillStyle = preview.armed ? CONFIRM_BORDER : 'rgba(224, 122, 138, 0.5)';
+        // Triangle outline: a row-by-row widening band from apex to base.
+        const apexX = sx + Math.floor(w / 2);
+        for (let row = 0; row < hh; row++) {
+          const half = Math.round((row / (hh - 1)) * (w / 2));
+          const yy = sy + row;
+          if (row === hh - 1) {
+            // Base edge.
+            ctx.fillRect(sx, yy, w, 1);
+          } else {
+            // Two side pixels of the triangle border.
+            ctx.fillRect(apexX - half, yy, 1, 1);
+            ctx.fillRect(apexX + half, yy, 1, 1);
+          }
+        }
+        // The exclamation bang: a short stem + a dot near the base.
+        ctx.fillStyle = preview.armed ? '#1A1426' : 'rgba(26, 20, 38, 0.85)';
+        ctx.fillRect(apexX, sy + 3, 1, 3);
+        ctx.fillRect(apexX, sy + 7, 1, 1);
         break;
       }
       case 'none':
