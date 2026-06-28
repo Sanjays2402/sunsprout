@@ -53,8 +53,7 @@ const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 const SELL_HINT = 'rgba(159, 205, 122, 0.66)';
 const SEARCH_COLOR = '#A3D77A';
-/** Count-bar fill — a muted lilac so it reads as a quantity gauge, not a worth bar. */
-const COUNT_BAR = 'rgba(200, 182, 232, 0.55)';
+/** Faint track behind the per-row count bar (the tinted fill rides the category palette). */
 const COUNT_BAR_TRACK = 'rgba(74, 59, 110, 0.4)';
 
 /**
@@ -442,7 +441,11 @@ export class BagPanel {
           const cbY = ry + 18;
           ctx.fillStyle = COUNT_BAR_TRACK;
           ctx.fillRect(cbX, cbY, CB_W, CB_H);
-          ctx.fillStyle = COUNT_BAR;
+          // Fill tinted to the row's category colour (the share-bar palette)
+          // so a cross-tab search match reads its category from the bar as
+          // well as the dim tag. On a single tab every row shares the tab's
+          // hue, so the gauge stays uniform there.
+          ctx.fillStyle = CATEGORY_COLOR[r.category];
           ctx.fillRect(cbX + CB_W - cbFill, cbY, cbFill, CB_H);
         }
       }
