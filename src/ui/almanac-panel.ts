@@ -15,6 +15,7 @@ import {
   applyAlmanacFilter,
   nextAlmanacFilter,
   almanacFilterLabel,
+  almanacFilterKinds,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -207,14 +208,32 @@ export class AlmanacPanel {
 
     // Filter chip — surfaces even on 'all' so the `f` cycle is discoverable,
     // and shows how many of the full agenda the active filter is showing.
+    // A small row of per-kind colour pips sits just left of the chip text,
+    // previewing WHAT the active filter admits (the kinds it keeps) using
+    // the same KIND_STYLE rail colours the rows use — so the player reads
+    // the filter's scope as colour, not only the label word.
+    const chipText = `filter: ${almanacFilterLabel(this.filter)} (${entries.length}/${allEntries.length})  -  f to cycle`;
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    const chipTextW = ctx.measureText(chipText).width;
+    const kinds = almanacFilterKinds(this.filter);
+    const PIP = 6;
+    const PIP_GAP = 2;
+    const pipsW = kinds.length * PIP + Math.max(0, kinds.length - 1) * PIP_GAP;
+    const PIP_TEXT_GAP = 8;
+    const clusterW = pipsW + (pipsW > 0 ? PIP_TEXT_GAP : 0) + chipTextW;
+    const clusterLeft = x + PANEL_W / 2 - clusterW / 2;
+    // Pips first, vertically centred against the chip text baseline.
+    let pipX = clusterLeft;
+    const pipY = y + h - 30 + 1;
+    for (const kind of kinds) {
+      ctx.fillStyle = KIND_STYLE[kind].color;
+      ctx.fillRect(pipX, pipY, PIP, PIP);
+      pipX += PIP + PIP_GAP;
+    }
     ctx.fillStyle = FILTER_CHIP;
     ctx.font = 'bold 10px ui-monospace, monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText(
-      `filter: ${almanacFilterLabel(this.filter)} (${entries.length}/${allEntries.length})  -  f to cycle`,
-      x + PANEL_W / 2,
-      y + h - 30,
-    );
+    ctx.textAlign = 'left';
+    ctx.fillText(chipText, clusterLeft + pipsW + (pipsW > 0 ? PIP_TEXT_GAP : 0), y + h - 30);
 
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';

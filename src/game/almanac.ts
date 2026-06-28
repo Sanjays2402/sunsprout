@@ -227,6 +227,25 @@ export function nextAlmanacFilter(filter: AlmanacFilter): AlmanacFilter {
   return ALMANAC_FILTERS[(i + 1) % ALMANAC_FILTERS.length];
 }
 
+/**
+ * The AlmanacKinds a filter admits, in the panel's stable rail order, so the
+ * panel can draw small per-kind colour pips beside the filter chip — a
+ * preview of WHAT each filter shows before the player cycles to it. 'all'
+ * returns every kind; the narrowing filters return just their admitted set.
+ * Mirrors applyAlmanacFilter's membership exactly (it's derived from the
+ * same FILTER_KINDS map) so the pips never drift from what the filter
+ * actually keeps. Pure.
+ */
+export function almanacFilterKinds(filter: AlmanacFilter): AlmanacKind[] {
+  const admitted: readonly AlmanacKind[] =
+    filter === 'all'
+      ? (Object.keys(KIND_NOUN) as AlmanacKind[])
+      : FILTER_KINDS[filter];
+  // Project onto the stable summary order so the pips read consistently
+  // regardless of how the source arrays happen to be ordered.
+  return SUMMARY_KIND_ORDER.filter((k) => admitted.includes(k));
+}
+
 /** Short chip label for the active filter, e.g. "birthdays". Pure. */
 export function almanacFilterLabel(filter: AlmanacFilter): string {
   switch (filter) {
