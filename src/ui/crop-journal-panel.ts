@@ -273,6 +273,15 @@ export class CropJournalPanel {
           ctx.fillStyle = GOLD;
           ctx.fillRect(sx, by, segs.gold, BAR_H);
         }
+        // In-season outline — when the crop's best season is the current
+        // one (the same flag that tints the season word + "in season" tag),
+        // ring the whole mini-bar in green so the "plant this now" advice
+        // ties to the visual tally, not just the text above it.
+        if (inSeason) {
+          ctx.strokeStyle = GREEN;
+          ctx.lineWidth = 1;
+          ctx.strokeRect(barLeft - 0.5, by - 0.5, BAR_W + 1, BAR_H + 1);
+        }
       }
     }
 
