@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, type MoneyCategory, type MoneyFilter } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, type MoneyCategory, type MoneyFilter } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -40,6 +40,11 @@ const PANEL_W = 340;
 const ROW_H = 18;
 /** Day-divider band height — a small "Day N" header above each day's run. */
 const DAY_DIVIDER_H = 14;
+/** Purse sparkline box on the summary stripe (left of the endpoints text). */
+const SPARK_W = 46;
+const SPARK_H = 11;
+/** Gap between the sparkline box and the endpoints text. */
+const SPARK_GAP = 6;
 
 export class MoneyLogPanel {
   private opened = false;
@@ -150,27 +155,45 @@ export class MoneyLogPanel {
     // per-row running-balance column traces row by row. Drawn right-aligned
     // on the summary line, tinted by direction (gain green / loss red /
     // flat dim). Null (and so suppressed) until there are >=2 rows to span.
+    // A tiny sparkline of the running balances sits just LEFT of the
+    // endpoints, so the player reads the SHAPE of the window (a steady
+    // climb vs a dip-and-recover) not only its two ends.
     const trend = purseTrend(player);
+    const spark = purseSparkline(player);
     const trendText = trend ? `${trend.start}g -> ${trend.end}g` : '';
     ctx.font = '10px ui-monospace, monospace';
     const trendW = trendText
       ? ctx.measureText(trendText).width + 10 // +gap before the in/out/net text
       : 0;
+    // Sparkline geometry — a small fixed box left of the endpoints, only
+    // when there's a trend to show (>=2 rows). Reserved so the in/out/net
+    // text clips before either the sparkline or the endpoints.
+    const sparkW = spark ? SPARK_W : 0;
+    const sparkGap = spark ? SPARK_GAP : 0;
+    const rightReserve = trendW + sparkW + sparkGap;
     ctx.fillStyle = HINT;
     ctx.textAlign = 'left';
-    // Clip the in/out/net text so it never runs into the right-aligned trend.
+    // Clip the in/out/net text so it never runs into the trend cluster.
     ctx.fillText(
       `in +${tin}g  /  out -${tout}g  /  net ${net >= 0 ? '+' : ''}${net}g`,
       x + 12,
       y + 28,
-      PANEL_W - 24 - trendW,
+      PANEL_W - 24 - rightReserve,
     );
     if (trendText && trend) {
-      ctx.fillStyle =
+      const trendColor =
         trend.direction === 'up' ? GAIN : trend.direction === 'down' ? LOSS : HINT;
+      ctx.fillStyle = trendColor;
       ctx.font = 'bold 10px ui-monospace, monospace';
       ctx.textAlign = 'right';
       ctx.fillText(trendText, x + PANEL_W - 12, y + 28);
+      // Sparkline just left of the endpoints text, tinted to match the
+      // trend direction so the cluster reads as one unit.
+      if (spark) {
+        const trendTextW = ctx.measureText(trendText).width;
+        const sparkRight = x + PANEL_W - 12 - trendTextW - SPARK_GAP;
+        this.drawSparkline(ctx, spark, sparkRight - SPARK_W, y + 27, SPARK_W, SPARK_H, trendColor);
+      }
     }
 
     // Separator
@@ -275,6 +298,55 @@ export class MoneyLogPanel {
     ctx.textAlign = 'center';
     ctx.fillText('Q or Esc to close - f filter', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /**
+   * Draw a tiny purse sparkline inside the box at (bx, by, bw, bh). The
+   * points arrive normalised (x 0..1 left-to-right, y 0..1 low-to-high);
+   * we flip y to screen space (canvas y grows downward) and inset by a 1px
+   * margin so the polyline never clips the box edge. A faint baseline sits
+   * under it for a sense of scale, and a small dot marks the newest (right-
+   * most) point so the "where it ends" reads at a glance. Tinted to the
+   * passed trend colour so the whole trend cluster reads as one unit.
+   */
+  private drawSparkline(
+    ctx: CanvasRenderingContext2D,
+    points: { x: number; y: number }[],
+    bx: number,
+    by: number,
+    bw: number,
+    bh: number,
+    color: string,
+  ): void {
+    if (points.length < 2) return;
+    const m = 1; // inset margin
+    const innerW = bw - 2 * m;
+    const innerH = bh - 2 * m;
+    const px = (x: number) => bx + m + x * innerW;
+    // Flip: normalised y=1 (high balance) maps to the TOP of the box.
+    const py = (y: number) => by + m + (1 - y) * innerH;
+    // Faint baseline so an upward slope reads as rising off a floor.
+    ctx.strokeStyle = 'rgba(74, 59, 110, 0.55)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(bx + m, by + bh - m + 0.5);
+    ctx.lineTo(bx + bw - m, by + bh - m + 0.5);
+    ctx.stroke();
+    // The polyline itself.
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < points.length; i++) {
+      const sx = px(points[i].x);
+      const sy = py(points[i].y);
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    // Endpoint dot on the newest (rightmost) point.
+    const last = points[points.length - 1];
+    ctx.fillStyle = color;
+    ctx.fillRect(Math.round(px(last.x)) - 1, Math.round(py(last.y)) - 1, 2, 2);
   }
 
   /**

@@ -330,3 +330,55 @@ export function purseTrend(player: Player): PurseTrend | null {
   const direction: PurseDirection = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
   return { start, end, delta, direction };
 }
+
+/** One vertex of the purse sparkline, normalised into a unit box. */
+export interface PurseSparklinePoint {
+  /** Horizontal position across the window: 0 (oldest) .. 1 (newest). */
+  x: number;
+  /** Normalised balance height: 0 (window low) .. 1 (window high). */
+  y: number;
+}
+
+/**
+ * Trace the purse's whole trajectory across the logged window as a
+ * normalised polyline, so the money-log header can draw a tiny sparkline of
+ * the SHAPE of the window on top of the start -> end endpoints purseTrend
+ * already gives. Where purseTrend reports only \\\"320g -> 412g\\\", this shows
+ * whether the purse climbed steadily, dipped then recovered, or spiked.
+ *
+ * Points run oldest-first (left) to newest (right). The first point is the
+ * pre-window purse (== purseTrend.start) and each subsequent point is a
+ * ledger row's running balance, ending at the newest row's balance (==
+ * current gold == purseTrend.end), so the polyline spans EXACTLY the
+ * start->end the header text names — N rows yield N+1 points.
+ *
+ * `x` is evenly spaced across [0,1]; `y` is min-max normalised across all
+ * the points so the window's lowest balance sits at 0 and its highest at 1.
+ * A perfectly flat window (every balance equal) pins every point at 0.5 so
+ * it draws as a centred line rather than dividing by a zero span. Returns
+ * null on < 2 rows — the same no-span gate purseTrend uses — so the panel
+ * suppresses the sparkline in lock-step with the trend text. Pure: reads
+ * only the log + player.gold.
+ */
+export function purseSparkline(player: Player): PurseSparklinePoint[] | null {
+  const rows = runningBalances(player); // newest-first
+  if (rows.length < 2) return null;
+  // Chronological values: the pre-window start, then each row's balance
+  // walked oldest -> newest (rows are newest-first, so iterate in reverse).
+  const oldest = rows[rows.length - 1];
+  const start = oldest.balance - oldest.entry.delta;
+  const values: number[] = [start];
+  for (let i = rows.length - 1; i >= 0; i--) values.push(rows[i].balance);
+  let min = values[0];
+  let max = values[0];
+  for (const v of values) {
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const span = max - min;
+  const n = values.length;
+  return values.map((v, i) => ({
+    x: n === 1 ? 0 : i / (n - 1),
+    y: span === 0 ? 0.5 : (v - min) / span,
+  }));
+}
