@@ -20,6 +20,7 @@ import {
   questFilterLabel,
   type QuestLogEntry,
   type QuestFilter,
+  type RewardGlyphKind,
 } from '../game/quest-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
@@ -319,11 +320,32 @@ export class QuestLogPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.fillText(r.hint, x + 28, ry + 18);
-    // Reward line — right side
-    ctx.fillStyle = r.status === 'completed' ? DONE_PIP : ACCENT;
+    // Reward line — right side. A small glyph pip (coin / crate / star)
+    // sits just LEFT of the text per reward segment so the board scans like
+    // the bag, not as a wall of "+50g, +3 tomato" strings. Pips are tinted
+    // to the row's earned/active colour so a done quest's reward reads dim.
+    const rewardColor = r.status === 'completed' ? DONE_PIP : ACCENT;
+    ctx.fillStyle = rewardColor;
     ctx.font = 'bold 10px ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.fillText(r.rewardLine, x + PANEL_W - 14, ry + 6);
+    const rewardW = ctx.measureText(r.rewardLine).width;
+    // Lay the pips left-to-right just LEFT of the text, in the same order
+    // formatReward lists the segments — so the leftmost pip is the first
+    // thing the text names (gold, then items, then cosmetic). The cluster's
+    // right edge sits a small gap before the text's left edge.
+    const GLYPH_W = 7;
+    const GLYPH_GAP = 3;
+    const pips = r.rewardGlyphs;
+    if (pips.length > 0) {
+      const clusterW = pips.length * GLYPH_W + (pips.length - 1) * GLYPH_GAP;
+      const textLeft = x + PANEL_W - 14 - rewardW;
+      let gx = textLeft - 6 - clusterW;
+      for (const kind of pips) {
+        this.drawRewardGlyph(ctx, kind, gx, ry + 3, rewardColor);
+        gx += GLYPH_W + GLYPH_GAP;
+      }
+    }
     // Progress bar
     const barW = PANEL_W - 56;
     const barX = x + 28;
@@ -337,5 +359,53 @@ export class QuestLogPanel {
     ctx.font = '9px ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`${r.progress}/${r.goal}`, x + PANEL_W - 14, barY - 1);
+  }
+
+  /**
+   * Draw one ~7x7 reward pip at (gx, gy) in `color`: a coin for gold, a
+   * crate for an item payout, a star for a cosmetic unlock. Tiny hand-placed
+   * pixel silhouettes in the same monochrome-glyph spirit as the bag glyphs
+   * (single tint, no emoji), so the reward line scans at a glance.
+   */
+  private drawRewardGlyph(
+    ctx: CanvasRenderingContext2D,
+    kind: RewardGlyphKind,
+    gx: number,
+    gy: number,
+    color: string,
+  ): void {
+    ctx.fillStyle = color;
+    if (kind === 'gold') {
+      // Coin — a filled 5x5 disc with a centre notch knocked out.
+      const coin = [
+        [1, 0], [2, 0], [3, 0],
+        [0, 1], [1, 1], [3, 1], [4, 1],
+        [0, 2], [2, 2], [4, 2],
+        [0, 3], [1, 3], [3, 3], [4, 3],
+        [1, 4], [2, 4], [3, 4],
+      ];
+      for (const [px, py] of coin) ctx.fillRect(gx + 1 + px, gy + py, 1, 1);
+    } else if (kind === 'item') {
+      // Crate — a 6x6 box outline with a diagonal slat.
+      const crate = [
+        [0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0],
+        [0, 1], [5, 1],
+        [0, 2], [2, 2], [3, 2], [5, 2],
+        [0, 3], [2, 3], [3, 3], [5, 3],
+        [0, 4], [5, 4],
+        [0, 5], [1, 5], [2, 5], [3, 5], [4, 5], [5, 5],
+      ];
+      for (const [px, py] of crate) ctx.fillRect(gx + px, gy + py, 1, 1);
+    } else {
+      // Star — a 5x5 plus/diamond burst.
+      const star = [
+        [2, 0],
+        [1, 1], [2, 1], [3, 1],
+        [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+        [1, 3], [2, 3], [3, 3],
+        [0, 4], [4, 4],
+      ];
+      for (const [px, py] of star) ctx.fillRect(gx + 1 + px, gy + py, 1, 1);
+    }
   }
 }

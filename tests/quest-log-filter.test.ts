@@ -22,6 +22,7 @@ function rowOf(status: QuestStatus, name: string = status): QuestLogEntry {
     progress: status === 'completed' ? 5 : 2,
     goal: 5,
     rewardLine: '+10g',
+    rewardGlyphs: ['gold'],
     hint: status === 'completed' ? 'Done.' : 'do the thing',
   };
 }

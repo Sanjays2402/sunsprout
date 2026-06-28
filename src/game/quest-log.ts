@@ -33,8 +33,38 @@ export interface QuestLogEntry {
   goal: number;
   /** Pre-formatted reward line ("+10g", "+50g, +3 tomato", etc.). */
   rewardLine: string;
+  /** Glyph kinds for the reward, in the same order formatReward lists them. */
+  rewardGlyphs: RewardGlyphKind[];
   /** Short hint line shown under the title. */
   hint: string;
+}
+
+/**
+ * The little pixel pip drawn beside a quest's reward line so a board scans
+ * like the bag instead of reading every \"+50g, +3 tomato\" string. One pip
+ * per reward SEGMENT, matching formatReward's output:
+ *   - `gold`:     a coin (the `gold` amount)
+ *   - `item`:     a crate (each `items` entry — produce/ingredient payout)
+ *   - `cosmetic`: a star (the `cosmetic` unlock)
+ */
+export type RewardGlyphKind = 'gold' | 'item' | 'cosmetic';
+
+/**
+ * Derive the ordered reward-glyph kinds for a quest reward, one per segment
+ * formatReward emits and in the SAME order (gold, then each item, then the
+ * cosmetic), so the pips line up with the text the player reads. An empty
+ * reward yields no pips (the panel then draws the bare \"—\" line). Pure —
+ * reads only the reward shape, mirroring formatReward's branching so the
+ * two never drift.
+ */
+export function questRewardGlyphs(reward: QuestReward): RewardGlyphKind[] {
+  const out: RewardGlyphKind[] = [];
+  if (reward.gold) out.push('gold');
+  if (reward.items) {
+    for (const _ of Object.keys(reward.items)) out.push('item');
+  }
+  if (reward.cosmetic) out.push('cosmetic');
+  return out;
 }
 
 /**
@@ -78,6 +108,7 @@ export function buildQuestLog(player: Player): QuestLogEntry[] {
         progress: q.progress,
         goal: q.goal,
         rewardLine: formatReward(q.reward),
+        rewardGlyphs: questRewardGlyphs(q.reward),
         hint: questHint(q),
       });
     }
@@ -92,6 +123,7 @@ export function buildQuestLog(player: Player): QuestLogEntry[] {
         progress: q.goal,
         goal: q.goal,
         rewardLine: formatReward(q.reward),
+        rewardGlyphs: questRewardGlyphs(q.reward),
         hint: 'Done.',
       });
     }
