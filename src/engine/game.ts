@@ -3110,7 +3110,7 @@ export class Game {
     this.moneyLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.questLogPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
     this.settingsPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);
-    this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height);
+    this.helpOverlay.draw(this.ctx, this.canvas.width, this.canvas.height, settings.reduceMotion);
     this.minimapPanel.draw(this.ctx, this.world, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.reduceMotion);
     this.almanacPanel.draw(this.ctx, this.time, this.canvas.width, this.canvas.height, this.world.player);
     this.bagPanel.draw(this.ctx, this.world.player, this.canvas.width, this.canvas.height);

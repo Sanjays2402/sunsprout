@@ -15,6 +15,8 @@ import type { Player } from '../world/world';
 import { buildCodex, codexSections, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, applyCodexFilter, cycleCodexFilter, codexFilterLabel, type RecipeCodexRow, type RecipeCodexFilter } from '../game/cooking-history';
 import { RECIPES, RECIPE_KEYS } from '../game/cooking';
 import { nextFilterHint } from '../game/panel-empty';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
 const PANEL_BORDER = '#4a3b6e';
@@ -114,6 +116,8 @@ export class RecipeCodex {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
     ctx.fillStyle = PANEL_BG;
     ctx.fillRect(x, y, PANEL_W, h);
     ctx.strokeStyle = PANEL_BORDER;

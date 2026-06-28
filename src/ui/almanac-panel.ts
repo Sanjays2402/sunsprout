@@ -22,6 +22,8 @@ import {
   type AlmanacFilter,
   type AlmanacKind,
 } from '../game/almanac';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
 const PANEL_BORDER = '#4a3b6e';
@@ -116,6 +118,12 @@ export class AlmanacPanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    // player is optional here (HUD chip path), so fall back to no calm flag.
+    ctx.globalAlpha = panelOpenAlpha(
+      this.lockoutMs,
+      player ? getSettings(player).reduceMotion : false,
+    );
     ctx.fillStyle = 'rgba(10, 6, 18, 0.42)';
     ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.fillStyle = PANEL_BG;

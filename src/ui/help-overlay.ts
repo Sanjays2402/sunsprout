@@ -14,6 +14,7 @@ import {
   matchingBindingCount,
   type ControlGroup,
 } from '../game/controls';
+import { panelOpenAlpha } from '../game/panel-transition';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
 const PANEL_BORDER = '#4a3b6e';
@@ -112,7 +113,7 @@ export class HelpOverlay {
     return rows;
   }
 
-  draw(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number): void {
+  draw(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number, reduceMotion: boolean = false): void {
     if (!this.opened) return;
     const [left, right] = splitControlColumns(CONTROL_GROUPS);
     const maxRows = Math.max(this.columnRows(left), this.columnRows(right));
@@ -124,6 +125,9 @@ export class HelpOverlay {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    // No player here, so the engine threads the calm flag in directly.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, reduceMotion);
     // Dim the world behind so the sheet reads cleanly.
     ctx.fillStyle = 'rgba(10, 6, 18, 0.42)';
     ctx.fillRect(0, 0, canvasW, canvasH);

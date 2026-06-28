@@ -26,6 +26,8 @@ import {
 } from '../game/achievements';
 import { ribbonHallCaption } from '../game/ribbon-hall';
 import { nextFilterHint } from '../game/panel-empty';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -187,6 +189,10 @@ export class AchievementsPanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in — eased alpha off the open lockout so the panel glides
+    // in over its first ~160ms; reduce-motion snaps it solid. Scoped to
+    // this panel's save()/restore() so it never leaks to other draws.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
     // Soft dim behind so the badges read well.
     ctx.fillStyle = 'rgba(10, 6, 18, 0.32)';
     ctx.fillRect(0, 0, canvasW, canvasH);

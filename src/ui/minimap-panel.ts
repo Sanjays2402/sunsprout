@@ -23,6 +23,7 @@ import {
   type PingRing,
   type PingLegendRow,
 } from '../game/minimap';
+import { panelOpenAlpha } from '../game/panel-transition';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.97)';
 const PANEL_BORDER = '#4a3b6e';
@@ -123,6 +124,9 @@ export class MinimapPanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid
+    // (the minimap already threads the calm flag for its pulse cues).
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, reduceMotion);
     ctx.fillStyle = 'rgba(10, 6, 18, 0.42)';
     ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.fillStyle = PANEL_BG;

@@ -8,6 +8,8 @@ import type { Player } from '../world/world';
 import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, type MoneyCategory, type MoneyFilter } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -109,6 +111,8 @@ export class MoneyLogPanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
     ctx.fillStyle = PANEL_BG;
     ctx.fillRect(x, y, PANEL_W, h);
     ctx.strokeStyle = PANEL_BORDER;

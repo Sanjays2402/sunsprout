@@ -24,6 +24,8 @@ import {
   type FieldCropSample,
 } from '../game/crop-journal';
 import { compostLedgerLine } from '../game/compost';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
 const PANEL_BORDER = '#4a3b6e';
@@ -101,6 +103,8 @@ export class CropJournalPanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
     ctx.fillStyle = PANEL_BG;
     ctx.fillRect(x, y, PANEL_W, h);
     ctx.strokeStyle = PANEL_BORDER;

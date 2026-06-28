@@ -25,6 +25,8 @@ import { loreEmptyState } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { loreRowGlyph } from '../game/bag-glyph';
 import { drawBagGlyph } from '../render/bag-glyph-sprite';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -147,6 +149,8 @@ export class LorePanel {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
     ctx.fillStyle = 'rgba(10, 6, 18, 0.32)';
     ctx.fillRect(0, 0, canvasW, canvasH);
     ctx.fillStyle = PANEL_BG;
