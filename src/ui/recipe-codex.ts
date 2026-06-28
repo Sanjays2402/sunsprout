@@ -14,6 +14,7 @@
 import type { Player } from '../world/world';
 import { buildCodex, codexSections, recipesCooked, totalDishesCooked, totalPremiumDishesCooked, applyCodexFilter, cycleCodexFilter, codexFilterLabel, type RecipeCodexRow, type RecipeCodexFilter } from '../game/cooking-history';
 import { RECIPES, RECIPE_KEYS } from '../game/cooking';
+import { nextFilterHint } from '../game/panel-empty';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.95)';
 const PANEL_BORDER = '#4a3b6e';
@@ -152,14 +153,14 @@ export class RecipeCodex {
 
     if (rows.length === 0) {
       // A filter hid every recipe (the book is never truly empty — RECIPES
-      // is a static catalog). Point the player at the `f` cycle so they're
-      // not left at a dead end.
+      // is a static catalog). Point the player at the `f` cycle AND name
+      // where the next press lands so they know where the cycle goes.
       ctx.fillStyle = HINT;
       ctx.font = '11px ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`no ${codexFilterLabel(this.filter)} recipes`, x + PANEL_W / 2, y + 44);
       ctx.font = '10px ui-monospace, monospace';
-      ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 60);
+      ctx.fillText(nextFilterHint(this.filter, cycleCodexFilter, codexFilterLabel), x + PANEL_W / 2, y + 60);
     } else {
       // Walk the discovery sections, drawing a small divider above each
       // group then its rows.

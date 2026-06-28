@@ -25,6 +25,7 @@ import {
   type AchievementFilter,
 } from '../game/achievements';
 import { ribbonHallCaption } from '../game/ribbon-hall';
+import { nextFilterHint } from '../game/panel-empty';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
 const PANEL_BORDER = '#4a3b6e';
@@ -229,13 +230,13 @@ export class AchievementsPanel {
 
     if (filterEmpty) {
       // A filter (earned on a fresh save / locked at 100%) hid every row —
-      // a plain note pointing at the `f` cycle so the view isn't a dead end.
+      // a plain note pointing at the `f` cycle AND naming where it lands.
       ctx.fillStyle = HINT;
       ctx.font = '11px ui-monospace, monospace';
       ctx.textAlign = 'center';
       ctx.fillText(`no ${achievementFilterLabel(this.filter)} badges`, x + PANEL_W / 2, y + 48 + nextUpH);
       ctx.font = '10px ui-monospace, monospace';
-      ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 64 + nextUpH);
+      ctx.fillText(nextFilterHint(this.filter, cycleAchievementFilter, achievementFilterLabel), x + PANEL_W / 2, y + 64 + nextUpH);
     } else {
       // Walk the visible display items, drawing dividers + rows in one pass
       // so the EARNED / LOCKED groups stay legible while the list scrolls.

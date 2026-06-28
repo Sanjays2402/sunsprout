@@ -21,7 +21,7 @@ import {
   type QuestLogEntry,
   type QuestFilter,
 } from '../game/quest-log';
-import { PANEL_EMPTY_STATES } from '../game/panel-empty';
+import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
@@ -233,13 +233,13 @@ export class QuestLogPanel {
     if (showEmpty) {
       if (filterEmpty) {
         // The board has quests but the filter hid them all — a plain note
-        // pointing at the `f` cycle so the view isn't a dead end.
+        // pointing at the `f` cycle AND naming where the next press lands.
         ctx.fillStyle = HINT;
         ctx.font = '11px ui-monospace, monospace';
         ctx.textAlign = 'center';
         ctx.fillText(`no ${questFilterLabel(this.filter)} quests`, x + PANEL_W / 2, y + 56 + summaryH);
         ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 72 + summaryH);
+        ctx.fillText(nextFilterHint(this.filter, cycleQuestFilter, questFilterLabel), x + PANEL_W / 2, y + 72 + summaryH);
       } else {
         drawEmptyState(ctx, PANEL_EMPTY_STATES.questLog, x + PANEL_W / 2, y + 58);
       }

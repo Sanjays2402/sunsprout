@@ -6,7 +6,7 @@
 
 import type { Player } from '../world/world';
 import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, type MoneyCategory, type MoneyFilter } from '../game/money-log';
-import { PANEL_EMPTY_STATES } from '../game/panel-empty';
+import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.96)';
@@ -162,7 +162,7 @@ export class MoneyLogPanel {
         ctx.textAlign = 'center';
         ctx.fillText(`no ${moneyFilterLabel(this.filter)} this window`, x + PANEL_W / 2, y + 60);
         ctx.font = '10px ui-monospace, monospace';
-        ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 76);
+        ctx.fillText(nextFilterHint(this.filter, cycleMoneyFilter, moneyFilterLabel), x + PANEL_W / 2, y + 76);
       }
     } else {
       // Walk the day groups, drawing a small "Day N  +/-net" divider above

@@ -69,6 +69,25 @@ export function bagEmptyState(category: BagCategory): EmptyState {
 }
 
 /**
+ * Format the "press f for <next>" call-to-action a filterable panel shows
+ * when its active filter has hidden every row. The panel family's filters
+ * all share the same shape — a `cycleXFilter(current)` that advances the
+ * cycle and an `xFilterLabel(filter)` that names each mode — so this one
+ * generic helper names where the NEXT `f` press will land (e.g. "press f
+ * for cooked") instead of the vaguer "press f to change the filter". That
+ * tells the player where the cycle goes before they press, closing the
+ * loop on the filtered-empty notes across the codex / quest-log / money-
+ * log / achievements panels. Pure: just composes the two callbacks.
+ */
+export function nextFilterHint<F>(
+  current: F,
+  cycle: (f: F) => F,
+  label: (f: F) => string,
+): string {
+  return `press f for ${label(cycle(current))}`;
+}
+
+/**
  * Empty state for the lore panel's Rumors tab, which is the only lore tab
  * that can render zero rows (the catalogued tabs always show locked ???
  * rows). Wording depends on the active filter so a player who filtered to
