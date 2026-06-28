@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -200,6 +200,19 @@ export class MoneyLogPanel {
     // Separator
     ctx.fillStyle = 'rgba(74, 59, 110, 0.55)';
     ctx.fillRect(x + 12, y + 46, PANEL_W - 24, 1);
+
+    // Sparkline extremes caption — names the marked peak + low in plain
+    // figures ("peak 412g / low 280g") so a colour-blind player reads the
+    // window's best + worst purse moments without resolving the pips. Dim +
+    // centred in the gap between the stripe and the separator; only present
+    // when the sparkline is (>=2 rows).
+    const extCaption = purseExtremesCaption(sparkExtremes);
+    if (extCaption) {
+      ctx.fillStyle = BALANCE_COLOR;
+      ctx.font = '9px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(extCaption, x + PANEL_W / 2, y + 38);
+    }
 
     if (rows.length === 0) {
       // Distinguish a truly empty ledger from a filter that hides every

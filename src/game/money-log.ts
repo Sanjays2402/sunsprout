@@ -434,3 +434,19 @@ export function purseSparklineExtremes(player: Player): PurseSparklineExtremes |
     low: { x: points[lowI].x, y: points[lowI].y, value: values[lowI] },
   };
 }
+
+/**
+ * Name the sparkline's marked extremes in plain figures so a colour-blind
+ * player reads the window's best + worst purse moments without resolving
+ * the bright/dim pips — "peak 412g / low 280g". Mirrors the dot markers
+ * exactly (same PurseSparklineExtremes), so the caption can never disagree
+ * with what the line shows. Collapses to just the value when peak == low (a
+ * flat window) so it doesn't read as a redundant "412g / 412g". '' on a null
+ * (no-span) extremes, in lock-step with the sparkline's own suppression.
+ * Pure: a formatter, no canvas.
+ */
+export function purseExtremesCaption(extremes: PurseSparklineExtremes | null): string {
+  if (!extremes) return '';
+  if (extremes.peak.value === extremes.low.value) return `flat ${extremes.peak.value}g`;
+  return `peak ${extremes.peak.value}g / low ${extremes.low.value}g`;
+}
