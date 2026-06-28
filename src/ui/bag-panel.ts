@@ -28,6 +28,8 @@ import {
   bagSearchResults,
   bagSearchMatchCount,
   bagSearchCategoryCounts,
+  maxBagRowCount,
+  bagCountBarWidth,
   type BagCategory,
   type BagSortMode,
   type BagSortDirection,
@@ -51,6 +53,9 @@ const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 const SELL_HINT = 'rgba(159, 205, 122, 0.66)';
 const SEARCH_COLOR = '#A3D77A';
+/** Count-bar fill — a muted lilac so it reads as a quantity gauge, not a worth bar. */
+const COUNT_BAR = 'rgba(200, 182, 232, 0.55)';
+const COUNT_BAR_TRACK = 'rgba(74, 59, 110, 0.4)';
 
 /**
  * Per-category tint for the worth share bar — distinct, readable hues in
@@ -372,6 +377,10 @@ export class BagPanel {
     } else {
       const start = this.scroll;
       const end = Math.min(rows.length, start + visibleN);
+      // Shared denominator for the per-row count bars: the fullest stack in
+      // the CURRENTLY shown slice (active tab, or the cross-tab matches), so
+      // each row's fill reads relative to what's on screen.
+      const maxRowCount = maxBagRowCount(rows);
       for (let i = start; i < end; i++) {
         const r = rows[i];
         const ry = y + 78 + (i - start) * ROW_H;
@@ -417,6 +426,24 @@ export class BagPanel {
             ctx.font = '10px ui-monospace, monospace';
             ctx.fillText(`${r.unitValue}g ea`, countX - 44, ry + 4);
           }
+        }
+        // Count bar — a tiny gauge under the x{count} figure showing this
+        // stack's size relative to the fullest stack on screen, so the
+        // player reads relative quantities at a glance (which stack is big,
+        // which is nearly out) the way the crop-journal harvest bar shows
+        // tier mix. A faint full-width track keeps a small stack legible as
+        // "short, not missing"; skipped when there's nothing to scale
+        // against (a single-row slice fills it, which reads fine).
+        const CB_W = 40;
+        const CB_H = 3;
+        const cbFill = bagCountBarWidth(r.count, maxRowCount, CB_W);
+        if (cbFill > 0) {
+          const cbX = countX - CB_W;
+          const cbY = ry + 18;
+          ctx.fillStyle = COUNT_BAR_TRACK;
+          ctx.fillRect(cbX, cbY, CB_W, CB_H);
+          ctx.fillStyle = COUNT_BAR;
+          ctx.fillRect(cbX + CB_W - cbFill, cbY, cbFill, CB_H);
         }
       }
     }

@@ -397,6 +397,43 @@ export function bagItemWorth(item: BagItem): number {
   return item.count * item.unitValue;
 }
 
+/**
+ * The largest stack `count` across a list of bag rows — the denominator for
+ * the per-row count bar, so every row's fill reads on one shared scale (the
+ * fullest stack fills the track). 0 for an empty list (the panel then draws
+ * no bars). Pure — reads only the rows handed in, so the panel can pass the
+ * CURRENTLY visible slice (active tab, or the cross-tab search matches) and
+ * the bars scale to what's on screen rather than the whole bag.
+ */
+export function maxBagRowCount(rows: readonly BagItem[]): number {
+  let max = 0;
+  for (const r of rows) {
+    if (r.count > max) max = r.count;
+  }
+  return max;
+}
+
+/**
+ * Pixel width of a row's count bar: `count / maxCount` of `fullWidth`, so a
+ * stack of 30 against a fullest-stack of 60 fills half the track. The
+ * fullest stack fills it completely; any non-zero stack is guaranteed at
+ * least 1px so a lone item still shows a sliver rather than a blank track.
+ * Returns 0 when there's nothing to scale against (maxCount <= 0), the row
+ * is empty (count <= 0), or fullWidth is non-positive — the panel then skips
+ * the bar. Clamped so a count somehow exceeding the max can't overflow the
+ * track. Pure — no canvas. Mirrors the crop-journal harvest mini-bar's
+ * shared-scale approach so the two bars read the same way.
+ */
+export function bagCountBarWidth(
+  count: number,
+  maxCount: number,
+  fullWidth: number,
+): number {
+  if (maxCount <= 0 || count <= 0 || fullWidth <= 0) return 0;
+  const frac = Math.min(1, count / maxCount);
+  return Math.max(1, Math.round(frac * fullWidth));
+}
+
 /** One category's slice of the whole-bag worth, for the share bar. */
 export interface BagWorthSegment {
   category: BagCategory;
