@@ -223,12 +223,14 @@ export class AlmanacPanel {
     const PIP_TEXT_GAP = 8;
     const clusterW = pipsW + (pipsW > 0 ? PIP_TEXT_GAP : 0) + chipTextW;
     const clusterLeft = x + PANEL_W / 2 - clusterW / 2;
-    // Pips first, vertically centred against the chip text baseline.
+    // Pips first, vertically centred against the chip text baseline. Each
+    // pip is the kind's own 5x5 glyph (cake / tent / cart / rosette / heart)
+    // in its rail colour, so the filter preview reads as the SAME icon
+    // language as the rows it admits, not just a flat swatch.
     let pipX = clusterLeft;
     const pipY = y + h - 30 + 1;
     for (const kind of kinds) {
-      ctx.fillStyle = KIND_STYLE[kind].color;
-      ctx.fillRect(pipX, pipY, PIP, PIP);
+      this.drawKindGlyph(ctx, kind, KIND_STYLE[kind].color, pipX, pipY);
       pipX += PIP + PIP_GAP;
     }
     ctx.fillStyle = FILTER_CHIP;
