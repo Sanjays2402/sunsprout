@@ -98,6 +98,43 @@ export function settingsSections(rows: readonly RowKey[] = ROWS): SettingsSectio
   return out;
 }
 
+/**
+ * A small inline value-preview drawn in a settings row's value column, so
+ * the DISPLAY toggles show their effect rather than only a text value. A
+ * discriminated descriptor the renderer paints just left of the text:
+ *   - `tint`: a dimmed swatch at the row's night-tint alpha (darker = a
+ *     heavier night overlay), so the player sees how dark dusk will get.
+ *   - `scale`: a glyph sized to the HUD scale (a small "A" growing with
+ *     1.0 / 1.25 / 1.5x), previewing the typography bump.
+ *   - `toggle`: a filled/hollow pip for the on/off booleans.
+ *   - `none`: rows with no meaningful preview (reset / close).
+ * Pure: a static map over RowKey + the current Settings. The renderer owns
+ * the pixels; this owns WHAT to show.
+ */
+export type SettingsRowPreview =
+  | { kind: 'tint'; alpha: number }
+  | { kind: 'scale'; scale: number }
+  | { kind: 'toggle'; on: boolean }
+  | { kind: 'none' };
+
+export function settingsRowPreview(row: RowKey, s: Settings): SettingsRowPreview {
+  switch (row) {
+    case 'nightTint':
+      // The stored scale is a multiplier on the night overlay alpha, so a
+      // higher value = a darker night. Show the swatch at that opacity.
+      return { kind: 'tint', alpha: s.nightTintScale };
+    case 'hudScale':
+      return { kind: 'scale', scale: s.hudScale };
+    case 'autoSave':
+      return { kind: 'toggle', on: s.autoSave };
+    case 'reduceMotion':
+      return { kind: 'toggle', on: s.reduceMotion };
+    case 'reset':
+    case 'close':
+      return { kind: 'none' };
+  }
+}
+
 /** Outcome of a confirm in the settings panel. */
 export type SettingsAction =
   | { kind: 'cycled'; key: RowKey; value: string }
@@ -313,7 +350,81 @@ export class SettingsPanel {
     ctx.font = 'bold 12px ui-monospace, monospace';
     ctx.fillStyle = ACCENT;
     ctx.textAlign = 'right';
-    ctx.fillText(rowValue(row, settings, this.resetArmed), x + PANEL_W - 26, ry + 10);
+    const valueText = rowValue(row, settings, this.resetArmed);
+    ctx.fillText(valueText, x + PANEL_W - 26, ry + 10);
+
+    // Inline value preview — a tiny swatch/glyph just LEFT of the value
+    // text so the DISPLAY toggles show their effect (a dimmed night-tint
+    // swatch, a scaled glyph for HUD size, a filled/hollow on-off pip)
+    // instead of only a text value. The reset/close rows have no preview.
+    const valueW = ctx.measureText(valueText).width;
+    const previewRight = x + PANEL_W - 26 - valueW - 10;
+    this.drawValuePreview(ctx, settingsRowPreview(row, settings), previewRight, ry + rowH / 2);
+  }
+
+  /**
+   * Paint a value preview's pixels at right edge `rx`, vertically centred
+   * on `cy`. The swatch sits in the row's value column, right-aligned so it
+   * tucks left of the text value. No-op for the `none` kind (reset/close).
+   */
+  private drawValuePreview(
+    ctx: CanvasRenderingContext2D,
+    preview: SettingsRowPreview,
+    rx: number,
+    cy: number,
+  ): void {
+    switch (preview.kind) {
+      case 'tint': {
+        // A 16x12 swatch washed at the night-tint alpha over a pale base so
+        // a heavier tint reads visibly darker. A thin border keeps a 0%
+        // (fully transparent) swatch legible as an empty frame.
+        const w = 16;
+        const h = 12;
+        const sx = rx - w;
+        const sy = Math.round(cy - h / 2);
+        ctx.fillStyle = '#C9B89A'; // pale daylight base
+        ctx.fillRect(sx, sy, w, h);
+        ctx.fillStyle = `rgba(20, 22, 48, ${preview.alpha.toFixed(2)})`;
+        ctx.fillRect(sx, sy, w, h);
+        ctx.strokeStyle = ROW_BORDER;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx + 0.5, sy + 0.5, w - 1, h - 1);
+        break;
+      }
+      case 'scale': {
+        // A glyph "A" sized to the HUD scale so the typography bump is
+        // visible. 11px base * scale, baseline-aligned to the row centre.
+        const px = Math.round(11 * preview.scale);
+        ctx.fillStyle = ACCENT;
+        ctx.font = `bold ${px}px ui-monospace, monospace`;
+        ctx.textAlign = 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('A', rx, cy);
+        ctx.textBaseline = 'top';
+        break;
+      }
+      case 'toggle': {
+        // A filled pip when on, a hollow ring when off — a glanceable
+        // boolean preview beside the on/off text.
+        const r = 5;
+        const px = rx - r;
+        ctx.lineWidth = 1;
+        if (preview.on) {
+          ctx.fillStyle = '#A3D77A';
+          ctx.beginPath();
+          ctx.arc(px, cy, r, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.strokeStyle = ROW_BORDER;
+          ctx.beginPath();
+          ctx.arc(px, cy, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'none':
+        break;
+    }
   }
 }
 
