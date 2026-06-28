@@ -285,3 +285,48 @@ export function runningBalanceMap(player: Player): Map<MoneyLogEntry, number> {
   for (const row of runningBalances(player)) map.set(row.entry, row.balance);
   return map;
 }
+
+/** Which way the purse moved across the logged window. */
+export type PurseDirection = 'up' | 'down' | 'flat';
+
+/**
+ * Where the purse started + ended across the whole logged window, derived
+ * from the running balances so it agrees with the per-row \"= Ng\" column.
+ * The running-balance column shows the purse at each row; this distils it
+ * into a one-line trend (\"320g -> 412g  +92g\") so the player reads the
+ * NET direction of the window without eyeballing the top + bottom figures.
+ */
+export interface PurseTrend {
+  /** Gold on hand just before the oldest logged row posted. */
+  start: number;
+  /** Gold on hand now (the newest row's balance == player.gold). */
+  end: number;
+  /** Signed net change across the window (end - start == netChange). */
+  delta: number;
+  direction: PurseDirection;
+}
+
+/**
+ * Reconstruct the purse trend over the whole logged window. Anchors on the
+ * running balances: `end` is the newest row's balance (the player's current
+ * gold) and `start` is the OLDEST row's balance minus that row's own delta
+ * — i.e. the purse just before the window's first recorded change. `delta`
+ * is therefore the sum of every logged delta, identical to netChange(), but
+ * paired with the endpoints so the panel can show \"start -> end\" alongside
+ * the signed move.
+ *
+ * Returns null when the log has fewer than two rows: a single entry (or an
+ * empty ledger) has no span to read a trend across, so the panel suppresses
+ * the line rather than show a degenerate \"X -> X\". Pure: reads only the log
+ * + player.gold.
+ */
+export function purseTrend(player: Player): PurseTrend | null {
+  const rows = runningBalances(player);
+  if (rows.length < 2) return null;
+  const end = rows[0].balance; // newest == current gold
+  const oldest = rows[rows.length - 1];
+  const start = oldest.balance - oldest.entry.delta;
+  const delta = end - start;
+  const direction: PurseDirection = delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat';
+  return { start, end, delta, direction };
+}

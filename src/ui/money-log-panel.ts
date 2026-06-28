@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, type MoneyCategory, type MoneyFilter } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, type MoneyCategory, type MoneyFilter } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 
@@ -141,10 +141,33 @@ export class MoneyLogPanel {
     const tin = totalIn(player);
     const tout = totalOut(player);
     const net = netChange(player);
-    ctx.fillStyle = HINT;
+    // Purse trend — the endpoints of the logged window ("320g -> 412g") so
+    // the player reads where the purse WAS vs where it IS, the span the
+    // per-row running-balance column traces row by row. Drawn right-aligned
+    // on the summary line, tinted by direction (gain green / loss red /
+    // flat dim). Null (and so suppressed) until there are >=2 rows to span.
+    const trend = purseTrend(player);
+    const trendText = trend ? `${trend.start}g -> ${trend.end}g` : '';
     ctx.font = '10px ui-monospace, monospace';
+    const trendW = trendText
+      ? ctx.measureText(trendText).width + 10 // +gap before the in/out/net text
+      : 0;
+    ctx.fillStyle = HINT;
     ctx.textAlign = 'left';
-    ctx.fillText(`in +${tin}g  /  out -${tout}g  /  net ${net >= 0 ? '+' : ''}${net}g`, x + 12, y + 28);
+    // Clip the in/out/net text so it never runs into the right-aligned trend.
+    ctx.fillText(
+      `in +${tin}g  /  out -${tout}g  /  net ${net >= 0 ? '+' : ''}${net}g`,
+      x + 12,
+      y + 28,
+      PANEL_W - 24 - trendW,
+    );
+    if (trendText && trend) {
+      ctx.fillStyle =
+        trend.direction === 'up' ? GAIN : trend.direction === 'down' ? LOSS : HINT;
+      ctx.font = 'bold 10px ui-monospace, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(trendText, x + PANEL_W - 12, y + 28);
+    }
 
     // Separator
     ctx.fillStyle = 'rgba(74, 59, 110, 0.55)';
