@@ -26,6 +26,7 @@ import {
   cycleBagSort,
   bagSearchResults,
   bagSearchMatchCount,
+  bagSearchCategoryCounts,
   type BagCategory,
   type BagSortMode,
   type BagItem,
@@ -302,14 +303,19 @@ export class BagPanel {
       }
     }
 
-    // Tabs through the shared strip — one per bag category, sub line shows
-    // each category's non-zero stack count. Kept (dim, non-active) while
-    // searching so the player still has spatial context for the categories
-    // the cross-tab results are drawn from.
+    // Tabs through the shared strip — one per bag category. The sub line
+    // normally shows each category's non-zero stack count; while `/` search
+    // is active it instead shows how many of the cross-tab MATCHES live in
+    // that category, so the player sees the match distribution (e.g. typing
+    // "ruby" concentrates the hits under Gems). Tabs stay (dim, non-active)
+    // while searching so the player keeps spatial context for the results.
     const counts = bagCategoryCounts(player);
+    const matchCounts = searching
+      ? bagSearchCategoryCounts(player, this.search)
+      : null;
     const tabItems: TabStripItem[] = BAG_CATEGORIES.map((cat) => ({
       label: cat,
-      sub: String(counts[cat]),
+      sub: String((matchCounts ?? counts)[cat]),
     }));
     // While searching, pass -1 so no tab reads as active (no current tab).
     const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, searching ? -1 : this.tabIndex);

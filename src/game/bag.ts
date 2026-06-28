@@ -272,6 +272,32 @@ export function bagSearchMatchCount(player: Player, query: string): number {
   return bagSearchResults(player, query).length;
 }
 
+/**
+ * Per-category counts of the cross-tab search MATCHES, so the bag's tab
+ * strip can swap its idle stack-count sub-labels for the match
+ * distribution while `/` search is active (e.g. the player typing "ruby"
+ * sees the hits concentrated under Gems). Counts every category — zero
+ * for tabs with no match — so the panel can show a uniform "Cat N" sub.
+ * An empty / whitespace query yields all-zero counts (no active search).
+ * Pure.
+ */
+export function bagSearchCategoryCounts(
+  player: Player,
+  query: string,
+): Record<BagCategory, number> {
+  const counts: Record<BagCategory, number> = {
+    Seeds: 0,
+    Crops: 0,
+    Fish: 0,
+    Gems: 0,
+    Forage: 0,
+    Kitchen: 0,
+    Supplies: 0,
+  };
+  for (const row of bagSearchResults(player, query)) counts[row.category] += 1;
+  return counts;
+}
+
 /** Per-category non-zero stack counts, for the tab-strip sub-labels. Pure. */
 export function bagCategoryCounts(player: Player): Record<BagCategory, number> {
   const counts: Record<BagCategory, number> = {
