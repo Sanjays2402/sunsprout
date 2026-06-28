@@ -292,6 +292,39 @@ export function maxLifetimeHarvest(entries: readonly CropJournalEntry[]): number
 }
 
 /**
+ * Whether ANY journal row would draw a harvest mini-bar — i.e. at least one
+ * crop has been harvested. Drives the journal's bar legend: the n/s/g key
+ * is only worth showing once a bar is actually on screen. Equivalent to
+ * maxLifetimeHarvest(entries) > 0 but reads as intent. Pure.
+ */
+export function hasHarvestBars(entries: readonly CropJournalEntry[]): boolean {
+  return maxLifetimeHarvest(entries) > 0;
+}
+
+/** One swatch + label of the harvest-bar legend, in tier order. */
+export interface HarvestBarLegendItem {
+  tier: 'normal' | 'silver' | 'gold';
+  /** Short key label, e.g. "normal" / "silver" / "gold". */
+  label: string;
+}
+
+/**
+ * The harvest mini-bar legend, in the same left-to-right order the bar
+ * stacks its segments (normal, silver, gold). Lets the journal header draw
+ * a tiny "normal / silver / gold" key with a colour swatch per tier so the
+ * stacked bar in each row is readable instead of three unlabelled hues. The
+ * panel owns the tier colours (they live in the UI), so this only carries
+ * the order + labels. Pure.
+ */
+export function harvestBarLegend(): HarvestBarLegendItem[] {
+  return [
+    { tier: 'normal', label: 'normal' },
+    { tier: 'silver', label: 'silver' },
+    { tier: 'gold', label: 'gold' },
+  ];
+}
+
+/**
  * Lay out one crop's stacked harvest bar. The bar's overall length is
  * `total / maxTotal` of `fullWidth` (so the busiest crop fills the track
  * and the rest read proportionally), then split into normal / silver /

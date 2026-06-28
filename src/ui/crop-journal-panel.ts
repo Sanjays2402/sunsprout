@@ -17,6 +17,8 @@ import {
   totalHarvest,
   maxLifetimeHarvest,
   harvestBarSegments,
+  hasHarvestBars,
+  harvestBarLegend,
   isBestSeasonNow,
   fieldStatusCounts,
   fieldStatusSummary,
@@ -92,9 +94,12 @@ export class CropJournalPanel {
     // Live field-status digest under the title — a "right now" cousin of
     // the lifetime tallies below it, so the reference panel ties back to
     // the current farm. Present only when crops are growing; the band
-    // collapses to nothing on a bare field so the layout stays put.
+    // collapses to nothing on a bare field so the layout stays put. The
+    // harvest-bar legend shares this same band (right-aligned), so the band
+    // is also reserved when a mini-bar will draw even on an empty field.
     const fieldLine = fieldStatusSummary(fieldStatusCounts(fieldSamples));
-    const fieldH = fieldLine ? 14 : 0;
+    const needsHeaderBand = fieldLine.length > 0 || hasHarvestBars(entries);
+    const fieldH = needsHeaderBand ? 14 : 0;
     const h = 44 + fieldH + entries.length * ROW_H + (festivals.length > 0 ? 38 : 12) + ledgerExtra;
     // Top-left overlay — replaces the quest panel while open (same chrome
     // pattern as the recipe codex overlays the hearts panel on the right).
@@ -130,12 +135,22 @@ export class CropJournalPanel {
 
     // Field-status caption band — green for a field that needs nothing,
     // amber-tinted wording when crops are thirsty (the summary already
-    // orders ready/growing/thirsty). Drawn dim under the title.
+    // orders ready/growing/thirsty). Drawn dim under the title. A harvest-
+    // bar legend (normal / silver / gold key) is right-aligned on the same
+    // line once any row would draw a mini-bar, so the stacked bars below
+    // read as tiers instead of three unlabelled hues; the field text clips
+    // ahead of it so the two never collide.
+    const showLegend = hasHarvestBars(entries);
+    const legendW = showLegend ? this.measureHarvestLegend(ctx) : 0;
     if (fieldLine) {
       ctx.fillStyle = HINT;
       ctx.font = '10px ui-monospace, monospace';
       ctx.textAlign = 'left';
-      ctx.fillText(fieldLine, x + 12, y + 24);
+      const fieldMaxW = PANEL_W - 24 - (legendW > 0 ? legendW + 10 : 0);
+      ctx.fillText(fieldLine, x + 12, y + 24, fieldMaxW);
+    }
+    if (showLegend) {
+      this.drawHarvestLegend(ctx, x + PANEL_W - 12, y + 24);
     }
 
     // Shared denominator for the per-row harvest mini-bars so every crop's
@@ -291,5 +306,55 @@ export class CropJournalPanel {
     ctx.textAlign = 'center';
     ctx.fillText('; or Esc to close', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
+  }
+
+  /** The tier swatch colour for the harvest-bar legend (matches the bar). */
+  private harvestTierColor(tier: 'normal' | 'silver' | 'gold'): string {
+    return tier === 'gold' ? GOLD : tier === 'silver' ? SILVER : TEXT_COLOR;
+  }
+
+  /** Pixel width of the harvest-bar legend, for right-aligned placement. */
+  private measureHarvestLegend(ctx: CanvasRenderingContext2D): number {
+    ctx.font = '9px ui-monospace, monospace';
+    const SWATCH = 6;
+    const SWATCH_GAP = 3;
+    const ITEM_GAP = 8;
+    const items = harvestBarLegend();
+    let w = 0;
+    for (let i = 0; i < items.length; i++) {
+      w += SWATCH + SWATCH_GAP + ctx.measureText(items[i].label).width;
+      if (i < items.length - 1) w += ITEM_GAP;
+    }
+    return w;
+  }
+
+  /**
+   * Draw the harvest-bar legend ending at right edge `rightX`, baseline-
+   * aligned to `topY`: a small colour swatch + tier label per tier, in the
+   * same normal/silver/gold order the per-row mini-bar stacks, so the bar
+   * reads as a key'd tier breakdown rather than three unlabelled hues.
+   */
+  private drawHarvestLegend(
+    ctx: CanvasRenderingContext2D,
+    rightX: number,
+    topY: number,
+  ): void {
+    const items = harvestBarLegend();
+    const w = this.measureHarvestLegend(ctx);
+    const SWATCH = 6;
+    const SWATCH_GAP = 3;
+    const ITEM_GAP = 8;
+    let lx = rightX - w;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.font = '9px ui-monospace, monospace';
+    for (const item of items) {
+      ctx.fillStyle = this.harvestTierColor(item.tier);
+      ctx.fillRect(lx, topY + 1, SWATCH, SWATCH);
+      lx += SWATCH + SWATCH_GAP;
+      ctx.fillStyle = HINT;
+      ctx.fillText(item.label, lx, topY);
+      lx += ctx.measureText(item.label).width + ITEM_GAP;
+    }
   }
 }
