@@ -448,3 +448,48 @@ export function achievementSections(
   }
   return out;
 }
+
+/**
+ * Panel-local achievements filter so a player deep into the catalog can
+ * isolate just the badges they've earned (to admire) or just what's still
+ * locked (to chase) without scanning past the other group. Cycles
+ * all -> earned -> locked, each keeping one earn-state ('all' keeps
+ * everything). The achievements panel is a non-blocking read-while-walking
+ * overlay with no a/d nav, so a panel-local `f` cycle is the right shape
+ * (mirrors the recipe-codex / quest-log filters); the global fishing `f`
+ * is guarded against the open panel. The EARNED / LOCKED section dividers
+ * still group within whatever the filter shows.
+ */
+export type AchievementFilter = 'all' | 'earned' | 'locked';
+
+/** Cycle order for the `f` keypress. */
+export const ACHIEVEMENT_FILTERS: readonly AchievementFilter[] = [
+  'all',
+  'earned',
+  'locked',
+] as const;
+
+/** Advance to the next filter, wrapping at the end. Pure. */
+export function cycleAchievementFilter(f: AchievementFilter): AchievementFilter {
+  const i = ACHIEVEMENT_FILTERS.indexOf(f);
+  return ACHIEVEMENT_FILTERS[(i + 1) % ACHIEVEMENT_FILTERS.length];
+}
+
+/** Short chip label for the active filter. Pure. */
+export function achievementFilterLabel(f: AchievementFilter): string {
+  return f; // 'all' / 'earned' / 'locked' read fine as-is.
+}
+
+/**
+ * Keep only the achievement rows matching the active filter, by earn
+ * state. 'all' returns the input untouched (a fresh array for caller
+ * safety), preserving catalog order in every case. Pure.
+ */
+export function applyAchievementFilter(
+  rows: readonly AchievementRow[],
+  filter: AchievementFilter,
+): AchievementRow[] {
+  if (filter === 'all') return rows.slice();
+  const wantEarned = filter === 'earned';
+  return rows.filter((r) => r.earned === wantEarned);
+}

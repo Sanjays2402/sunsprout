@@ -1212,12 +1212,17 @@ export class Game {
       this.cropJournal.close();
     }
 
-    // V: toggle the achievements panel. While open, arrows / w/s scroll.
+    // V: toggle the achievements panel. While open, `f` cycles the
+    // earn-state filter (all -> earned -> locked); arrows / w/s scroll.
+    // Non-blocking read-while-walking overlay, so the panel-local `f` is
+    // guarded out of the fishing path below like the other filter panels.
     if (this.input.justPressed.has('v')) {
       this.achievements.toggle();
     } else if (this.achievements.isVisible() && this.achievements.canAct()) {
       if (this.input.justPressed.has('escape')) {
         this.achievements.close();
+      } else if (this.input.justPressed.has('f')) {
+        this.achievements.cycleFilter();
       } else if (this.input.justPressed.has('arrowdown') || this.input.justPressed.has('s')) {
         this.achievements.scrollDown(this.world.player);
       } else if (this.input.justPressed.has('arrowup') || this.input.justPressed.has('w')) {
@@ -2158,9 +2163,9 @@ export class Game {
       // F: fishing — reel during a bite, lock-in timing during reel,
       // otherwise try to cast into water. Suppressed when any panel that
       // binds `f` to a filter/sort is open and active (lore, almanac,
-      // money-log, recipe-codex, quest-log, hearts), so a stray cast can't
-      // fire underneath.
-      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible() && !this.questLogPanel.isVisible() && !this.heartsPanelVisible) {
+      // money-log, recipe-codex, quest-log, hearts, achievements), so a
+      // stray cast can't fire underneath.
+      if (this.input.justPressed.has('f') && !this.lorePanel.isVisible() && !this.almanacPanel.isVisible() && !this.moneyLogPanel.isVisible() && !this.recipeCodex.isVisible() && !this.questLogPanel.isVisible() && !this.heartsPanelVisible && !this.achievements.isVisible()) {
         if (this.rod.state === 'biting') {
           this.rod.reel();
         } else if (this.rod.state === 'reeling' && this.reelLockedCursor === null) {

@@ -18,7 +18,11 @@ import {
   achievementSections,
   achievementsNextUp,
   achievementsNextUpLine,
+  applyAchievementFilter,
+  cycleAchievementFilter,
+  achievementFilterLabel,
   type AchievementRow,
+  type AchievementFilter,
 } from '../game/achievements';
 import { ribbonHallCaption } from '../game/ribbon-hall';
 
@@ -33,6 +37,7 @@ const LOCKED_PIP = '#7a6a9a';
 const RIBBON_CAPTION = '#E8B23A';
 const NEXTUP_CAPTION = 'rgba(245, 233, 212, 0.6)';
 const SECTION_RULE = 'rgba(74, 59, 110, 0.5)';
+const FILTER_CHIP = 'rgba(200, 182, 232, 0.7)';
 
 const PANEL_W = 440;
 const ROW_H = 30;
@@ -54,11 +59,14 @@ export class AchievementsPanel {
   private opened = false;
   private lockoutMs = 0;
   private scroll = 0;
+  /** Panel-local earn-state filter. Resets to 'all' on open. */
+  private filter: AchievementFilter = 'all';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
     this.scroll = 0;
+    this.filter = 'all';
   }
 
   close(): void {
@@ -78,6 +86,18 @@ export class AchievementsPanel {
     return this.opened && this.lockoutMs <= 0;
   }
 
+  /** Active earn-state filter — exposed for tests. */
+  currentFilter(): AchievementFilter {
+    return this.filter;
+  }
+
+  /** Cycle the earn-state filter (all -> earned -> locked). Resets scroll. */
+  cycleFilter(): void {
+    if (!this.opened) return;
+    this.filter = cycleAchievementFilter(this.filter);
+    this.scroll = 0;
+  }
+
   update(dtMs: number): void {
     if (!this.opened) return;
     if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
@@ -94,9 +114,10 @@ export class AchievementsPanel {
     this.scroll = Math.max(0, this.scroll - 1);
   }
 
-  /** Flatten the earned/locked sections into one scrollable line list. */
+  /** Flatten the (filtered) earned/locked sections into one line list. */
   private displayItems(player: Player): DisplayItem[] {
-    const sections = achievementSections(buildAchievements(player));
+    const filtered = applyAchievementFilter(buildAchievements(player), this.filter);
+    const sections = achievementSections(filtered);
     const items: DisplayItem[] = [];
     for (const s of sections) {
       items.push({ kind: 'header', header: s.header, count: s.rows.length });
@@ -142,6 +163,11 @@ export class AchievementsPanel {
     const visN = this.visibleCountFrom(items, start);
     const end = start + visN;
 
+    // The catalog is never empty, so the only way the body empties is a
+    // filter that hides every row (e.g. "earned" on a fresh save). That
+    // gets a plain note pointing at the `f` cycle instead of a blank panel.
+    const filterEmpty = items.length === 0;
+
     const caption = ribbonHallCaption(player);
     const captionH = caption ? 18 : 0;
     // Next-up digest band under the title — names the next locked badge +
@@ -151,7 +177,10 @@ export class AchievementsPanel {
     // never empty), so it's a fixed band that offsets the body.
     const nextUpLine = achievementsNextUpLine(achievementsNextUp(rows));
     const nextUpH = nextUpLine ? 16 : 0;
-    const h = 40 + nextUpH + BODY_H + 22 + captionH;
+    // A filter that empties the list reserves two body rows for the note;
+    // otherwise the fixed body budget keeps the panel height constant.
+    const bodyH = filterEmpty ? 2 * ROW_H : BODY_H;
+    const h = 40 + nextUpH + bodyH + 22 + captionH;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -172,6 +201,16 @@ export class AchievementsPanel {
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('achievements  (V)', x + 14, y + 12);
 
+    // Filter chip — dim pill right of the title when the filter narrows the
+    // view, so the `f` cycle is discoverable. Quiet on 'all' (no narrowing).
+    if (this.filter !== 'all') {
+      ctx.font = 'bold 14px ui-monospace, monospace';
+      const titleW = ctx.measureText('achievements  (V)').width;
+      ctx.fillStyle = FILTER_CHIP;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`- ${achievementFilterLabel(this.filter)}`, x + 14 + titleW + 8, y + 15);
+    }
+
     const earned = rows.filter((r) => r.earned).length;
     ctx.fillStyle = DIM;
     ctx.font = '11px ui-monospace, monospace';
@@ -188,17 +227,28 @@ export class AchievementsPanel {
       ctx.fillText(nextUpLine, x + 14, y + 32);
     }
 
-    // Walk the visible display items, drawing dividers + rows in one pass
-    // so the EARNED / LOCKED groups stay legible while the list scrolls.
-    let ry = y + 40 + nextUpH;
-    for (let i = start; i < end; i++) {
-      const item = items[i];
-      if (item.kind === 'header') {
-        this.drawSectionHeader(ctx, item.header, item.count, x, ry);
-      } else {
-        this.drawRow(ctx, item.row, x, ry);
+    if (filterEmpty) {
+      // A filter (earned on a fresh save / locked at 100%) hid every row —
+      // a plain note pointing at the `f` cycle so the view isn't a dead end.
+      ctx.fillStyle = HINT;
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`no ${achievementFilterLabel(this.filter)} badges`, x + PANEL_W / 2, y + 48 + nextUpH);
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText('press f to change the filter', x + PANEL_W / 2, y + 64 + nextUpH);
+    } else {
+      // Walk the visible display items, drawing dividers + rows in one pass
+      // so the EARNED / LOCKED groups stay legible while the list scrolls.
+      let ry = y + 40 + nextUpH;
+      for (let i = start; i < end; i++) {
+        const item = items[i];
+        if (item.kind === 'header') {
+          this.drawSectionHeader(ctx, item.header, item.count, x, ry);
+        } else {
+          this.drawRow(ctx, item.row, x, ry);
+        }
+        ry += this.itemHeight(item);
       }
-      ry += this.itemHeight(item);
     }
 
     // Scroll indicator if the list is taller than the visible window.
@@ -225,7 +275,7 @@ export class AchievementsPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('V / Esc to close - arrows or w/s to scroll', x + PANEL_W / 2, y + h - 14);
+    ctx.fillText('V / Esc to close - w/s scroll - f filter', x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 
