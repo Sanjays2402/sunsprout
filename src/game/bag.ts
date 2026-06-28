@@ -248,6 +248,30 @@ export function bagItemsForCategory(
   return buildBag(player, sort).filter((r) => r.category === category);
 }
 
+/**
+ * Cross-tab search: every bag row whose label contains the query as a
+ * case-insensitive substring, in the same category-then-sort order
+ * buildBag produces (so results read top-down like the normal list, just
+ * filtered). An empty / whitespace-only query returns [] — the caller
+ * treats that as "no active search" and shows a prompt instead of the
+ * whole bag. Matching on the human LABEL (not the raw key) so a player
+ * typing "ruby" or "premium" finds what they'd read on screen. Pure.
+ */
+export function bagSearchResults(
+  player: Player,
+  query: string,
+  sort: BagSortMode = 'count',
+): BagItem[] {
+  const q = query.trim().toLowerCase();
+  if (q.length === 0) return [];
+  return buildBag(player, sort).filter((r) => r.label.toLowerCase().includes(q));
+}
+
+/** How many bag rows match the search query across all tabs. Pure. */
+export function bagSearchMatchCount(player: Player, query: string): number {
+  return bagSearchResults(player, query).length;
+}
+
 /** Per-category non-zero stack counts, for the tab-strip sub-labels. Pure. */
 export function bagCategoryCounts(player: Player): Record<BagCategory, number> {
   const counts: Record<BagCategory, number> = {

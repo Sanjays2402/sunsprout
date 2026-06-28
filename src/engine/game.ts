@@ -1111,6 +1111,39 @@ export class Game {
       }
     }
 
+    // Bag search is an input-capturing modal too: once `/` arms it, typed
+    // letters build a cross-tab query. Handle it BEFORE any panel-toggle key
+    // dispatch so a filter keystroke (e.g. "r", "h", "c") filters the bag
+    // instead of toggling another panel underneath. `/` toggles it off, Esc
+    // clears then exits, Backspace deletes; arrows still scroll the matches.
+    // `tab` is intentionally excluded so it falls through to the bag block
+    // below and still closes the whole panel.
+    if (
+      this.bagPanel.isVisible() &&
+      this.bagPanel.canAct() &&
+      this.bagPanel.isSearching() &&
+      !this.input.justPressed.has('tab')
+    ) {
+      if (this.input.justPressed.has('escape')) {
+        this.bagPanel.clearSearch();
+      } else if (this.input.justPressed.has('/')) {
+        this.bagPanel.toggleSearch();
+      } else if (this.input.justPressed.has('backspace')) {
+        this.bagPanel.backspaceSearch();
+      } else if (this.input.justPressed.has('arrowdown')) {
+        this.bagPanel.scrollDown(this.world.player);
+      } else if (this.input.justPressed.has('arrowup')) {
+        this.bagPanel.scrollUp();
+      } else {
+        // Feed the first printable char into the query, swallow the rest.
+        for (const k of this.input.justPressed) {
+          if (this.bagPanel.typeChar(k)) break;
+        }
+      }
+      this.input.clearJustPressed();
+      return;
+    }
+
     // Fishing rod state machine ticks every frame so bite/escape fire even
     // if the player isn't pressing anything. Auto-toast escape events so
     // they don't feel silent.
@@ -1353,12 +1386,18 @@ export class Game {
     }
 
     // Tab: toggle the inventory / bag panel. While open, a/d (or arrows)
-    // switch category tabs and w/s (or arrows) scroll the list.
+    // switch category tabs, w/s (or arrows) scroll, `f` cycles the sort, and
+    // `/` arms a cross-tab type-to-filter search. The SEARCHING state is an
+    // input-capturing modal handled earlier (before any panel-toggle key
+    // dispatch) so typed letters can't leak to other panels; this block only
+    // runs the non-search controls.
     if (this.input.justPressed.has('tab')) {
       this.bagPanel.toggle();
     } else if (this.bagPanel.isVisible() && this.bagPanel.canAct()) {
       if (this.input.justPressed.has('escape')) {
         this.bagPanel.close();
+      } else if (this.input.justPressed.has('/')) {
+        this.bagPanel.toggleSearch();
       } else if (this.input.justPressed.has('arrowright') || this.input.justPressed.has('d')) {
         this.bagPanel.nextTab();
       } else if (this.input.justPressed.has('arrowleft') || this.input.justPressed.has('a')) {

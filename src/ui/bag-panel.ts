@@ -24,8 +24,11 @@ import {
   bagSellHint,
   bagSortLabel,
   cycleBagSort,
+  bagSearchResults,
+  bagSearchMatchCount,
   type BagCategory,
   type BagSortMode,
+  type BagItem,
 } from '../game/bag';
 import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
@@ -42,6 +45,7 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const SORT_CHIP = 'rgba(200, 182, 232, 0.7)';
 const SELL_HINT = 'rgba(159, 205, 122, 0.66)';
+const SEARCH_COLOR = '#A3D77A';
 
 /**
  * Per-category tint for the worth share bar — distinct, readable hues in
@@ -69,11 +73,21 @@ export class BagPanel {
   private tabIndex = 0;
   private scroll = 0;
   private sortMode: BagSortMode = 'count';
+  /**
+   * Cross-tab type-to-filter. `searchActive` arms the input-capturing mode
+   * (claimed with `/` so the bag's `f`=sort + a/d/w/s nav stay free); while
+   * armed, typed letters/digits build `search` and the list shows matches
+   * across ALL tabs. Empty `search` while armed shows a prompt.
+   */
+  private searchActive = false;
+  private search = '';
 
   open(): void {
     this.opened = true;
     this.lockoutMs = 160;
     this.scroll = 0;
+    this.searchActive = false;
+    this.search = '';
   }
 
   close(): void {
@@ -108,6 +122,68 @@ export class BagPanel {
     return this.sortMode;
   }
 
+  /** Whether the type-to-filter search mode is armed. Exposed for tests. */
+  isSearching(): boolean {
+    return this.searchActive;
+  }
+
+  /** Current search query (lowercased). Exposed for tests. */
+  currentSearch(): string {
+    return this.search;
+  }
+
+  /**
+   * Toggle the search mode on/off (the `/` key). Turning it off clears the
+   * query + resets scroll so the player drops back to the tabbed view.
+   */
+  toggleSearch(): void {
+    if (!this.opened) return;
+    this.searchActive = !this.searchActive;
+    this.search = '';
+    this.scroll = 0;
+  }
+
+  /**
+   * Append a typed letter/digit to the search while armed. Only single
+   * printable alphanumerics are accepted (mirrors the help-overlay), so
+   * modifier names like 'enter' / 'shift' never pollute the query. Resets
+   * scroll so new matches start from the top. Returns true when the query
+   * changed.
+   */
+  typeChar(key: string): boolean {
+    if (!this.opened || !this.searchActive) return false;
+    if (key.length !== 1) return false;
+    if (!/[a-z0-9 ]/.test(key)) return false;
+    this.search += key;
+    this.scroll = 0;
+    return true;
+  }
+
+  /** Delete the last search character (Backspace). Returns true if changed. */
+  backspaceSearch(): boolean {
+    if (!this.opened || !this.searchActive || this.search.length === 0) return false;
+    this.search = this.search.slice(0, -1);
+    this.scroll = 0;
+    return true;
+  }
+
+  /**
+   * Esc handling inside the bag: first clears a non-empty query, then exits
+   * search mode, then (handled by the caller) closes the panel. Returns
+   * true when it consumed the Esc so the caller doesn't also close.
+   */
+  clearSearch(): boolean {
+    if (!this.opened || !this.searchActive) return false;
+    if (this.search.length > 0) {
+      this.search = '';
+      this.scroll = 0;
+      return true;
+    }
+    this.searchActive = false;
+    this.scroll = 0;
+    return true;
+  }
+
   /** Cycle the within-category sort (count -> value -> A-Z). Resets scroll. */
   cycleSort(): void {
     if (!this.opened) return;
@@ -127,9 +203,15 @@ export class BagPanel {
     this.scroll = 0;
   }
 
+  /** The rows the body currently shows: search matches, or the active tab. */
+  private visibleRows(player: Player): BagItem[] {
+    if (this.searchActive) return bagSearchResults(player, this.search, this.sortMode);
+    return bagItemsForCategory(player, this.currentCategory(), this.sortMode);
+  }
+
   scrollDown(player: Player): void {
     if (!this.opened) return;
-    const total = bagItemsForCategory(player, this.currentCategory(), this.sortMode).length;
+    const total = this.visibleRows(player).length;
     this.scroll = Math.min(Math.max(0, total - VISIBLE_ROWS), this.scroll + 1);
   }
 
@@ -140,7 +222,9 @@ export class BagPanel {
 
   draw(ctx: CanvasRenderingContext2D, player: Player, canvasW: number, canvasH: number): void {
     if (!this.opened) return;
-    const rows = bagItemsForCategory(player, this.currentCategory(), this.sortMode);
+    const searching = this.searchActive;
+    // Body rows: cross-tab search matches while armed, else the active tab.
+    const rows = this.visibleRows(player);
     const visibleN = Math.min(VISIBLE_ROWS, Math.max(rows.length, 1));
     // Reserve a footer band for the scroll indicator, the where-to-sell
     // hint, and the controls line (three stacked 14-16px rows).
@@ -165,14 +249,21 @@ export class BagPanel {
     ctx.font = 'bold 14px ui-monospace, monospace';
     ctx.fillText('bag  (Tab)', x + 14, y + 12);
 
-    // Sort chip — a dim pill right of the title showing the active sort
-    // mode (by count / by value / A-Z) so the `f` cycle is discoverable
-    // and the current order is legible.
+    // Chip right of the title: while searching it's a live "search: q_  (N)"
+    // chip (cross-tab match count) so the query + hits are legible; else the
+    // dim sort-mode chip (by count / by value / A-Z) the `f` cycle drives.
     ctx.font = 'bold 14px ui-monospace, monospace';
     const titleW = ctx.measureText('bag  (Tab)').width;
-    ctx.fillStyle = SORT_CHIP;
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.fillText(`- ${bagSortLabel(this.sortMode)}`, x + 14 + titleW + 8, y + 16);
+    if (searching) {
+      const matches = bagSearchMatchCount(player, this.search);
+      ctx.fillStyle = SEARCH_COLOR;
+      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.fillText(`search: ${this.search}_  (${matches})`, x + 14 + titleW + 8, y + 15);
+    } else {
+      ctx.fillStyle = SORT_CHIP;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(`- ${bagSortLabel(this.sortMode)}`, x + 14 + titleW + 8, y + 16);
+    }
 
     const stacks = bagTotalStacks(player);
     const worth = bagTotalValue(player);
@@ -199,8 +290,10 @@ export class BagPanel {
       for (const seg of shares) {
         ctx.fillStyle = CATEGORY_COLOR[seg.category];
         ctx.fillRect(sx, barY, seg.width, barH);
-        // Outline the active tab's slice so it stands out in the mix.
-        if (seg.category === this.currentCategory()) {
+        // Outline the active tab's slice so it stands out in the mix. The
+        // outline is meaningless while searching (no single active tab), so
+        // it's suppressed then.
+        if (!searching && seg.category === this.currentCategory()) {
           ctx.strokeStyle = TEXT_COLOR;
           ctx.lineWidth = 1;
           ctx.strokeRect(sx - 0.5, barY - 1.5, seg.width + 1, barH + 3);
@@ -210,20 +303,23 @@ export class BagPanel {
     }
 
     // Tabs through the shared strip — one per bag category, sub line shows
-    // each category's non-zero stack count.
+    // each category's non-zero stack count. Kept (dim, non-active) while
+    // searching so the player still has spatial context for the categories
+    // the cross-tab results are drawn from.
     const counts = bagCategoryCounts(player);
     const tabItems: TabStripItem[] = BAG_CATEGORIES.map((cat) => ({
       label: cat,
       sub: String(counts[cat]),
     }));
-    const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, this.tabIndex);
+    // While searching, pass -1 so no tab reads as active (no current tab).
+    const tabRects = tabStripLayout(tabItems, x + 14, y + 38, PANEL_W - 28, searching ? -1 : this.tabIndex);
     drawTabStrip(ctx, tabRects);
 
     // Per-tab worth caption in the gap between the strip and the rows —
     // "Gems: 412g in this tab" — so the player sees where their money is
-    // sitting. Quiet on valueless tabs (Seeds / Supplies sum to 0g) and
-    // on an empty tab, so it only speaks when it has something to say.
-    const tabWorth = bagCategoryValue(player, this.currentCategory());
+    // sitting. Quiet on valueless tabs (Seeds / Supplies sum to 0g), on an
+    // empty tab, and while searching (no single active tab).
+    const tabWorth = searching ? 0 : bagCategoryValue(player, this.currentCategory());
     if (tabWorth > 0) {
       ctx.fillStyle = GOLD;
       ctx.font = '10px ui-monospace, monospace';
@@ -235,12 +331,23 @@ export class BagPanel {
       );
     }
 
-    // Rows or a calm empty state for this category. The empty state now
-    // speaks the shared two-line panel vocabulary (message + how-to hint)
-    // via game/panel-empty.ts, so the bag reads like the money / quest /
-    // lore panels instead of its own one-line dialect.
+    // Rows, a search prompt/no-match note, or a calm category empty state.
     if (rows.length === 0) {
-      drawEmptyState(ctx, bagEmptyState(this.currentCategory()), x + PANEL_W / 2, y + 78 + 6);
+      if (searching) {
+        // Distinguish "type something" from "nothing matched" so the search
+        // mode never reads as a broken empty panel.
+        ctx.fillStyle = HINT;
+        ctx.font = '11px ui-monospace, monospace';
+        ctx.textAlign = 'center';
+        const msg = this.search.length === 0
+          ? 'type to search your whole bag'
+          : `no items match "${this.search}"`;
+        ctx.fillText(msg, x + PANEL_W / 2, y + 84);
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillText('Backspace deletes - Esc clears - / exits search', x + PANEL_W / 2, y + 100);
+      } else {
+        drawEmptyState(ctx, bagEmptyState(this.currentCategory()), x + PANEL_W / 2, y + 78 + 6);
+      }
     } else {
       const start = this.scroll;
       const end = Math.min(rows.length, start + visibleN);
@@ -260,6 +367,14 @@ export class BagPanel {
         ctx.font = '12px ui-monospace, monospace';
         ctx.textAlign = 'left';
         ctx.fillText(r.label, x + 34, ry + 3);
+        // While searching the list is cross-tab, so tag each row with its
+        // category (dim, tinted to the share-bar palette) so the player
+        // knows which tab a match lives under.
+        if (searching) {
+          ctx.fillStyle = CATEGORY_COLOR[r.category];
+          ctx.font = '9px ui-monospace, monospace';
+          ctx.fillText(r.category, x + 34, ry + 16);
+        }
 
         // Count, then a value figure, on the right. Under the value sort we
         // emphasise each row's TOTAL worth (count * unitValue) — the figure
@@ -285,7 +400,7 @@ export class BagPanel {
       }
     }
 
-    // Scroll indicator when the category overflows the visible window.
+    // Scroll indicator when the list overflows the visible window.
     if (rows.length > visibleN) {
       ctx.fillStyle = HINT;
       ctx.font = '10px ui-monospace, monospace';
@@ -297,8 +412,9 @@ export class BagPanel {
 
     // Where-to-sell hint — closes the loop between seeing a stack's worth
     // and realising it. Quiet on tabs that aren't a sell loop (Seeds /
-    // Supplies return null) and on an empty tab.
-    const sellHint = rows.length > 0 ? bagSellHint(this.currentCategory()) : null;
+    // Supplies return null), on an empty tab, and while searching (the
+    // cross-tab list has no single sell counter).
+    const sellHint = !searching && rows.length > 0 ? bagSellHint(this.currentCategory()) : null;
     if (sellHint) {
       ctx.fillStyle = SELL_HINT;
       ctx.font = '10px ui-monospace, monospace';
@@ -309,7 +425,10 @@ export class BagPanel {
     ctx.fillStyle = HINT;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'center';
-    ctx.fillText('Tab / Esc to close - a/d switch tabs - w/s scroll - f sort', x + PANEL_W / 2, y + h - 14);
+    const controls = searching
+      ? 'type to filter - Backspace deletes - Esc clears - / exits search'
+      : 'Tab / Esc to close - a/d tabs - w/s scroll - f sort - / search';
+    ctx.fillText(controls, x + PANEL_W / 2, y + h - 14);
     ctx.restore();
   }
 }
