@@ -130,6 +130,36 @@ export function bagGlyph(item: BagItem): BagGlyph {
 }
 
 /**
+ * A single representative glyph for a whole bag CATEGORY, so an empty tab
+ * can show a large dim "this is what lives here" symbol behind its
+ * text — a wheat sheaf for Crops, a fish for Fish, a gem for Gems, and so
+ * on. Lets a Fish tab with no fish read as "fish go here, you have none"
+ * at a glance, the way the empty-state hint already teaches in words.
+ * Reuses the exact bagGlyphForKey resolver each row uses (so the pip
+ * matches the rows that WOULD fill the tab), with a sensible exemplar key
+ * per tab. Supplies / Seeds have no single icon so they fall back to the
+ * generic crate. Pure.
+ */
+export function bagCategoryGlyph(category: BagItem['category']): BagGlyph {
+  switch (category) {
+    case 'Crops':
+    case 'Seeds':
+      return bagGlyphForKey('wheat');
+    case 'Fish':
+      return bagGlyphForKey('fish-pike');
+    case 'Gems':
+      return bagGlyphForKey('gem-ruby');
+    case 'Forage':
+      return bagGlyphForKey('forage-berry');
+    case 'Kitchen':
+      return bagGlyphForKey(EGG_INVENTORY_KEY);
+    case 'Supplies':
+    default:
+      return { kind: 'supply' };
+  }
+}
+
+/**
  * Resolve a bestiary (lore-panel) row into its glyph so the discovery
  * log scans like the bag. The lore catalogue keys entries by a BARE
  * catalog id (e.g. `minnow`, `copper`, `berry`, `wheat`) within a

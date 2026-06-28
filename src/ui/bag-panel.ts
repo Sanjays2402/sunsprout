@@ -37,7 +37,7 @@ import {
 } from '../game/bag';
 import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-tabs';
 import { drawTabStrip } from './panel-tab-strip';
-import { bagGlyph } from '../game/bag-glyph';
+import { bagGlyph, bagCategoryGlyph } from '../game/bag-glyph';
 import { drawBagGlyph } from '../render/bag-glyph-sprite';
 import { bagEmptyState } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
@@ -371,6 +371,16 @@ export class BagPanel {
         ctx.font = '10px ui-monospace, monospace';
         ctx.fillText('Backspace deletes - Esc clears - / exits search', x + PANEL_W / 2, y + 100);
       } else {
+        // A large, dim version of the tab's representative glyph behind the
+        // text so an empty tab reads as "this holds fish, you have none" at
+        // a glance, not just a sentence. The crate-only Seeds/Supplies tabs
+        // get the generic crate, which still says "stuff goes here".
+        ctx.save();
+        ctx.globalAlpha *= 0.18;
+        ctx.translate(x + PANEL_W / 2, y + 78 + 2);
+        ctx.scale(2.6, 2.6);
+        drawBagGlyph(ctx, 0, 0, bagCategoryGlyph(this.currentCategory()));
+        ctx.restore();
         drawEmptyState(ctx, bagEmptyState(this.currentCategory()), x + PANEL_W / 2, y + 78 + 6);
       }
     } else {
