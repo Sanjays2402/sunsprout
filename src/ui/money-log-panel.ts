@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, type MoneyCategory, type MoneyFilter } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -160,6 +160,7 @@ export class MoneyLogPanel {
     // climb vs a dip-and-recover) not only its two ends.
     const trend = purseTrend(player);
     const spark = purseSparkline(player);
+    const sparkExtremes = purseSparklineExtremes(player);
     const trendText = trend ? `${trend.start}g -> ${trend.end}g` : '';
     ctx.font = '10px ui-monospace, monospace';
     const trendW = trendText
@@ -192,7 +193,7 @@ export class MoneyLogPanel {
       if (spark) {
         const trendTextW = ctx.measureText(trendText).width;
         const sparkRight = x + PANEL_W - 12 - trendTextW - SPARK_GAP;
-        this.drawSparkline(ctx, spark, sparkRight - SPARK_W, y + 27, SPARK_W, SPARK_H, trendColor);
+        this.drawSparkline(ctx, spark, sparkRight - SPARK_W, y + 27, SPARK_W, SPARK_H, trendColor, sparkExtremes);
       }
     }
 
@@ -308,6 +309,11 @@ export class MoneyLogPanel {
    * under it for a sense of scale, and a small dot marks the newest (right-
    * most) point so the "where it ends" reads at a glance. Tinted to the
    * passed trend colour so the whole trend cluster reads as one unit.
+   *
+   * When `extremes` is supplied, the window's high + low balance vertices
+   * also get a marker — a bright pip at the peak, a dim pip at the low — so
+   * the player can see the window's best + worst purse moments, not just its
+   * end. The endpoint dot still draws on top so "where it ends" stays clear.
    */
   private drawSparkline(
     ctx: CanvasRenderingContext2D,
@@ -317,6 +323,7 @@ export class MoneyLogPanel {
     bw: number,
     bh: number,
     color: string,
+    extremes: PurseSparklineExtremes | null = null,
   ): void {
     if (points.length < 2) return;
     const m = 1; // inset margin
@@ -343,7 +350,16 @@ export class MoneyLogPanel {
       else ctx.lineTo(sx, sy);
     }
     ctx.stroke();
-    // Endpoint dot on the newest (rightmost) point.
+    // Peak + low markers — a bright pip at the window's high balance and a
+    // dim pip at its low, so the extremes read without eyeballing the line.
+    if (extremes) {
+      ctx.fillStyle = GAIN;
+      ctx.fillRect(Math.round(px(extremes.peak.x)) - 1, Math.round(py(extremes.peak.y)) - 1, 2, 2);
+      ctx.fillStyle = LOSS;
+      ctx.fillRect(Math.round(px(extremes.low.x)) - 1, Math.round(py(extremes.low.y)) - 1, 2, 2);
+    }
+    // Endpoint dot on the newest (rightmost) point — drawn last so it sits
+    // on top of any coincident extreme marker.
     const last = points[points.length - 1];
     ctx.fillStyle = color;
     ctx.fillRect(Math.round(px(last.x)) - 1, Math.round(py(last.y)) - 1, 2, 2);

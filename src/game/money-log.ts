@@ -382,3 +382,55 @@ export function purseSparkline(player: Player): PurseSparklinePoint[] | null {
     y: span === 0 ? 0.5 : (v - min) / span,
   }));
 }
+
+/** A marked extreme on the purse sparkline — the window's high or low. */
+export interface PurseSparklineMarker {
+  /** Normalised position on the sparkline (matches purseSparkline's points). */
+  x: number;
+  y: number;
+  /** The raw gold balance at this vertex. */
+  value: number;
+}
+
+/** The high + low balance points of the purse sparkline window. */
+export interface PurseSparklineExtremes {
+  peak: PurseSparklineMarker;
+  low: PurseSparklineMarker;
+}
+
+/**
+ * Find the highest + lowest balance vertices of the purse sparkline so the
+ * panel can mark the window's extremes with a dot and name them ("peak Ng /
+ * low Ng") rather than leaving the player to eyeball the polyline. Walks the
+ * SAME chronological value series purseSparkline plots (pre-window start +
+ * each row's running balance), and reports each extreme's normalised (x, y)
+ * — identical to the matching purseSparkline point — plus its raw gold value.
+ *
+ * The FIRST occurrence wins on a tie (the earlier point in the window), so a
+ * flat or repeated extreme marks one stable vertex. On a perfectly flat
+ * window peak and low coincide at the same y (0.5, matching purseSparkline's
+ * flat-pin) and the same value. Returns null on < 2 rows — the same no-span
+ * gate purseSparkline uses — so the markers appear in lock-step with the
+ * sparkline. Pure: reads only the log + player.gold.
+ */
+export function purseSparklineExtremes(player: Player): PurseSparklineExtremes | null {
+  const points = purseSparkline(player);
+  if (!points) return null;
+  const rows = runningBalances(player);
+  const oldest = rows[rows.length - 1];
+  const start = oldest.balance - oldest.entry.delta;
+  // Rebuild the same chronological value series purseSparkline plots, so a
+  // marker's value lines up with its vertex.
+  const values: number[] = [start];
+  for (let i = rows.length - 1; i >= 0; i--) values.push(rows[i].balance);
+  let peakI = 0;
+  let lowI = 0;
+  for (let i = 1; i < values.length; i++) {
+    if (values[i] > values[peakI]) peakI = i;
+    if (values[i] < values[lowI]) lowI = i;
+  }
+  return {
+    peak: { x: points[peakI].x, y: points[peakI].y, value: values[peakI] },
+    low: { x: points[lowI].x, y: points[lowI].y, value: values[lowI] },
+  };
+}
