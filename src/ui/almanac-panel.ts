@@ -30,6 +30,8 @@ const TEXT_COLOR = '#F5E9D4';
 const DIM = 'rgba(245, 233, 212, 0.42)';
 const HINT = 'rgba(245, 233, 212, 0.55)';
 const TODAY = '#A3D77A';
+/** Soft sage wash behind the TODAY section so "right now" pops. */
+const TODAY_BAND = 'rgba(163, 215, 122, 0.10)';
 const FILTER_CHIP = '#C8A0E8';
 
 /** Per-kind accent colour + one-letter tag for the left rail. */
@@ -171,9 +173,21 @@ export class AlmanacPanel {
     } else {
       // Walk the sections, drawing a small TODAY / THIS WEEK / LATER
       // divider above each group so the agenda reads as buckets rather
-      // than one long countdown.
+      // than one long countdown. The TODAY group additionally gets a soft
+      // highlight band behind its rows + a warm left rail, so "what's
+      // happening right now" pops out of the agenda instead of reading
+      // like any other countdown row.
       let cy = bodyY;
       for (const section of sections) {
+        if (section.key === 'today') {
+          // Soft tint band + left rail spanning the TODAY divider + its
+          // rows, drawn BEFORE the header/rows so the text sits on top.
+          const bandH = SECTION_H + section.entries.length * ROW_H;
+          ctx.fillStyle = TODAY_BAND;
+          ctx.fillRect(x + 10, cy + 2, PANEL_W - 20, bandH - 4);
+          ctx.fillStyle = TODAY;
+          ctx.fillRect(x + 10, cy + 2, 2, bandH - 4);
+        }
         this.drawSectionHeader(ctx, section.header, x, cy);
         cy += SECTION_H;
         for (let i = 0; i < section.entries.length; i++) {
