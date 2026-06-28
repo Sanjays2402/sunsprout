@@ -23,12 +23,14 @@ import {
   bagWorthShares,
   bagSellHint,
   bagSortLabel,
+  bagSortDirection,
   cycleBagSort,
   bagSearchResults,
   bagSearchMatchCount,
   bagSearchCategoryCounts,
   type BagCategory,
   type BagSortMode,
+  type BagSortDirection,
   type BagItem,
 } from '../game/bag';
 import { tabStripLayout, cycleTabIndex, type TabStripItem } from '../game/panel-tabs';
@@ -267,7 +269,16 @@ export class BagPanel {
     } else {
       ctx.fillStyle = SORT_CHIP;
       ctx.font = '10px ui-monospace, monospace';
-      ctx.fillText(`- ${bagSortLabel(this.sortMode)}`, x + 14 + titleW + 8, y + 16);
+      const sortLabel = `- ${bagSortLabel(this.sortMode)}`;
+      const sortChipX = x + 14 + titleW + 8;
+      ctx.fillText(sortLabel, sortChipX, y + 16);
+      // Direction indicator just right of the label so the ordering isn't
+      // implicit: a down-arrow for the count/value descending sorts (biggest
+      // first), a small "A-Z" glyph for the alphabetical name sort. Pure
+      // render off bagSortDirection so it can never disagree with the actual
+      // row order.
+      const dirX = sortChipX + ctx.measureText(sortLabel).width + 5;
+      this.drawSortDirection(ctx, bagSortDirection(this.sortMode), dirX, y + 16);
     }
 
     const stacks = bagTotalStacks(player);
@@ -439,6 +450,46 @@ export class BagPanel {
       ? 'type to filter - Backspace deletes - Esc clears - / exits search'
       : 'Tab / Esc to close - a/d tabs - w/s scroll - f sort - / search';
     ctx.fillText(controls, x + PANEL_W / 2, y + h - 14);
+    ctx.restore();
+  }
+
+  /**
+   * Draw the active sort's direction indicator at left edge (dx, top dy):
+   *   - 'desc': a small down-chevron (count + value put the biggest first).
+   *   - 'az':   a tiny "a" over "z" stack with a down-tick, reading A->Z.
+   * Tinted like the sort chip so it reads as part of the same widget. Pure
+   * pixel art (no glyph font / emoji) so it renders crisp at any HUD scale.
+   */
+  private drawSortDirection(
+    ctx: CanvasRenderingContext2D,
+    dir: BagSortDirection,
+    dx: number,
+    dy: number,
+  ): void {
+    ctx.save();
+    ctx.fillStyle = SORT_CHIP;
+    if (dir === 'desc') {
+      // Down-chevron: a 7px-wide arrowhead pointing down (biggest first).
+      const v = [
+        [0, 1], [6, 1],
+        [1, 2], [5, 2],
+        [2, 3], [4, 3],
+        [3, 4],
+      ];
+      for (const [px, py] of v) ctx.fillRect(dx + px, dy + py, 1, 1);
+    } else {
+      // A->Z: a compact "A" then "Z" with a down-tick between, so the
+      // alphabetical-ascending order reads without a word.
+      ctx.font = 'bold 8px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('A', dx, dy + 1);
+      ctx.fillText('Z', dx + 9, dy + 1);
+      // Tiny down-tick between the two letters.
+      const tx = dx + 6;
+      const tick = [[0, 2], [1, 2], [2, 2], [1, 3]];
+      for (const [px, py] of tick) ctx.fillRect(tx + px, dy + py, 1, 1);
+    }
     ctx.restore();
   }
 }

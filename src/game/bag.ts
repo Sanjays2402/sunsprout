@@ -72,6 +72,22 @@ export function cycleBagSort(mode: BagSortMode): BagSortMode {
   return BAG_SORT_MODES[(i + 1) % BAG_SORT_MODES.length];
 }
 
+/**
+ * Which way a sort mode orders rows, so the chip can show a direction
+ * indicator (an arrow / A-Z glyph) instead of leaving the ordering implicit:
+ *   - `desc`: count + value both put the BIGGEST stack/worth first (high ->
+ *     low), so a down-arrow reads "descending".
+ *   - `az`:   name sorts the labels A -> Z (ascending alphabetical).
+ * Mirrors sortBagItems's comparators exactly (count/value use `b - a`, name
+ * uses localeCompare), so the indicator can never claim the wrong order.
+ * Pure.
+ */
+export type BagSortDirection = 'desc' | 'az';
+
+export function bagSortDirection(mode: BagSortMode): BagSortDirection {
+  return mode === 'name' ? 'az' : 'desc';
+}
+
 /** A single rolled-up bag row. */
 export interface BagItem {
   /** Raw inventory key. */
