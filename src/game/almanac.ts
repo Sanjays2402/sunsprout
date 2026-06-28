@@ -183,6 +183,65 @@ export function dateLabel(season: number, day: number): string {
   return `${SEASONS[season] ?? '?'} ${day}`;
 }
 
+/**
+ * A tiny 5x5 pixel glyph per almanac kind, so each agenda row leads with a
+ * recognisable symbol (a cake for a birthday, a tent for a festival, a cart
+ * for Pip, a rosette for the tournament, a heart for a personal hangout)
+ * instead of a one-letter tag (B/F/P/T/M) the player has to decode. The
+ * panel draws each filled cell in the kind's rail colour, matching the bag /
+ * quest glyph language. This module OWNS the shape (a pure bitmap of [col,
+ * row] pixels on a 5x5 grid); the panel owns the pixels. Pure: a static
+ * lookup, no canvas.
+ */
+export type AlmanacGlyphCell = readonly [number, number];
+
+const ALMANAC_KIND_GLYPH: Record<AlmanacKind, readonly AlmanacGlyphCell[]> = {
+  // Birthday — a cake: a candle flame on top, a body with a frosting line.
+  birthday: [
+    [2, 0],
+    [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+    [0, 3], [2, 3], [4, 3],
+    [0, 4], [1, 4], [2, 4], [3, 4], [4, 4],
+  ],
+  // Festival — a tent / bunting peak: a triangle on a base line.
+  festival: [
+    [2, 0],
+    [1, 1], [2, 1], [3, 1],
+    [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+    [0, 3], [2, 3], [4, 3],
+    [0, 4], [1, 4], [2, 4], [3, 4], [4, 4],
+  ],
+  // Cart — Pip's wagon: a box on two wheels.
+  cart: [
+    [0, 0], [1, 0], [2, 0], [3, 0],
+    [0, 1], [3, 1],
+    [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+    [1, 3], [3, 3],
+    [1, 4], [3, 4],
+  ],
+  // Tournament — a rosette / award: a round medal over two ribbon tails.
+  tournament: [
+    [1, 0], [2, 0], [3, 0],
+    [0, 1], [2, 1], [4, 1],
+    [1, 2], [2, 2], [3, 2],
+    [1, 3], [3, 3],
+    [0, 4], [4, 4],
+  ],
+  // Personal — a heart: the classic two-lobe silhouette tapering to a point.
+  personal: [
+    [1, 0], [3, 0],
+    [0, 1], [1, 1], [2, 1], [3, 1], [4, 1],
+    [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+    [1, 3], [2, 3], [3, 3],
+    [2, 4],
+  ],
+};
+
+/** The 5x5 pixel cells for a kind's agenda glyph, in the kind's rail colour. Pure. */
+export function almanacKindGlyph(kind: AlmanacKind): readonly AlmanacGlyphCell[] {
+  return ALMANAC_KIND_GLYPH[kind];
+}
+
 /** Grouping bucket for the planner's agenda dividers. */
 export type AlmanacSectionKey = 'today' | 'week' | 'later';
 

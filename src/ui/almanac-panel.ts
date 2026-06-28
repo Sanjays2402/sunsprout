@@ -16,6 +16,7 @@ import {
   nextAlmanacFilter,
   almanacFilterLabel,
   almanacFilterKinds,
+  almanacKindGlyph,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -274,14 +275,17 @@ export class AlmanacPanel {
       ctx.fillStyle = 'rgba(74, 59, 110, 0.5)';
       ctx.fillRect(x + 14, ry, PANEL_W - 28, 1);
     }
-    // Left rail accent bar + kind tag.
+    // Left rail accent bar + kind glyph. A tiny 5x5 pixel symbol (cake /
+    // tent / cart / rosette / heart) in the kind's rail colour replaces the
+    // old one-letter tag (B/F/P/T/M) so the row's category reads as a
+    // recognisable icon at a glance, matching the bag + quest glyph
+    // language. The glyph sits where the letter did so the title column
+    // never shifts.
     ctx.fillStyle = style.color;
     ctx.fillRect(x + 14, ry + 8, 3, ROW_H - 14);
-    ctx.font = 'bold 11px ui-monospace, monospace';
+    this.drawKindGlyph(ctx, e.kind, style.color, x + 21, ry + 9);
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
-    ctx.fillStyle = style.color;
-    ctx.fillText(style.tag, x + 22, ry + 13);
 
     // Title + detail.
     ctx.fillStyle = TEXT_COLOR;
@@ -302,5 +306,25 @@ export class AlmanacPanel {
     ctx.fillText(dateLabel(e.season, e.day), x + PANEL_W - 16, ry + 23);
 
     ctx.textBaseline = 'top';
+  }
+
+  /**
+   * Draw a kind's 5x5 pixel glyph with its top-left at (gx, gy) in `color`.
+   * The cells come from the pure almanacKindGlyph bitmap so the symbol shape
+   * lives in the model and the panel only paints it — same split as the
+   * shop-banner / bag-glyph sprites. Each cell is one device pixel; the 5x5
+   * grid tucks neatly beside the rail bar where the letter tag used to sit.
+   */
+  private drawKindGlyph(
+    ctx: CanvasRenderingContext2D,
+    kind: AlmanacKind,
+    color: string,
+    gx: number,
+    gy: number,
+  ): void {
+    ctx.fillStyle = color;
+    for (const [cx, cy] of almanacKindGlyph(kind)) {
+      ctx.fillRect(gx + cx, gy + cy, 1, 1);
+    }
   }
 }
