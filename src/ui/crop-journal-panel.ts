@@ -22,6 +22,7 @@ import {
   isBestSeasonNow,
   fieldStatusCounts,
   fieldStatusSummary,
+  ribbonMedalGlyph,
   type CropJournalEntry,
   type FieldCropSample,
 } from '../game/crop-journal';
@@ -233,13 +234,19 @@ export class CropJournalPanel {
         ctx.fillText(s, x + PANEL_W - 12, ry + 28);
       }
       // Ribbon — heaviest single-day harvest. Sits one line below the
-      // sown/streak strip, only when the player has actually set one.
+      // sown/streak strip, only when the player has actually set one. A tiny
+      // rosette/medal pip marks it so the record reads as an award at a
+      // glance, not just text; the text shifts right to clear the glyph.
       if (e.ribbonCount > 0) {
+        const ribbonY = ry + 40 - 7;
         ctx.fillStyle = '#F0A828';
+        for (const [cx, cy] of ribbonMedalGlyph()) {
+          ctx.fillRect(x + 12 + cx, ribbonY + cy, 1, 1);
+        }
         ctx.font = '10px ui-monospace, monospace';
         ctx.textAlign = 'left';
         const tag = e.ribbonWhen ? ` -  ${e.ribbonWhen}` : '';
-        ctx.fillText(`ribbon: ${e.ribbonCount} in a day${tag}`, x + 12, ry + 40 - 7);
+        ctx.fillText(`ribbon: ${e.ribbonCount} in a day${tag}`, x + 12 + 8, ribbonY);
       }
 
       // Harvest mini-bar — a tiny stacked bar in the row's bottom-right

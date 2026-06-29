@@ -373,3 +373,28 @@ export function harvestBarSegments(
   }
   return { normal: widths[0], silver: widths[1], gold: widths[2], total: barW };
 }
+
+/** A pixel cell coordinate for a 5x7 ribbon-medal glyph. */
+export type RibbonMedalCell = readonly [number, number];
+
+/**
+ * A tiny 5x7 rosette/medal: a round disc head over two splayed ribbon
+ * tails. Drawn before the heaviest-day "ribbon: N in a day" line so the
+ * achievement reads as a marked rosette, not just text — mirroring the
+ * almanac tournament glyph's medal vocabulary in the journal's gold-amber
+ * ribbon tint. Pure: a static bitmap the panel paints one device pixel per
+ * cell, so the symbol lives in the model like the other game glyphs.
+ */
+export function ribbonMedalGlyph(): readonly RibbonMedalCell[] {
+  return [
+    // Disc head — a 3-wide round medal on rows 0-2.
+    [1, 0], [2, 0], [3, 0],
+    [0, 1], [2, 1], [4, 1],
+    [1, 2], [2, 2], [3, 2],
+    // Crossing tails fanning out below.
+    [1, 3], [3, 3],
+    [1, 4], [3, 4],
+    [0, 5], [4, 5],
+    [0, 6], [4, 6],
+  ];
+}
