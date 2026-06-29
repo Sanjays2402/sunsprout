@@ -233,6 +233,15 @@ export class QuestLogPanel {
       ctx.fillText(pctText, x + 14, y + 32);
       const pctW = ctx.measureText(pctText).width;
       ctx.font = '10px ui-monospace, monospace';
+      // Active-quest pip — a 4px gold dot before the "next:" header text
+      // echoing the active row's pip, so the closest quest's header + row
+      // read as one accent. Only when a closest quest exists (a clear board
+      // shows "all quests complete" with no target to pip). Sits in the
+      // "  -  " gap so the title figure never shifts.
+      if (summary.closest) {
+        ctx.fillStyle = ACTIVE_PIP;
+        ctx.fillRect(x + 14 + pctW + 8, y + 33, 4, 4);
+      }
       ctx.fillStyle = HINT;
       ctx.fillText(nextText, x + 14 + pctW, y + 32);
       // Remaining-work caption — "3 quests, 11 steps left" right-aligned on

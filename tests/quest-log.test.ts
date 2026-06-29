@@ -231,4 +231,26 @@ describe('QuestLogPanel controller', () => {
     // Should never throw, never blow past the bound.
     expect(panel.isVisible()).toBe(true);
   });
+
+  it('draws the next-up header pip without throwing on a board with quests', () => {
+    const w = new World();
+    seedQuests(w.player);
+    const panel = new QuestLogPanel();
+    panel.open();
+    panel.update(200);
+    let rects = 0;
+    const ctx = {
+      save() {}, restore() {}, fillRect() { rects++; }, strokeRect() {},
+      fillText() {}, measureText: () => ({ width: 60 }), translate() {},
+      scale() {}, beginPath() {}, arc() {}, fill() {}, stroke() {},
+      set fillStyle(_v: string) {}, set strokeStyle(_v: string) {},
+      set font(_v: string) {}, set textAlign(_v: string) {},
+      set textBaseline(_v: string) {}, set lineWidth(_n: number) {},
+      set globalAlpha(_n: number) {}, get globalAlpha() { return 1; },
+      imageSmoothingEnabled: false,
+    } as unknown as CanvasRenderingContext2D;
+    panel.draw(ctx, w.player, 960, 600);
+    // Pip + bars + chrome all paint via fillRect; just assert it ran.
+    expect(rects).toBeGreaterThan(0);
+  });
 });
