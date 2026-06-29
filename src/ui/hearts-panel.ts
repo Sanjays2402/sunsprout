@@ -244,27 +244,31 @@ export interface RelationshipSummary {
   engaged: number;
   /** The soonest upcoming birthday across all candidates, or null. */
   nextBirthday: { name: string; days: number } | null;
+  /** How many candidates a gift would land on right now (carried + ungifted). */
+  giftReady: number;
 }
 
 export function relationshipSummary(
   rows: readonly RelationshipRow[],
 ): RelationshipSummary {
   if (rows.length === 0) {
-    return { closest: null, married: 0, engaged: 0, nextBirthday: null };
+    return { closest: null, married: 0, engaged: 0, nextBirthday: null, giftReady: 0 };
   }
   // rows[0] is the closest by the existing closeness sort.
   const closest = { name: rows[0].name, hearts: rows[0].hearts, max: rows[0].max };
   let married = 0;
   let engaged = 0;
+  let giftReady = 0;
   let nextBirthday: { name: string; days: number } | null = null;
   for (const r of rows) {
     if (r.status === 'married') married += 1;
     else if (r.status === 'engaged') engaged += 1;
+    if (r.giftReady) giftReady += 1;
     if (nextBirthday === null || r.daysUntilBirthday < nextBirthday.days) {
       nextBirthday = { name: r.name, days: r.daysUntilBirthday };
     }
   }
-  return { closest, married, engaged, nextBirthday };
+  return { closest, married, engaged, nextBirthday, giftReady };
 }
 
 /**
@@ -278,6 +282,9 @@ export function relationshipSummary(
 export function relationshipSummaryLine(s: RelationshipSummary): string {
   if (!s.closest) return '';
   const segs = [`closest ${s.closest.name} ${s.closest.hearts}/${s.closest.max}`];
+  // One second segment, most-useful-first so the line stays panel-width:
+  // an imminent birthday (the actionable 8x window) wins, else how many
+  // candidates a gift would land on today, else the wed/vow tally.
   if (s.nextBirthday && s.nextBirthday.days <= 14) {
     const d = s.nextBirthday.days;
     const when = d <= 0 ? 'today' : d === 1 ? 'tomorrow' : `${d}d`;
@@ -286,6 +293,8 @@ export function relationshipSummaryLine(s: RelationshipSummary): string {
     // closeness tie breaks on birthday), so the line doesn't stutter.
     const who = s.nextBirthday.name === s.closest.name ? '' : `${s.nextBirthday.name} `;
     segs.push(`${who}bday ${when}`);
+  } else if (s.giftReady > 0) {
+    segs.push(`${s.giftReady} gift-ready`);
   } else if (s.married > 0 || s.engaged > 0) {
     const tags: string[] = [];
     if (s.married > 0) tags.push(`${s.married} wed`);

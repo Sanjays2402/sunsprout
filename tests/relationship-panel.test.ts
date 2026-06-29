@@ -276,4 +276,39 @@ describe('relationshipSummary', () => {
     expect(/^[\x20-\x7E]*$/.test(line)).toBe(true);
     expect(line.length).toBeLessThanOrEqual(48);
   });
+
+  it('tallies how many candidates are gift-ready right now', () => {
+    const p = freshPlayer();
+    p.inventory = { ruby: 1 }; // a universally-accepted gift
+    const s = relationshipSummary(relationshipRows(p, new TimeOfDay(6)));
+    expect(s.giftReady).toBeGreaterThan(0);
+  });
+
+  it('surfaces the gift-ready tag when no birthday is imminent', () => {
+    const s = relationshipSummary([
+      {
+        id: 'rose',
+        name: 'Rose',
+        hearts: 6,
+        max: MAX_HEARTS,
+        daysUntilBirthday: 20,
+        birthdayLine: 'birthday in 20d',
+        lovedHint: '',
+        lovedGlyphKey: null,
+        status: 'single',
+        giftReady: true,
+        giftTaste: 'loved',
+      },
+    ]);
+    expect(s.giftReady).toBe(1);
+    expect(relationshipSummaryLine(s)).toContain('1 gift-ready');
+  });
+
+  it('omits the gift-ready tag when nobody is ready', () => {
+    const p = freshPlayer();
+    p.inventory = {}; // nothing to gift
+    const s = relationshipSummary(relationshipRows(p, new TimeOfDay(6)));
+    expect(s.giftReady).toBe(0);
+    expect(relationshipSummaryLine(s)).not.toContain('gift-ready');
+  });
 });
