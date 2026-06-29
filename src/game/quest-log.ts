@@ -234,6 +234,42 @@ export function questProgressSummary(player: Player): QuestProgressSummary {
   return { completedPct, closest };
 }
 
+/**
+ * Whole-board progress as a single fraction: the sum of every quest's
+ * progress over the sum of every quest's goal, so a partly-done board reads
+ * as ONE shape rather than only a count of finished quests. Where
+ * questProgressSummary.completedPct is binary per quest (done or not), this
+ * blends the in-flight quests in: a board where two quests are 90% along
+ * shows real momentum even though zero are complete. Completed quests count
+ * full progress (== goal). Returns {done,total} so the panel can draw a thin
+ * overall bar and a "47 / 80 steps" caption. total is always >= 0; a board
+ * with no quests (or all-zero goals) yields {done:0,total:0} and the panel
+ * suppresses the bar. Pure: reads only player.quests.
+ */
+export interface QuestBoardProgress {
+  /** Summed progress across all quests, clamped to each goal. */
+  done: number;
+  /** Summed goal across all quests. */
+  total: number;
+}
+
+export function questBoardProgress(player: Player): QuestBoardProgress {
+  const quests = (player.quests as Quest[]) ?? [];
+  let done = 0;
+  let total = 0;
+  for (const q of quests) {
+    const goal = Math.max(0, q.goal);
+    total += goal;
+    done += Math.min(goal, Math.max(0, q.progress));
+  }
+  return { done, total };
+}
+
+/** Whole-board progress as a 0..1 fraction; 0 when there's nothing to do. Pure. */
+export function questBoardFraction(progress: QuestBoardProgress): number {
+  return progress.total <= 0 ? 0 : progress.done / progress.total;
+}
+
 /** Earn-state bucket for the panel's section dividers. */
 export type QuestSectionKey = 'active' | 'completed';
 

@@ -15,6 +15,8 @@ import {
   questCounts,
   questLogSections,
   questProgressSummary,
+  questBoardProgress,
+  questBoardFraction,
   applyQuestFilter,
   cycleQuestFilter,
   questFilterLabel,
@@ -46,8 +48,8 @@ const PANEL_W = 460;
 const ROW_H = 46;
 /** Section-divider band height (label + breathing room). */
 const SECTION_H = 18;
-/** Header progress-summary band — "X% done - next: <quest>" caption. */
-const SUMMARY_H = 16;
+/** Header progress-summary band — "X% done - next: <quest>" caption + bar. */
+const SUMMARY_H = 26;
 /** Fixed body budget — holds ~6 quest rows plus both dividers. */
 const BODY_H = 6 * ROW_H + 2 * SECTION_H;
 
@@ -231,6 +233,25 @@ export class QuestLogPanel {
       ctx.font = '10px ui-monospace, monospace';
       ctx.fillStyle = HINT;
       ctx.fillText(nextText, x + 14 + pctW, y + 32);
+      // Thin whole-board progress bar — the SUM of every quest's progress
+      // over the sum of every goal, so even an all-active board shows real
+      // momentum the binary %-done count can't. Drawn as a faint track +
+      // accent fill, with a "47 / 80 steps" cap on the right.
+      const board = questBoardProgress(player);
+      if (board.total > 0) {
+        const frac = questBoardFraction(board);
+        const trackX = x + 14;
+        const trackW = PANEL_W - 28;
+        const barY = y + 46;
+        ctx.fillStyle = 'rgba(40, 30, 60, 0.85)';
+        ctx.fillRect(trackX, barY, trackW, 4);
+        ctx.fillStyle = ACCENT;
+        ctx.fillRect(trackX, barY, Math.round(trackW * frac), 4);
+        ctx.fillStyle = DIM;
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(`${board.done} / ${board.total} steps`, x + PANEL_W - 14, y + 47);
+      }
     }
 
     // Section divider under the header — keeps the title tidy.
