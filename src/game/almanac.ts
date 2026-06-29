@@ -490,5 +490,22 @@ export function almanacLookAheadLine(e: AlmanacEntry | null): string {
   return `next: ${e.title} in ${e.daysUntil} days`;
 }
 
+/**
+ * The kind of the soonest event happening TODAY (daysUntil <= 0) from a
+ * built-and-filtered agenda, so the planner can paint that kind's glyph as
+ * a faint watermark behind the TODAY band — tying "right now" to its
+ * cake/tent/cart/rosette/heart icon. Reads the first entry whose daysUntil
+ * is non-positive (entries arrive soonest-first), or null when nothing
+ * lands today (the band then draws no watermark). Pure.
+ */
+export function almanacTodayGlyphKind(
+  entries: readonly AlmanacEntry[],
+): AlmanacKind | null {
+  for (const e of entries) {
+    if (e.daysUntil <= 0) return e.kind;
+  }
+  return null;
+}
+
 // Re-export for the panel + tests that want to project an arbitrary offset.
 export { dateInDays };

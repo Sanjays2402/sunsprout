@@ -17,6 +17,7 @@ import {
   almanacFilterLabel,
   almanacFilterKinds,
   almanacKindGlyph,
+  almanacTodayGlyphKind,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -197,6 +198,21 @@ export class AlmanacPanel {
           ctx.fillRect(x + 10, cy + 2, PANEL_W - 20, bandH - 4);
           ctx.fillStyle = TODAY;
           ctx.fillRect(x + 10, cy + 2, 2, bandH - 4);
+          // Echo the soonest TODAY event's kind glyph large + very faint on
+          // the band's right side, so "what's happening right now" carries
+          // its kind icon as a watermark behind the rows — the cake/tent/
+          // cart/rosette/heart symbol ties the band to its category at a
+          // glance without competing with the text. Reuses the same 5x5
+          // bitmap the row pips use, scaled up and washed to a whisper.
+          const watermark = almanacTodayGlyphKind(section.entries);
+          if (watermark) {
+            ctx.save();
+            ctx.globalAlpha *= 0.10;
+            ctx.translate(x + PANEL_W - 54, cy + 2 + (bandH - 4) / 2 - 16);
+            ctx.scale(6.4, 6.4);
+            this.drawKindGlyph(ctx, watermark, KIND_STYLE[watermark].color, 0, 0);
+            ctx.restore();
+          }
         }
         this.drawSectionHeader(ctx, section.header, x, cy);
         cy += SECTION_H;
