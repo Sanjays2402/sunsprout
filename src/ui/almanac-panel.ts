@@ -20,6 +20,7 @@ import {
   almanacTodayGlyphKind,
   almanacTodayCount,
   almanacTodayChip,
+  almanacSectionChip,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -240,6 +241,18 @@ export class AlmanacPanel {
           const chip = almanacTodayChip(almanacTodayCount(section.entries));
           if (chip) {
             ctx.fillStyle = TODAY;
+            ctx.font = 'bold 9px ui-monospace, monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(chip, x + PANEL_W - 16, cy + 5);
+            ctx.textAlign = 'left';
+          }
+        } else {
+          // THIS WEEK / LATER buckets get the same weight chip in dim ink
+          // (they're not urgent like TODAY), so every divider reads its load
+          // at a glance. Quiet below 2 rows.
+          const chip = almanacSectionChip(section.key, section.entries.length);
+          if (chip) {
+            ctx.fillStyle = DIM;
             ctx.font = 'bold 9px ui-monospace, monospace';
             ctx.textAlign = 'right';
             ctx.fillText(chip, x + PANEL_W - 16, cy + 5);

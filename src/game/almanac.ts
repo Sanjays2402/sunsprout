@@ -531,6 +531,23 @@ export function almanacTodayChip(count: number): string {
 }
 
 /**
+ * Per-section weight chip for the THIS WEEK / LATER dividers, mirroring the
+ * TODAY chip: "N this week" / "N later" once 2+ events stack in a bucket,
+ * '' below that (one row reads its own weight). The TODAY bucket keeps its
+ * own chip wording, so this only labels the forward buckets. Pure formatter
+ * over a section key + its row count.
+ */
+export function almanacSectionChip(
+  key: AlmanacSectionKey,
+  count: number,
+): string {
+  if (count < 2) return '';
+  if (key === 'week') return `${count} this week`;
+  if (key === 'later') return `${count} later`;
+  return '';
+}
+
+/**
  * The kind of a look-ahead entry, so an EMPTY agenda can echo that event's
  * glyph faint behind the \"next: X in N days\" line the same way a busy TODAY
  * band watermarks its soonest event. null when there's no look-ahead at all
