@@ -148,6 +148,28 @@ export function purseSavingsCaption(totals: MoneyCategoryTotals): string {
   return `kept ${keptPct}% of income`;
 }
 
+/** A kept/spent split of income, each 0..1, for the thrift mini-gauge. */
+export interface PurseSavingsSplit {
+  kept: number;
+  spent: number;
+}
+
+/**
+ * Split this window's income into kept-vs-spent fractions so the panel can
+ * draw the savings caption's ratio as a tiny shape, not just text. kept =
+ * the share of income that stayed in the purse (floored at 0 when the player
+ * overspent), spent = the share that went out (capped at 1 so the gauge
+ * never overflows on an over-budget window). null when no income (nothing to
+ * split — the caption is '' too). Pure, derives from the same totals. */
+export function purseSavingsSplit(
+  totals: MoneyCategoryTotals,
+): PurseSavingsSplit | null {
+  const income = totals.sales + totals.rewards;
+  if (income <= 0) return null;
+  const spent = Math.max(0, Math.min(1, totals.spent / income));
+  return { kept: 1 - spent, spent };
+}
+
 /**
  * A run of consecutive same-day ledger rows, for the panel's day dividers.
  * `net` is the signed sum of the run's deltas so the divider can carry a

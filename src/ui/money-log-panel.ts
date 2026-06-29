@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, purseSavingsCaption, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, purseArrowGlyph, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes, type PurseDirection } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, purseSavingsCaption, purseSavingsSplit, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, purseArrowGlyph, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes, type PurseDirection } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -324,6 +324,23 @@ export class MoneyLogPanel {
         ctx.font = '9px ui-monospace, monospace';
         ctx.textAlign = 'right';
         ctx.fillText(savings, x + PANEL_W - 12, fy + 1);
+        // Thrift mini-gauge — a thin kept/spent split bar just LEFT of the
+        // caption so the savings ratio reads as a shape too: kept (sale
+        // green) | spent (purchase amber), reusing the rail palette. Sits in
+        // the totals-vs-caption gap; quiet when there's no income to split.
+        const split = purseSavingsSplit(totals);
+        if (split) {
+          const gw = 30;
+          const gh = 5;
+          const capW = ctx.measureText(savings).width;
+          const gx = x + PANEL_W - 12 - capW - 8 - gw;
+          const gy = fy + 2;
+          const keptW = Math.round(gw * split.kept);
+          ctx.fillStyle = RAIL_COLOR.sale;
+          ctx.fillRect(gx, gy, keptW, gh);
+          ctx.fillStyle = RAIL_COLOR.purchase;
+          ctx.fillRect(gx + keptW, gy, gw - keptW, gh);
+        }
       }
     }
 
