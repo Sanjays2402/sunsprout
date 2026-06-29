@@ -22,6 +22,7 @@ import {
   isBestSeasonNow,
   fieldStatusCounts,
   fieldStatusSummary,
+  fieldStatusParts,
   ribbonMedalGlyph,
   type CropJournalEntry,
   type FieldCropSample,
@@ -39,6 +40,7 @@ const HINT = 'rgba(245, 233, 212, 0.55)';
 const GOLD = '#F0C24A';
 const SILVER = '#D5D8DC';
 const GREEN = '#A3D77A';
+const AMBER = '#E8A24A';
 
 const PANEL_W = 360;
 const ROW_H = 50;
@@ -144,11 +146,28 @@ export class CropJournalPanel {
     const showLegend = hasHarvestBars(entries);
     const legendW = showLegend ? this.measureHarvestLegend(ctx) : 0;
     if (fieldLine) {
-      ctx.fillStyle = HINT;
+      // Walk the urgency-ordered parts, leading each count with a 4px pip
+      // tinted by kind (ready green / thirsty amber / growing dim) so a
+      // colour-blind player scans the urgency from the figure; the cluster
+      // clips ahead of the harvest legend so the two never collide.
       ctx.font = '10px ui-monospace, monospace';
+      ctx.textBaseline = 'top';
       ctx.textAlign = 'left';
       const fieldMaxW = PANEL_W - 24 - (legendW > 0 ? legendW + 10 : 0);
-      ctx.fillText(fieldLine, x + 12, y + 24, fieldMaxW);
+      let fx = x + 12;
+      const fieldRight = x + 12 + fieldMaxW;
+      const parts = fieldStatusParts(fieldStatusCounts(fieldSamples));
+      for (let pi = 0; pi < parts.length; pi++) {
+        const part = parts[pi];
+        const seg = `${part.count} ${part.label}${pi < parts.length - 1 ? ',' : ''}`;
+        const segW = ctx.measureText(seg).width;
+        if (fx + 6 + segW > fieldRight) break;
+        ctx.fillStyle = part.kind === 'ready' ? GREEN : part.kind === 'thirsty' ? AMBER : DIM;
+        ctx.fillRect(fx, y + 27, 4, 4);
+        ctx.fillStyle = HINT;
+        ctx.fillText(seg, fx + 6, y + 24);
+        fx += 6 + segW + 6;
+      }
     }
     if (showLegend) {
       this.drawHarvestLegend(ctx, x + PANEL_W - 12, y + 24);

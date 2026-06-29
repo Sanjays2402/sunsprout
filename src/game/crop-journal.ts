@@ -260,6 +260,34 @@ export function fieldStatusSummary(status: FieldStatus): string {
   return parts.join(', ');
 }
 
+/** Urgency bucket of one field-status part, for the panel's tinted pip. */
+export type FieldStatusKind = 'ready' | 'growing' | 'thirsty';
+
+/** One \"{count} {label}\" segment of the field digest + its pip kind. */
+export interface FieldStatusPart {
+  kind: FieldStatusKind;
+  count: number;
+  /** Bare label without the count, e.g. \"ready to harvest\". */
+  label: string;
+}
+
+/**
+ * The same urgency-ordered digest as fieldStatusSummary, but broken into
+ * tagged parts so the panel can lead each count with a tiny tinted pip
+ * (ready green / thirsty amber / growing dim) and a colour-blind player
+ * scans the urgency from the count, not the hue alone. Zero buckets are
+ * omitted; ready leads, then growing, then thirsty. Empty on a bare field
+ * so the band collapses. Pure — reads only the status tally.
+ */
+export function fieldStatusParts(status: FieldStatus): FieldStatusPart[] {
+  if (status.total === 0) return [];
+  const out: FieldStatusPart[] = [];
+  if (status.ready > 0) out.push({ kind: 'ready', count: status.ready, label: 'ready to harvest' });
+  if (status.growing > 0) out.push({ kind: 'growing', count: status.growing, label: 'growing' });
+  if (status.thirsty > 0) out.push({ kind: 'thirsty', count: status.thirsty, label: 'thirsty' });
+  return out;
+}
+
 // ---------------------------------------------------------------------
 // Harvest mini-bar — a tiny inline stacked bar per journal row so the
 // lifetime tally scans visually, not just as text. The bar's overall
