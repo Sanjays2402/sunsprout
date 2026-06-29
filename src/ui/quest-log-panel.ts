@@ -19,6 +19,7 @@ import {
   cycleQuestFilter,
   questFilterLabel,
   rewardGlyphColor,
+  rewardGlyphCountTag,
   type QuestLogEntry,
   type QuestFilter,
   type RewardGlyphKind,
@@ -349,6 +350,16 @@ export class QuestLogPanel {
       for (const kind of pips) {
         this.drawRewardGlyph(ctx, kind, gx, ry + 3, rewardGlyphColor(kind, done));
         gx += GLYPH_W + GLYPH_GAP;
+      }
+      // "xN" count tag just LEFT of a busy cluster (3+ pips) so the player
+      // reads the payout count without tallying pips; quiet for 1-2 pips.
+      const tag = rewardGlyphCountTag(pips);
+      if (tag) {
+        ctx.fillStyle = done ? DONE_PIP : rewardColor;
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        const clusterLeft = textLeft - 6 - clusterW;
+        ctx.fillText(tag, clusterLeft - 3, ry + 6);
       }
     }
     // Progress bar

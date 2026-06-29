@@ -100,6 +100,17 @@ export function rewardGlyphColor(kind: RewardGlyphKind, done: boolean): string {
 }
 
 /**
+ * A small "xN" tag for a busy reward pip cluster, so a player reads HOW MANY
+ * payouts a quest gives without counting the pips. Returns "x4" once a reward
+ * stacks 3+ pips (e.g. gold + two item types + a cosmetic), '' for the common
+ * 1-2 pip rewards where the pips are trivially countable. Pure: just the pip
+ * count — never disagrees with questRewardGlyphs since it reads its length.
+ */
+export function rewardGlyphCountTag(glyphs: readonly RewardGlyphKind[]): string {
+  return glyphs.length >= 3 ? `x${glyphs.length}` : '';
+}
+
+/**
  * Format a quest's reward block as a single line.
  *   `{gold:50, items:{tomato:3}}` → "+50g, +3 tomato"
  *   `{gold:10}`                   → "+10g"
