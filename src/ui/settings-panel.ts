@@ -119,6 +119,23 @@ export type SettingsRowPreview =
   | { kind: 'danger'; armed: boolean }
   | { kind: 'none' };
 
+/**
+ * A one-line digest of the active DISPLAY settings, drawn under the title
+ * so the player reads their current look at a glance without scanning each
+ * row's value column: "tint 60% - HUD 1.0x - calm on". Mirrors the digest
+ * captions on the other panels (the quest board's "next: ...", the bag's
+ * worth caption, the money-log savings line) so settings speaks the same
+ * dialect. Only the cosmetic toggles that change appearance are named
+ * (night tint, HUD scale, reduce-motion); auto-save / reset are actions,
+ * not look state. Pure: a static formatter over Settings.
+ */
+export function settingsLegendCaption(s: Settings): string {
+  const tint = `tint ${Math.round(s.nightTintScale * 100)}%`;
+  const hud = `HUD ${s.hudScale.toFixed(2)}x`;
+  const calm = `calm ${s.reduceMotion ? 'on' : 'off'}`;
+  return `${tint} - ${hud} - ${calm}`;
+}
+
 export function settingsRowPreview(
   row: RowKey,
   s: Settings,
@@ -261,7 +278,7 @@ export class SettingsPanel {
     const bodyH =
       sections.length * sectionH +
       ROWS.length * (rowH + rowGap);
-    const h = 70 + bodyH + 26;
+    const h = 86 + bodyH + 26;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - h) / 2);
 
@@ -287,11 +304,19 @@ export class SettingsPanel {
     ctx.font = '11px ui-monospace, monospace';
     ctx.fillText('arrows or w-s to move - enter to change - esc to close', x + 16, y + 36);
 
+    // Active-look digest — name the cosmetic DISPLAY values in one dim line
+    // so the player reads tint / HUD / calm state at a glance without
+    // scanning each row's value column. Mirrors the other panels' digest
+    // captions; pure formatter over the current settings.
+    ctx.fillStyle = ACCENT;
+    ctx.font = 'bold 10px ui-monospace, monospace';
+    ctx.fillText(settingsLegendCaption(settings), x + 16, y + 52);
+
     // Walk the sections, drawing a divider header above each run of rows,
     // then the headerless close verb at the end. A running ry threads the
     // dividers + rows so the panel reads as the rest of the family while
     // the index-based selection highlight stays exact.
-    let ry = y + 60;
+    let ry = y + 76;
     for (const section of sections) {
       this.drawSectionHeader(ctx, section.header, x, ry);
       ry += sectionH;
