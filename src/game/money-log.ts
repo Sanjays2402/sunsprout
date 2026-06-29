@@ -128,6 +128,27 @@ export function moneyCategoryTotals(player: Player): MoneyCategoryTotals {
 }
 
 /**
+ * One-line "savings rate" caption pairing the totals footer's gross figures
+ * into a single read: what fraction of everything that came IN the player
+ * kept rather than spent, e.g. "kept 35% of income" / "spent 110% of income"
+ * (overspent the window) / "spent it all". Income is sales + rewards; the
+ * rate is income-vs-spent so the player sees the SHAPE of the window without
+ * mentally dividing the two numbers. '' when nothing has come in (no base to
+ * compare against). Pure — derives from the same totals the footer draws.
+ */
+export function purseSavingsCaption(totals: MoneyCategoryTotals): string {
+  const income = totals.sales + totals.rewards;
+  if (income <= 0) return '';
+  if (totals.spent <= 0) return 'kept all income';
+  if (totals.spent >= income) {
+    if (totals.spent === income) return 'spent it all';
+    return `spent ${Math.round((totals.spent / income) * 100)}% of income`;
+  }
+  const keptPct = Math.round(((income - totals.spent) / income) * 100);
+  return `kept ${keptPct}% of income`;
+}
+
+/**
  * A run of consecutive same-day ledger rows, for the panel's day dividers.
  * `net` is the signed sum of the run's deltas so the divider can carry a
  * tiny per-day subtotal ("Day 4   +85g").

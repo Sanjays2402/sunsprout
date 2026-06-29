@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, purseSavingsCaption, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -304,6 +304,18 @@ export class MoneyLogPanel {
         ctx.textAlign = 'left';
         ctx.fillText(seg.text, sx + 7, fy);
         sx += 7 + ctx.measureText(seg.text).width + 12;
+      }
+      // Savings-rate caption — distils the three gross figures into "kept N%
+      // of income" so the player reads whether the window was thrifty or a
+      // splurge without dividing the numbers. Right-aligned on the totals
+      // row, dim so the per-category figures stay primary. '' (no income)
+      // suppresses it; the cluster never collides since the segments clip.
+      const savings = purseSavingsCaption(totals);
+      if (savings) {
+        ctx.fillStyle = BALANCE_COLOR;
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(savings, x + PANEL_W - 12, fy + 1);
       }
     }
 

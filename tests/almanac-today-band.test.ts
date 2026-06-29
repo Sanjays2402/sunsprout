@@ -42,6 +42,8 @@ function makeFillCapturingStub(): {
     imageSmoothingEnabled: false,
     save: vi.fn(),
     restore: vi.fn(),
+    translate: vi.fn(),
+    scale: vi.fn(),
     fillRect: vi.fn(() => {
       captured.push(stub.fillStyle);
     }),
