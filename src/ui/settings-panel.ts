@@ -120,6 +120,30 @@ export type SettingsRowPreview =
   | { kind: 'none' };
 
 /**
+ * The cosmetic DISPLAY values broken into one part per setting, each
+ * carrying the row whose preview glyph echoes it + the segment text, so the
+ * legend caption under the title can lead each segment with the SAME
+ * swatch/scale/toggle glyph its row draws — the digest then mirrors its
+ * rows, not just names them. settingsLegendCaption joins the parts' text so
+ * the caption + the pipped legend can never drift. Pure: a static map over
+ * Settings.
+ */
+export interface SettingsLegendPart {
+  /** The row whose value-preview glyph represents this segment. */
+  row: RowKey;
+  /** Segment text, e.g. "tint 60%" / "HUD 1.00x" / "calm on". */
+  text: string;
+}
+
+export function settingsLegendParts(s: Settings): SettingsLegendPart[] {
+  return [
+    { row: 'nightTint', text: `tint ${Math.round(s.nightTintScale * 100)}%` },
+    { row: 'hudScale', text: `HUD ${s.hudScale.toFixed(2)}x` },
+    { row: 'reduceMotion', text: `calm ${s.reduceMotion ? 'on' : 'off'}` },
+  ];
+}
+
+/**
  * A one-line digest of the active DISPLAY settings, drawn under the title
  * so the player reads their current look at a glance without scanning each
  * row's value column: "tint 60% - HUD 1.0x - calm on". Mirrors the digest
@@ -127,13 +151,11 @@ export type SettingsRowPreview =
  * worth caption, the money-log savings line) so settings speaks the same
  * dialect. Only the cosmetic toggles that change appearance are named
  * (night tint, HUD scale, reduce-motion); auto-save / reset are actions,
- * not look state. Pure: a static formatter over Settings.
+ * not look state. Derives from settingsLegendParts so the text can't drift
+ * from the pipped legend. Pure: a static formatter over Settings.
  */
 export function settingsLegendCaption(s: Settings): string {
-  const tint = `tint ${Math.round(s.nightTintScale * 100)}%`;
-  const hud = `HUD ${s.hudScale.toFixed(2)}x`;
-  const calm = `calm ${s.reduceMotion ? 'on' : 'off'}`;
-  return `${tint} - ${hud} - ${calm}`;
+  return settingsLegendParts(s).map((p) => p.text).join(' - ');
 }
 
 export function settingsRowPreview(
@@ -306,11 +328,39 @@ export class SettingsPanel {
 
     // Active-look digest — name the cosmetic DISPLAY values in one dim line
     // so the player reads tint / HUD / calm state at a glance without
-    // scanning each row's value column. Mirrors the other panels' digest
-    // captions; pure formatter over the current settings.
-    ctx.fillStyle = ACCENT;
-    ctx.font = 'bold 10px ui-monospace, monospace';
-    ctx.fillText(settingsLegendCaption(settings), x + 16, y + 52);
+    // scanning each row's value column. Each segment leads with the SAME
+    // value-preview glyph its row draws (a night-tint swatch, the scaled
+    // "A", the on/off pip), so the caption mirrors its rows in the glyph
+    // language, not only the words. Pure formatter + render reuse.
+    {
+      const parts = settingsLegendParts(settings);
+      const legendY = y + 52;
+      const cy = legendY + 5; // vertical centre of the 10px line
+      const GLYPH_SLOT = 18; // right-align slot for the row glyph
+      const GLYPH_GAP = 3;
+      const SEG_GAP = 12;
+      let px = x + 16;
+      for (let i = 0; i < parts.length; i++) {
+        const part = parts[i];
+        // Echo the row's preview glyph, right-aligned in its slot.
+        this.drawValuePreview(
+          ctx,
+          settingsRowPreview(part.row, settings),
+          px + GLYPH_SLOT,
+          cy,
+        );
+        // Reset the text state drawValuePreview may have changed (the scale
+        // case flips align/baseline), then draw this segment's text.
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = ACCENT;
+        ctx.font = 'bold 10px ui-monospace, monospace';
+        const tx = px + GLYPH_SLOT + GLYPH_GAP;
+        ctx.fillText(part.text, tx, legendY);
+        const textW = ctx.measureText(part.text).width;
+        px = tx + textW + SEG_GAP;
+      }
+    }
 
     // Walk the sections, drawing a divider header above each run of rows,
     // then the headerless close verb at the end. A running ry threads the
