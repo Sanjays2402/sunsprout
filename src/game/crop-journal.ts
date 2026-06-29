@@ -402,6 +402,25 @@ export function harvestBarSegments(
   return { normal: widths[0], silver: widths[1], gold: widths[2], total: barW };
 }
 
+/**
+ * The lifetime-progress state of a crop's journal row, so the panel can
+ * lead the "sown N" tally with a tinted pip the way the live-field digest
+ * leads its counts. Three states form a tiny growth ladder:
+ *   - 'none':       never sown — a dim pip (the crop's a blank page).
+ *   - 'sown':       planted but nothing reaped yet — an amber pip (work in
+ *                   progress, mirroring the field-thirsty cue).
+ *   - 'harvested':  has produced at least one harvest — a green pip (this
+ *                   crop has paid off), matching the streak/ready green.
+ * Pure: reads only the entry's sown + tier counts.
+ */
+export type SownPipState = 'none' | 'sown' | 'harvested';
+
+export function sownPipState(entry: CropJournalEntry): SownPipState {
+  if (entry.normal + entry.silver + entry.gold > 0) return 'harvested';
+  if (entry.sown > 0) return 'sown';
+  return 'none';
+}
+
 /** A pixel cell coordinate for a 5x7 ribbon-medal glyph. */
 export type RibbonMedalCell = readonly [number, number];
 

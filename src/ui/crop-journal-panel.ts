@@ -24,6 +24,7 @@ import {
   fieldStatusSummary,
   fieldStatusParts,
   ribbonMedalGlyph,
+  sownPipState,
   type CropJournalEntry,
   type FieldCropSample,
 } from '../game/crop-journal';
@@ -219,10 +220,19 @@ export class CropJournalPanel {
       // Lifetime tally on the second sub-line.
       ctx.textAlign = 'left';
       ctx.font = '10px ui-monospace, monospace';
+      // A 4px pip leads the sown tally, tinted by the crop's lifetime
+      // progress (never-sown dim / sown-but-unreaped amber / has-harvested
+      // green) so the row's leading figure scans the same way the field-
+      // status + streak pips do — the journal's accent palette reads across
+      // the live field, the lifetime sown anchor, and the best streak. The
+      // text indents past the pip.
+      const pip = sownPipState(e);
+      ctx.fillStyle = pip === 'harvested' ? GREEN : pip === 'sown' ? AMBER : DIM;
+      ctx.fillRect(x + 12, ry + 30, 4, 4);
       const sownStr = `sown ${e.sown}`;
       ctx.fillStyle = TEXT_COLOR;
-      ctx.fillText(sownStr, x + 12, ry + 28);
-      const sownW = ctx.measureText(sownStr).width;
+      ctx.fillText(sownStr, x + 12 + 7, ry + 28);
+      const sownW = 7 + ctx.measureText(sownStr).width;
 
       let runX = x + 12 + sownW + 10;
       const normal = e.normal;
