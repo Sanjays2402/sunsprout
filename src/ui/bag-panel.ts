@@ -21,6 +21,7 @@ import {
   bagCategoryValue,
   bagItemWorth,
   bagWorthShares,
+  bagWorthCaption,
   bagSellHint,
   bagSortLabel,
   bagSortDirection,
@@ -291,6 +292,20 @@ export class BagPanel {
     ctx.font = '11px ui-monospace, monospace';
     ctx.textAlign = 'right';
     ctx.fillText(`${stacks} stacks  -  ~${worth}g`, x + PANEL_W - 14, y + 14);
+
+    // Worth-share caption — names the top one/two categories by worth so a
+    // colour-blind player reads the share bar's hues as words ("most worth
+    // in Gems, then Crops"), tucked dim under the stacks readout. Quiet on a
+    // worthless bag (no bar) and while searching (no single active focus).
+    if (!searching) {
+      const caption = bagWorthCaption(player);
+      if (caption) {
+        ctx.fillStyle = SORT_CHIP;
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.textAlign = 'right';
+        ctx.fillText(caption, x + PANEL_W - 14, y + 26);
+      }
+    }
 
     // Worth share bar — a tiny stacked bar in the gap under the title
     // showing each category's SHARE of the whole-bag worth, so "where's

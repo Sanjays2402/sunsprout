@@ -495,3 +495,31 @@ export function bagWorthShares(
     .map((w, i) => ({ category: w.category, worth: w.worth, width: widths[i] }))
     .filter((s) => s.worth > 0);
 }
+
+/**
+ * Name where the bag's money sits in one short caption, so a colour-blind
+ * player reads the worth-share bar's hues as words: the top one or two
+ * categories by worth, e.g. "most worth in Gems, then Crops" or just "most
+ * worth in Crops" when a single category dominates. Returns '' when the bag
+ * has no sellable worth (the bar isn't drawn either). The two-category form
+ * only appears when the runner-up carries a meaningful slice (>= ~15% of the
+ * whole) so a sliver doesn't earn a mention. Pure — derives from the same
+ * share figures the bar uses, so the caption can never disagree with it.
+ */
+export function bagWorthCaption(player: Player): string {
+  const total = bagTotalValue(player);
+  if (total <= 0) return '';
+  const sorted = BAG_CATEGORIES.map((category) => ({
+    category,
+    worth: bagCategoryValue(player, category),
+  }))
+    .filter((w) => w.worth > 0)
+    .sort((a, b) => b.worth - a.worth);
+  if (sorted.length === 0) return '';
+  const top = sorted[0];
+  // Mention the runner-up only when it's a real share, not a rounding crumb.
+  if (sorted.length >= 2 && sorted[1].worth >= total * 0.15) {
+    return `most worth in ${top.category}, then ${sorted[1].category}`;
+  }
+  return `most worth in ${top.category}`;
+}
