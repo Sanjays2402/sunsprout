@@ -3020,8 +3020,8 @@ export class Game {
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player, settings.hudScale);
     drawSkyDial(this.ctx, this.time, this.canvas.width, settings.hudScale);
     drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale, this.world.player);
-    drawBirthdayBanner(this.ctx, this.time, this.canvas.width);
-    drawFestivalBanner(this.ctx, this.time, this.canvas.width);
+    drawBirthdayBanner(this.ctx, this.time, this.canvas.width, settings.hudScale);
+    drawFestivalBanner(this.ctx, this.time, this.canvas.width, settings.hudScale);
     // Confetti — a brief celebratory burst the moment the player arrives on
     // a festival or birthday. We diff today's celebration key against the
     // last burst's: a change to a non-null key arms a fresh burst (so a
