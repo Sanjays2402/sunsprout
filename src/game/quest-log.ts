@@ -270,6 +270,47 @@ export function questBoardFraction(progress: QuestBoardProgress): number {
   return progress.total <= 0 ? 0 : progress.done / progress.total;
 }
 
+/** The work LEFT on the board: how many active quests and steps remain. */
+export interface QuestRemaining {
+  /** Active (incomplete) quests still on the board. */
+  quests: number;
+  /** Summed remaining steps (goal - clamped progress) across active quests. */
+  steps: number;
+}
+
+/**
+ * Pair the whole-board progress bar with the work that's actually LEFT: the
+ * count of still-active quests and the total steps remaining across them, so
+ * the player reads remaining effort as a figure rather than eyeballing the
+ * bar's empty tail. Completed quests contribute zero remaining steps; an
+ * over-progressed quest clamps to its goal so steps never go negative. Pure:
+ * reads only player.quests.
+ */
+export function questActiveRemaining(player: Player): QuestRemaining {
+  const quests = (player.quests as Quest[]) ?? [];
+  let active = 0;
+  let steps = 0;
+  for (const q of quests) {
+    if (q.complete) continue;
+    active += 1;
+    const goal = Math.max(0, q.goal);
+    steps += Math.max(0, goal - Math.min(goal, Math.max(0, q.progress)));
+  }
+  return { quests: active, steps };
+}
+
+/**
+ * "3 quests, 11 steps left" caption for the active remaining work, pluralised
+ * cleanly, or '' when the board is fully clear (nothing active) so the panel
+ * collapses the line. Pure.
+ */
+export function questRemainingLabel(r: QuestRemaining): string {
+  if (r.quests <= 0) return '';
+  const q = `${r.quests} quest${r.quests === 1 ? '' : 's'}`;
+  const s = `${r.steps} step${r.steps === 1 ? '' : 's'} left`;
+  return `${q}, ${s}`;
+}
+
 /** Earn-state bucket for the panel's section dividers. */
 export type QuestSectionKey = 'active' | 'completed';
 

@@ -17,6 +17,8 @@ import {
   questProgressSummary,
   questBoardProgress,
   questBoardFraction,
+  questActiveRemaining,
+  questRemainingLabel,
   applyQuestFilter,
   cycleQuestFilter,
   questFilterLabel,
@@ -233,6 +235,18 @@ export class QuestLogPanel {
       ctx.font = '10px ui-monospace, monospace';
       ctx.fillStyle = HINT;
       ctx.fillText(nextText, x + 14 + pctW, y + 32);
+      // Remaining-work caption — "3 quests, 11 steps left" right-aligned on
+      // the pct line, pairing the board bar's visual fill with the figure of
+      // effort still ahead. Quiet when the board is fully clear (no active
+      // quests). Reserves room so it never collides with the next-up text.
+      const remaining = questRemainingLabel(questActiveRemaining(player));
+      if (remaining) {
+        ctx.font = '9px ui-monospace, monospace';
+        ctx.fillStyle = DIM;
+        ctx.textAlign = 'right';
+        ctx.fillText(remaining, x + PANEL_W - 14, y + 33);
+        ctx.textAlign = 'left';
+      }
       // Thin whole-board progress bar — the SUM of every quest's progress
       // over the sum of every goal, so even an all-active board shows real
       // momentum the binary %-done count can't. Drawn as a faint track +
