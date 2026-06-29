@@ -28,6 +28,8 @@ import { spouseOf } from '../game/marriage';
 import { fianceOf } from '../game/engagement';
 import { giftKeyGlyph } from '../game/bag-glyph';
 import { drawBagGlyph } from '../render/bag-glyph-sprite';
+import { panelOpenAlpha } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.92)';
 const PANEL_BORDER = '#4a3b6e';
@@ -370,167 +372,225 @@ function drawHeart(
   for (const [px, py] of pixels) ctx.fillRect(x + px, y + py, 1, 1);
 }
 
-export function drawHeartsPanel(
-  ctx: CanvasRenderingContext2D,
-  player: Player,
-  canvasW: number,
-  visible: boolean,
-  time: TimeOfDay,
-  sortMode: RelationshipSortMode = 'closeness',
-): void {
-  if (!visible) return;
-  // Canonical closeness order — the summary digest reads rows[0] as the
-  // closest, so it must see this order regardless of the display sort.
-  const canonical = relationshipRows(player, time);
-  if (canonical.length === 0) return;
+/**
+ * The relationships overlay (`H`) as a class panel, so it joins the shared
+ * panelOpenAlpha fade family the way every other class panel does — the one
+ * overlay that used to be a bare stateless function with no open clock now
+ * eases in like its peers and gains a canAct lockout for free. The heavy
+ * lifting is still the pure relationshipRows() / sortRelationshipRows()
+ * builders above; this owns only the open/close/sort state + the draw.
+ */
+export class HeartsPanel {
+  private opened = false;
+  private lockoutMs = 0;
+  /** Row sort: closeness (default) or by-birthday for gift planning. */
+  private sortMode: RelationshipSortMode = 'closeness';
 
-  // Glance-level summary caption under the title — the digest cousin of
-  // the quest-log %-complete + almanac count-summary headers. Present
-  // only when there are rows (always, here), so the band offsets the
-  // first row by a fixed summaryH the same way the other panels do.
-  const summaryLine = relationshipSummaryLine(relationshipSummary(canonical));
-  const summaryH = summaryLine ? 14 : 0;
-
-  // Display order — a re-sorted COPY so the player can flip to a gift-
-  // planning (soonest-birthday-first) view without disturbing the summary.
-  const rows = sortRelationshipRows(canonical, sortMode);
-
-  const w = 264;
-  const rowH = 34;
-  const h = 32 + summaryH + rows.length * rowH + 6;
-  const x = canvasW - w - 12;
-  const y = 40;
-
-  ctx.save();
-  ctx.imageSmoothingEnabled = false;
-  ctx.fillStyle = PANEL_BG;
-  ctx.fillRect(x, y, w, h);
-  ctx.strokeStyle = PANEL_BORDER;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-
-  ctx.fillStyle = ACCENT;
-  ctx.font = 'bold 12px ui-monospace, monospace';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('relationships  (H)', x + 8, y + 6);
-
-  // Sort-mode chip — right of the title, surfaced only when the player has
-  // flipped off the default closeness order so the `f` toggle is legible
-  // without shouting on the common view.
-  if (sortMode !== 'closeness') {
-    ctx.fillStyle = SORT_CHIP;
-    ctx.font = '8px ui-monospace, monospace';
-    ctx.textAlign = 'right';
-    ctx.fillText(relationshipSortLabel(sortMode), x + w - 8, y + 8);
-    ctx.textAlign = 'left';
+  open(): void {
+    this.opened = true;
+    this.lockoutMs = 160;
+    // Reset to the default closeness order each time the panel opens.
+    this.sortMode = 'closeness';
   }
 
-  // Summary caption — dim digest line, drawn in the band under the title.
-  if (summaryLine) {
-    ctx.fillStyle = HINT;
-    ctx.font = '9px ui-monospace, monospace';
-    ctx.fillText(summaryLine, x + 8, y + 20);
+  close(): void {
+    this.opened = false;
   }
 
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const ry = y + 26 + summaryH + i * rowH;
+  toggle(): void {
+    if (this.opened) this.close();
+    else this.open();
+  }
 
-    // Line 1: name (+ status chip) on the left, heart strip on the right.
-    ctx.font = '11px ui-monospace, monospace';
-    ctx.fillStyle = TEXT_COLOR;
+  isVisible(): boolean {
+    return this.opened;
+  }
+
+  canAct(): boolean {
+    return this.opened && this.lockoutMs <= 0;
+  }
+
+  /** Active row sort — exposed for tests. */
+  currentSort(): RelationshipSortMode {
+    return this.sortMode;
+  }
+
+  /** Cycle the row sort (closeness <-> by-birthday). */
+  cycleSort(): void {
+    if (!this.opened) return;
+    this.sortMode = cycleRelationshipSort(this.sortMode);
+  }
+
+  update(dtMs: number): void {
+    if (!this.opened) return;
+    if (this.lockoutMs > 0) this.lockoutMs = Math.max(0, this.lockoutMs - dtMs);
+  }
+
+  /** Render the relationships panel. No-op when closed. */
+  draw(
+    ctx: CanvasRenderingContext2D,
+    player: Player,
+    canvasW: number,
+    time: TimeOfDay,
+  ): void {
+    if (!this.opened) return;
+    const sortMode = this.sortMode;
+    // Canonical closeness order — the summary digest reads rows[0] as the
+    // closest, so it must see this order regardless of the display sort.
+    const canonical = relationshipRows(player, time);
+    if (canonical.length === 0) return;
+
+    // Glance-level summary caption under the title — the digest cousin of
+    // the quest-log %-complete + almanac count-summary headers. Present
+    // only when there are rows (always, here), so the band offsets the
+    // first row by a fixed summaryH the same way the other panels do.
+    const summaryLine = relationshipSummaryLine(relationshipSummary(canonical));
+    const summaryH = summaryLine ? 14 : 0;
+
+    // Display order — a re-sorted COPY so the player can flip to a gift-
+    // planning (soonest-birthday-first) view without disturbing the summary.
+    const rows = sortRelationshipRows(canonical, sortMode);
+
+    const w = 264;
+    const rowH = 34;
+    const h = 32 + summaryH + rows.length * rowH + 6;
+    const x = canvasW - w - 12;
+    const y = 40;
+
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout; reduce-motion snaps it solid —
+    // the same hook every other class panel uses, scoped by save/restore.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, getSettings(player).reduceMotion);
+    ctx.fillStyle = PANEL_BG;
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = PANEL_BORDER;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+    ctx.fillStyle = ACCENT;
+    ctx.font = 'bold 12px ui-monospace, monospace';
     ctx.textAlign = 'left';
-    ctx.fillText(row.name, x + 8, ry);
+    ctx.textBaseline = 'top';
+    ctx.fillText('relationships  (H)', x + 8, y + 6);
 
-    const chip = statusChipLabel(row.status);
-    if (chip) {
-      const nameW = ctx.measureText(row.name).width;
-      const chipX = x + 8 + nameW + 6;
-      ctx.font = 'bold 8px ui-monospace, monospace';
-      const chipColor = row.status === 'married' ? STATUS_WED : STATUS_RING;
-      const cw = ctx.measureText(chip).width + 6;
-      ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
-      ctx.fillRect(chipX, ry - 1, cw, 11);
-      ctx.strokeStyle = chipColor;
-      ctx.lineWidth = 1;
-      ctx.strokeRect(chipX + 0.5, ry - 0.5, cw - 1, 10);
-      ctx.fillStyle = chipColor;
-      ctx.fillText(chip, chipX + 3, ry + 1);
-    }
-
-    // Heart strip right-aligned: 10 small hearts, ~8px apart.
-    const stripX = x + w - 8 - row.max * 8;
-    for (let hi = 0; hi < row.max; hi++) {
-      drawHeart(ctx, stripX + hi * 8, ry + 1, hi < row.hearts);
-    }
-
-    // Line 2: birthday countdown (left, warmer when soon) + loves hint.
-    const sy = ry + 16;
-    ctx.font = '10px ui-monospace, monospace';
-    ctx.textAlign = 'left';
-    // A warm 4px pip leads the line when the birthday sits inside the 8x
-    // gift window, mirroring the gift-ready row dot so both per-row planning
-    // cues read together: the pip says "plan a gift", the dot says "gift's
-    // ready now". Quiet outside the window; the text indents to clear it.
-    const soon = birthdaySoon(row.daysUntilBirthday);
-    let bdayX = x + 8;
-    if (soon) {
-      ctx.fillStyle = BDAY_SOON;
-      ctx.fillRect(x + 8, sy + 2, 4, 4);
-      bdayX = x + 8 + 7;
-    }
-    ctx.fillStyle = row.daysUntilBirthday <= 1 ? BDAY_SOON : BDAY_COLOR;
-    ctx.fillText(row.birthdayLine, bdayX, sy);
-    const line2X = bdayX + ctx.measureText(row.birthdayLine).width + 6;
-    // Gift-ready chip — right-aligned on line 2 so the player can see who
-    // a `G` press would land on, tinted by how loved the best bag item is.
-    const giftChip = giftChipLabel(row);
-    if (giftChip) {
-      ctx.font = 'bold 8px ui-monospace, monospace';
-      const gc = giftChipColor(row.giftTaste);
-      const gw = ctx.measureText(giftChip).width + 6;
-      const gx = x + w - 8 - gw;
-      ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
-      ctx.fillRect(gx, sy - 1, gw, 11);
-      ctx.fillStyle = gc;
-      ctx.fillRect(gx, sy - 1, 2, 11); // left rail accent
-      ctx.fillText(giftChip, gx + 4, sy + 1);
-      // Tiny taste-tinted pip just LEFT of the chip so a gift-ready row
-      // carries the same dot the header tally counts — the per-row state
-      // matches the "N gift-ready" digest at a glance. Dropped if it would
-      // crowd the panel edge.
-      if (gx - 7 > x + 8) {
-        ctx.fillRect(gx - 7, sy + 2, 4, 4);
-      }
-    }
-    if (row.lovedHint) {
-      // Clip the loves hint short of the gift chip so they never overlap.
-      const hintMaxX = giftChip ? x + w - 8 - 64 : x + w - 8;
-      // Draw the actual loved-item glyph in place of the bullet when one
-      // of this candidate's adored gifts has a drawable catalog sprite,
-      // so the player recognises the gift at a glance instead of reading
-      // the name. Falls back to the "·" bullet for off-catalog loves.
-      const glyph = row.lovedGlyphKey ? giftKeyGlyph(row.lovedGlyphKey) : null;
-      ctx.font = '10px ui-monospace, monospace';
-      ctx.fillStyle = LOVE_HINT;
+    // Sort-mode chip — right of the title, surfaced only when the player has
+    // flipped off the default closeness order so the `f` toggle is legible
+    // without shouting on the common view.
+    if (sortMode !== 'closeness') {
+      ctx.fillStyle = SORT_CHIP;
+      ctx.font = '8px ui-monospace, monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(relationshipSortLabel(sortMode), x + w - 8, y + 8);
       ctx.textAlign = 'left';
-      if (glyph) {
-        drawBagGlyph(ctx, line2X + 5, sy + 4, glyph);
-        ctx.fillText(
-          row.lovedHint,
-          line2X + 13,
-          sy,
-          Math.max(0, hintMaxX - (line2X + 13)),
-        );
-      } else {
-        ctx.fillText(`· ${row.lovedHint}`, line2X, sy, Math.max(0, hintMaxX - line2X));
+    }
+
+    // Summary caption — dim digest line, drawn in the band under the title.
+    if (summaryLine) {
+      ctx.fillStyle = HINT;
+      ctx.font = '9px ui-monospace, monospace';
+      ctx.fillText(summaryLine, x + 8, y + 20);
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const ry = y + 26 + summaryH + i * rowH;
+
+      // Line 1: name (+ status chip) on the left, heart strip on the right.
+      ctx.font = '11px ui-monospace, monospace';
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.textAlign = 'left';
+      ctx.fillText(row.name, x + 8, ry);
+
+      const chip = statusChipLabel(row.status);
+      if (chip) {
+        const nameW = ctx.measureText(row.name).width;
+        const chipX = x + 8 + nameW + 6;
+        ctx.font = 'bold 8px ui-monospace, monospace';
+        const chipColor = row.status === 'married' ? STATUS_WED : STATUS_RING;
+        const cw = ctx.measureText(chip).width + 6;
+        ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
+        ctx.fillRect(chipX, ry - 1, cw, 11);
+        ctx.strokeStyle = chipColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(chipX + 0.5, ry - 0.5, cw - 1, 10);
+        ctx.fillStyle = chipColor;
+        ctx.fillText(chip, chipX + 3, ry + 1);
+      }
+
+      // Heart strip right-aligned: 10 small hearts, ~8px apart.
+      const stripX = x + w - 8 - row.max * 8;
+      for (let hi = 0; hi < row.max; hi++) {
+        drawHeart(ctx, stripX + hi * 8, ry + 1, hi < row.hearts);
+      }
+
+      // Line 2: birthday countdown (left, warmer when soon) + loves hint.
+      const sy = ry + 16;
+      ctx.font = '10px ui-monospace, monospace';
+      ctx.textAlign = 'left';
+      // A warm 4px pip leads the line when the birthday sits inside the 8x
+      // gift window, mirroring the gift-ready row dot so both per-row planning
+      // cues read together: the pip says "plan a gift", the dot says "gift's
+      // ready now". Quiet outside the window; the text indents to clear it.
+      const soon = birthdaySoon(row.daysUntilBirthday);
+      let bdayX = x + 8;
+      if (soon) {
+        ctx.fillStyle = BDAY_SOON;
+        ctx.fillRect(x + 8, sy + 2, 4, 4);
+        bdayX = x + 8 + 7;
+      }
+      ctx.fillStyle = row.daysUntilBirthday <= 1 ? BDAY_SOON : BDAY_COLOR;
+      ctx.fillText(row.birthdayLine, bdayX, sy);
+      const line2X = bdayX + ctx.measureText(row.birthdayLine).width + 6;
+      // Gift-ready chip — right-aligned on line 2 so the player can see who
+      // a `G` press would land on, tinted by how loved the best bag item is.
+      const giftChip = giftChipLabel(row);
+      if (giftChip) {
+        ctx.font = 'bold 8px ui-monospace, monospace';
+        const gc = giftChipColor(row.giftTaste);
+        const gw = ctx.measureText(giftChip).width + 6;
+        const gx = x + w - 8 - gw;
+        ctx.fillStyle = 'rgba(40, 30, 60, 0.9)';
+        ctx.fillRect(gx, sy - 1, gw, 11);
+        ctx.fillStyle = gc;
+        ctx.fillRect(gx, sy - 1, 2, 11); // left rail accent
+        ctx.fillText(giftChip, gx + 4, sy + 1);
+        // Tiny taste-tinted pip just LEFT of the chip so a gift-ready row
+        // carries the same dot the header tally counts — the per-row state
+        // matches the "N gift-ready" digest at a glance. Dropped if it would
+        // crowd the panel edge.
+        if (gx - 7 > x + 8) {
+          ctx.fillRect(gx - 7, sy + 2, 4, 4);
+        }
+      }
+      if (row.lovedHint) {
+        // Clip the loves hint short of the gift chip so they never overlap.
+        const hintMaxX = giftChip ? x + w - 8 - 64 : x + w - 8;
+        // Draw the actual loved-item glyph in place of the bullet when one
+        // of this candidate's adored gifts has a drawable catalog sprite,
+        // so the player recognises the gift at a glance instead of reading
+        // the name. Falls back to the "·" bullet for off-catalog loves.
+        const glyph = row.lovedGlyphKey ? giftKeyGlyph(row.lovedGlyphKey) : null;
+        ctx.font = '10px ui-monospace, monospace';
+        ctx.fillStyle = LOVE_HINT;
+        ctx.textAlign = 'left';
+        if (glyph) {
+          drawBagGlyph(ctx, line2X + 5, sy + 4, glyph);
+          ctx.fillText(
+            row.lovedHint,
+            line2X + 13,
+            sy,
+            Math.max(0, hintMaxX - (line2X + 13)),
+          );
+        } else {
+          ctx.fillText(`· ${row.lovedHint}`, line2X, sy, Math.max(0, hintMaxX - line2X));
+        }
       }
     }
-  }
 
-  ctx.fillStyle = HINT;
-  ctx.font = '10px ui-monospace, monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText('H to close - f sort', x + w / 2, y + h - 13);
-  ctx.restore();
+    ctx.fillStyle = HINT;
+    ctx.font = '10px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('H to close - f sort', x + w / 2, y + h - 13);
+    ctx.restore();
+  }
 }
