@@ -21,6 +21,7 @@ import {
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
+  almanacLookAheadGlyphKind,
   type AlmanacEntry,
   type AlmanacFilter,
   type AlmanacKind,
@@ -175,8 +176,23 @@ export class AlmanacPanel {
       // the player narrows to e.g. birthdays and none land this fortnight
       // (the unfiltered fortnight is essentially never empty — Pip's cart
       // alone visits every 7 days).
-      const ahead = almanacLookAheadLine(almanacLookAhead(time, this.filter, player));
+      const lookAhead = almanacLookAhead(time, this.filter, player);
+      const ahead = almanacLookAheadLine(lookAhead);
       if (ahead) {
+        // Echo the look-ahead event's kind glyph large + very faint behind
+        // the line, mirroring the TODAY band watermark: a calm empty agenda
+        // still carries the cake/tent/cart/rosette/heart symbol of what's
+        // next, so the player reads its category at a glance. Drawn BEFORE
+        // the text so the line sits on top.
+        const echoKind = almanacLookAheadGlyphKind(lookAhead);
+        if (echoKind) {
+          ctx.save();
+          ctx.globalAlpha *= 0.1;
+          ctx.translate(x + PANEL_W / 2 - 16, bodyY + 16);
+          ctx.scale(6.4, 6.4);
+          this.drawKindGlyph(ctx, echoKind, KIND_STYLE[echoKind].color, 0, 0);
+          ctx.restore();
+        }
         ctx.fillStyle = TODAY;
         ctx.font = 'bold 10px ui-monospace, monospace';
         ctx.fillText(ahead, x + PANEL_W / 2, bodyY + 24);

@@ -507,5 +507,19 @@ export function almanacTodayGlyphKind(
   return null;
 }
 
+/**
+ * The kind of a look-ahead entry, so an EMPTY agenda can echo that event's
+ * glyph faint behind the \"next: X in N days\" line the same way a busy TODAY
+ * band watermarks its soonest event. null when there's no look-ahead at all
+ * (nothing of the filtered kind anywhere in the cycle), so the empty panel
+ * draws no watermark. A trivial pass-through, but kept as a named seam so the
+ * panel + tests share the \"which glyph to echo\" decision. Pure.
+ */
+export function almanacLookAheadGlyphKind(
+  entry: AlmanacEntry | null,
+): AlmanacKind | null {
+  return entry ? entry.kind : null;
+}
+
 // Re-export for the panel + tests that want to project an arbitrary offset.
 export { dateInDays };
