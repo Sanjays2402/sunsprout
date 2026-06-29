@@ -237,14 +237,26 @@ export class AlmanacPanel {
         this.drawSectionHeader(ctx, section.header, x, cy);
         // "N today" weight chip on a busy day — right-aligned on the TODAY
         // divider when 2+ events stack, so the player reads the day's load
-        // without counting rows. Quiet for a single event.
+        // without counting rows. Quiet for a single event. Like the THIS
+        // WEEK / LATER chips, it leads with the bucket's busiest-kind glyph
+        // (cake / tent / cart / rosette / heart) so all three divider chips
+        // speak the same icon language — but in the warm TODAY green, not the
+        // dim ink, since "right now" stays the urgent one.
         if (section.key === 'today') {
           const chip = almanacTodayChip(almanacTodayCount(section.entries));
           if (chip) {
-            ctx.fillStyle = TODAY;
             ctx.font = 'bold 9px ui-monospace, monospace';
             ctx.textAlign = 'right';
+            const chipW = ctx.measureText(chip).width;
+            ctx.fillStyle = TODAY;
             ctx.fillText(chip, x + PANEL_W - 16, cy + 5);
+            const busiest = almanacSectionBusiestKind(section.entries);
+            if (busiest) {
+              // 5px glyph + a 4px gap left of the chip text's left edge, in
+              // the TODAY green so the chip reads as one urgent cluster.
+              const glyphX = x + PANEL_W - 16 - chipW - 4 - 5;
+              this.drawKindGlyph(ctx, busiest, TODAY, glyphX, cy + 6);
+            }
             ctx.textAlign = 'left';
           }
         } else {
