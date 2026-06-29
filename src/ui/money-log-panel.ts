@@ -438,14 +438,21 @@ export class MoneyLogPanel {
     ctx.fillText(label, x + 12, ry + 3);
     const labelW = ctx.measureText(label).width;
     // Signed net subtotal, right-aligned and tinted like a delta but dim so
-    // it reads as a summary, not a row.
+    // it reads as a summary, not a row. A 5x5 direction arrow leads it
+    // (reusing purseArrowGlyph) so a day's gain/loss reads as a shape before
+    // the figure, matching the trend arrow up top.
     const netTag = `${net >= 0 ? '+' : ''}${net}g`;
+    const netDir: PurseDirection = net > 0 ? 'up' : net < 0 ? 'down' : 'flat';
+    const netColor = net > 0 ? 'rgba(163, 215, 122, 0.6)' : net < 0 ? 'rgba(224, 122, 138, 0.6)' : DIM;
     ctx.textAlign = 'right';
-    ctx.fillStyle = net >= 0 ? 'rgba(163, 215, 122, 0.6)' : 'rgba(224, 122, 138, 0.6)';
+    ctx.fillStyle = netColor;
     ctx.fillText(netTag, x + PANEL_W - 12, ry + 3);
     const netW = ctx.measureText(netTag).width;
-    // A thin rule between the label and the net tag.
+    // Arrow just left of the net tag, in the net's tint.
+    const arrowX = x + PANEL_W - 12 - netW - 4 - 5;
+    this.drawArrow(ctx, netDir, arrowX, ry + 3, netColor);
+    // A thin rule between the label and the arrow + net tag.
     ctx.fillStyle = 'rgba(74, 59, 110, 0.5)';
-    ctx.fillRect(x + 12 + labelW + 8, ry + 7, PANEL_W - 24 - labelW - netW - 16, 1);
+    ctx.fillRect(x + 12 + labelW + 8, ry + 7, PANEL_W - 24 - labelW - netW - 16 - 9, 1);
   }
 }
