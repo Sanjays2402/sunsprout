@@ -3016,7 +3016,7 @@ export class Game {
       );
     }
     drawHUD(this.ctx, this.world.player, this.time, this.canvas.width, this.canvas.height, settings.hudScale, typeof performance !== 'undefined' ? performance.now() : Date.now(), settings.reduceMotion);
-    drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale);
+    drawStaminaBar(this.ctx, this.world.player, this.canvas.width, settings.hudScale, renderNow, settings.reduceMotion);
     drawWeatherStrip(this.ctx, this.time, this.canvas.width, this.world.player, settings.hudScale);
     drawSkyDial(this.ctx, this.time, this.canvas.width, settings.hudScale);
     drawAlmanacChip(this.ctx, this.time, this.canvas.width, settings.hudScale, this.world.player);

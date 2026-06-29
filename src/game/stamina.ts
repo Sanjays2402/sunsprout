@@ -150,3 +150,89 @@ export function hasStamina(player: Player, cost: number): boolean {
 export function staminaLabel(state: StaminaState): string {
   return `${state.current}/${state.max}`;
 }
+
+// ---------------------------------------------------------------------------
+// Low-energy warning — a graduated cue on the HUD stamina bar so the player
+// notices they're running out BEFORE an action silently fails for lack of
+// energy. Mirrors the hotbar's seed-stock warning (a reduce-motion-gated
+// sine breathe), but the thresholds are tied to the actual ACTION COSTS
+// rather than a fraction of max, so a bath-house max buff (which lifts the
+// cap to 130) doesn't move the "you can't afford to work" line.
+// ---------------------------------------------------------------------------
+
+/** Severity of the stamina pool's low-energy warning. */
+export type StaminaWarnLevel = 'none' | 'low' | 'crit';
+
+/**
+ * Below this the player can no longer afford the most expensive action
+ * (a mine swing, the priciest STAMINA_COST), so the next physical action
+ * will just fail — the urgent "crit" band. Kept in lock-step with the
+ * costliest cost so the warning fires exactly when work starts bouncing.
+ */
+export const STAMINA_CRIT_THRESHOLD = STAMINA_COST.mine;
+
+/** Below this only a handful of actions remain — the calmer "low" heads-up. */
+export const STAMINA_LOW_THRESHOLD = 20;
+
+/**
+ * Classify the pool's warning level off the CURRENT value:
+ *   current < STAMINA_CRIT_THRESHOLD -> 'crit'  (can't afford a mine swing)
+ *   current < STAMINA_LOW_THRESHOLD  -> 'low'   (a few actions left)
+ *   else                              -> 'none'
+ * Pure.
+ */
+export function staminaWarnLevel(state: StaminaState): StaminaWarnLevel {
+  if (state.current < STAMINA_CRIT_THRESHOLD) return 'crit';
+  if (state.current < STAMINA_LOW_THRESHOLD) return 'low';
+  return 'none';
+}
+
+/** Breathe period for the warning border; crit pulses faster than low. */
+export const STAMINA_PULSE_PERIOD_MS = 1000;
+
+/**
+ * Pulse strength in [0,1] for the warning border at time `nowMs`, or 0 when
+ * there's no warning. A sine breathe so the border swells rather than blinks;
+ * 'crit' pulses faster and floors brighter than 'low' so an empty pool reads
+ * as more urgent. Deterministic in nowMs so a test can pin a phase. Pure.
+ */
+export function staminaWarnPulse(level: StaminaWarnLevel, nowMs: number): number {
+  if (level === 'none') return 0;
+  const period = level === 'crit' ? STAMINA_PULSE_PERIOD_MS * 0.6 : STAMINA_PULSE_PERIOD_MS;
+  const phase = ((nowMs % period) / period) * Math.PI * 2;
+  const breathe = 0.5 + 0.5 * Math.sin(phase); // 0..1
+  const floor = level === 'crit' ? 0.5 : 0.25;
+  return floor + (1 - floor) * breathe;
+}
+
+/** Steady (non-animated) intensities for reduce-motion; crit brighter. */
+export const STAMINA_STEADY_LOW = 0.7;
+export const STAMINA_STEADY_CRIT = 0.95;
+
+export function staminaWarnSteady(level: StaminaWarnLevel): number {
+  if (level === 'crit') return STAMINA_STEADY_CRIT;
+  if (level === 'low') return STAMINA_STEADY_LOW;
+  return 0;
+}
+
+/**
+ * The border intensity to actually draw, picking the steady value under
+ * reduceMotion and the animated breathe otherwise. The single entry point
+ * the bar widget calls so the motion decision lives here, tested, not in
+ * the canvas layer. Mirrors hotbar.seedWarnIntensity.
+ */
+export function staminaWarnIntensity(
+  level: StaminaWarnLevel,
+  nowMs: number,
+  reduceMotion: boolean,
+): number {
+  return reduceMotion ? staminaWarnSteady(level) : staminaWarnPulse(level, nowMs);
+}
+
+/** Border colour per warning level — amber heads-up, red urgent. */
+export const STAMINA_WARN_LOW_COLOR = '#F0C24A';
+export const STAMINA_WARN_CRIT_COLOR = '#E07B7B';
+
+export function staminaWarnColor(level: StaminaWarnLevel): string {
+  return level === 'crit' ? STAMINA_WARN_CRIT_COLOR : STAMINA_WARN_LOW_COLOR;
+}
