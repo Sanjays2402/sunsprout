@@ -17,6 +17,15 @@
 /** The lockout every panel arms in open(); also the fade duration. */
 export const OPEN_LOCKOUT_MS = 160;
 
+/**
+ * The slightly longer lockout the modal MENUS (shop / cart / cooking /
+ * chest / bench / owl) arm in open(). They swallow a touch more of the
+ * opening window than the info panels because a buy/craft confirm is a
+ * heavier action than a glance. Used as the fade duration so the modal
+ * eases in across exactly its own lockout.
+ */
+export const MODAL_OPEN_LOCKOUT_MS = 180;
+
 /** Floor alpha at the very first opening frame, so the panel never starts
  * fully invisible (it reads as a quick fade-up from a faint ghost, not a
  * pop from nothing). */

@@ -15,6 +15,8 @@ import {
   type BenchRecipe,
 } from '../game/bench';
 import { GEMS, gemInventoryKey } from '../game/gems';
+import { panelOpenAlpha, MODAL_OPEN_LOCKOUT_MS } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_W = 560;
 const PANEL_H = 360;
@@ -39,7 +41,7 @@ export class BenchMenu {
   open(): void {
     this.opened = true;
     this.index = 0;
-    this.lockoutMs = 180;
+    this.lockoutMs = MODAL_OPEN_LOCKOUT_MS;
     this.flash = '';
     this.flashFade = 0;
   }
@@ -102,6 +104,14 @@ export class BenchMenu {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout, the same hook the info-panel
+    // family + hearts use; reduce-motion snaps it solid. Scoped by the
+    // save/restore so the scrim + panel ease in together.
+    ctx.globalAlpha = panelOpenAlpha(
+      this.lockoutMs,
+      getSettings(player).reduceMotion,
+      MODAL_OPEN_LOCKOUT_MS,
+    );
     ctx.fillStyle = 'rgba(10, 6, 18, 0.45)';
     ctx.fillRect(0, 0, canvasW, canvasH);
 

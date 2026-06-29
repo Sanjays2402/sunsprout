@@ -21,6 +21,8 @@ import {
 } from '../game/shop';
 import type { TimeOfDay } from '../game/time';
 import { marketBannerLine } from '../game/weekday-market';
+import { panelOpenAlpha, MODAL_OPEN_LOCKOUT_MS } from '../game/panel-transition';
+import { getSettings } from '../game/settings';
 
 const PANEL_W = 620;
 const PANEL_H = 420;
@@ -55,7 +57,7 @@ export class ShopMenu {
     this.rows = buildShopRows(player, this.time ?? undefined);
     this.category = this.firstNonEmptyCategory() ?? 'seeds';
     this.index = this.firstRowIndex(this.category);
-    this.lockoutMs = 180;
+    this.lockoutMs = MODAL_OPEN_LOCKOUT_MS;
     this.flash = '';
     this.flashFade = 0;
   }
@@ -198,6 +200,15 @@ export class ShopMenu {
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout, the same hook the info-panel
+    // family + hearts use; reduce-motion snaps it solid. Scoped by the
+    // save/restore so the scrim + panel both ease in together and nothing
+    // leaks past this draw.
+    ctx.globalAlpha = panelOpenAlpha(
+      this.lockoutMs,
+      getSettings(player).reduceMotion,
+      MODAL_OPEN_LOCKOUT_MS,
+    );
     ctx.fillStyle = 'rgba(10, 6, 18, 0.45)';
     ctx.fillRect(0, 0, canvasW, canvasH);
 

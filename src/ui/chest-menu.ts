@@ -17,6 +17,7 @@ import {
   listChestItems,
   withdrawItem,
 } from '../game/chest';
+import { panelOpenAlpha, MODAL_OPEN_LOCKOUT_MS } from '../game/panel-transition';
 
 const PANEL_W = 460;
 const PANEL_H = 320;
@@ -58,7 +59,7 @@ export class ChestMenu {
     this.opened = true;
     this.chest = chest;
     this.index = 0;
-    this.lockoutMs = 180;
+    this.lockoutMs = MODAL_OPEN_LOCKOUT_MS;
   }
 
   close(): void {
@@ -140,12 +141,21 @@ export class ChestMenu {
   }
 
   /** Renders the panel + the chest's contents on top of the world. */
-  draw(ctx: CanvasRenderingContext2D, canvasW: number, canvasH: number): void {
+  draw(
+    ctx: CanvasRenderingContext2D,
+    canvasW: number,
+    canvasH: number,
+    reduceMotion: boolean = false,
+  ): void {
     if (!this.opened || !this.chest) return;
     const x = Math.floor((canvasW - PANEL_W) / 2);
     const y = Math.floor((canvasH - PANEL_H) / 2);
     ctx.save();
     ctx.imageSmoothingEnabled = false;
+    // Open fade-in eased off the lockout, the same hook the rest of the
+    // modal family + info panels use; reduce-motion snaps it solid. The
+    // chest menu draws no world scrim, so the panel itself eases in.
+    ctx.globalAlpha = panelOpenAlpha(this.lockoutMs, reduceMotion, MODAL_OPEN_LOCKOUT_MS);
     ctx.fillStyle = BG;
     ctx.fillRect(x, y, PANEL_W, PANEL_H);
     ctx.strokeStyle = BORDER;
