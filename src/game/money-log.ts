@@ -171,6 +171,27 @@ export function purseSavingsSplit(
 }
 
 /**
+ * Below this kept-share the window counts as an overspend the panel should
+ * flag in colour: the player kept under a fifth of what came in, so the
+ * thrift gauge's kept-half flips from sale-green to loss-red rather than just
+ * reading as a thin sliver. A fixed threshold (not a gradient) so the cue is
+ * an unambiguous on/off the way the seed-warning + reset-danger glyphs are.
+ */
+export const SAVINGS_LOW_KEPT = 0.2;
+
+/**
+ * Whether a savings split is a low-kept (overspend) window — true when the
+ * kept share is at or under SAVINGS_LOW_KEPT, so the panel tints the gauge's
+ * kept-half red to warn the player they barely banked any of the window's
+ * income. null splits (no income) are never low (there's nothing to have
+ * kept or spent). Pure: a threshold read over the same split the gauge draws.
+ */
+export function purseSavingsLow(split: PurseSavingsSplit | null): boolean {
+  if (!split) return false;
+  return split.kept <= SAVINGS_LOW_KEPT;
+}
+
+/**
  * A run of consecutive same-day ledger rows, for the panel's day dividers.
  * `net` is the signed sum of the run's deltas so the divider can carry a
  * tiny per-day subtotal ("Day 4   +85g").
