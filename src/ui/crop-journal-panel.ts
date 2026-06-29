@@ -247,9 +247,15 @@ export class CropJournalPanel {
         runX += ctx.measureText(s).width + 8;
       }
       if (e.bestStreak > 0) {
-        ctx.fillStyle = GREEN;
         const s = `streak ${e.bestStreak}`;
+        ctx.font = '10px ui-monospace, monospace';
         ctx.textAlign = 'right';
+        const sw = ctx.measureText(s).width;
+        // Small green pip just left of the text, mirroring the field-status
+        // pips up top so the journal's accent palette reads across both
+        // digests (live field + lifetime streak).
+        ctx.fillStyle = GREEN;
+        ctx.fillRect(x + PANEL_W - 12 - sw - 8, ry + 30, 4, 4);
         ctx.fillText(s, x + PANEL_W - 12, ry + 28);
       }
       // Ribbon — heaviest single-day harvest. Sits one line below the
