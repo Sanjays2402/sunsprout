@@ -471,6 +471,13 @@ export function drawHeartsPanel(
       ctx.fillStyle = gc;
       ctx.fillRect(gx, sy - 1, 2, 11); // left rail accent
       ctx.fillText(giftChip, gx + 4, sy + 1);
+      // Tiny taste-tinted pip just LEFT of the chip so a gift-ready row
+      // carries the same dot the header tally counts — the per-row state
+      // matches the "N gift-ready" digest at a glance. Dropped if it would
+      // crowd the panel edge.
+      if (gx - 7 > x + 8) {
+        ctx.fillRect(gx - 7, sy + 2, 4, 4);
+      }
     }
     if (row.lovedHint) {
       // Clip the loves hint short of the gift chip so they never overlap.
