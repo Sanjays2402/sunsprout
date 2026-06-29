@@ -508,6 +508,29 @@ export function almanacTodayGlyphKind(
 }
 
 /**
+ * How many events land TODAY (daysUntil <= 0) across the built-and-filtered
+ * agenda — the count behind the TODAY section. Lets the panel surface a tiny
+ * "N today" weight chip on a busy day so the player reads the day's load
+ * without counting rows. Pure: scans the same list almanacSections buckets.
+ */
+export function almanacTodayCount(entries: readonly AlmanacEntry[]): number {
+  let n = 0;
+  for (const e of entries) {
+    if (e.daysUntil <= 0) n += 1;
+  }
+  return n;
+}
+
+/**
+ * "N today" chip text when 2+ events stack on the current day, '' otherwise
+ * (a single TODAY row already reads its weight plainly, so the chip stays
+ * quiet below 2). Pure formatter over the count.
+ */
+export function almanacTodayChip(count: number): string {
+  return count >= 2 ? `${count} today` : '';
+}
+
+/**
  * The kind of a look-ahead entry, so an EMPTY agenda can echo that event's
  * glyph faint behind the \"next: X in N days\" line the same way a busy TODAY
  * band watermarks its soonest event. null when there's no look-ahead at all

@@ -18,6 +18,8 @@ import {
   almanacFilterKinds,
   almanacKindGlyph,
   almanacTodayGlyphKind,
+  almanacTodayCount,
+  almanacTodayChip,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -231,6 +233,19 @@ export class AlmanacPanel {
           }
         }
         this.drawSectionHeader(ctx, section.header, x, cy);
+        // "N today" weight chip on a busy day — right-aligned on the TODAY
+        // divider when 2+ events stack, so the player reads the day's load
+        // without counting rows. Quiet for a single event.
+        if (section.key === 'today') {
+          const chip = almanacTodayChip(almanacTodayCount(section.entries));
+          if (chip) {
+            ctx.fillStyle = TODAY;
+            ctx.font = 'bold 9px ui-monospace, monospace';
+            ctx.textAlign = 'right';
+            ctx.fillText(chip, x + PANEL_W - 16, cy + 5);
+            ctx.textAlign = 'left';
+          }
+        }
         cy += SECTION_H;
         for (let i = 0; i < section.entries.length; i++) {
           this.drawRow(ctx, section.entries[i], x, cy, i > 0);
