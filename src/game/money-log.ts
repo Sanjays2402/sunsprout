@@ -471,3 +471,39 @@ export function purseExtremesCaption(extremes: PurseSparklineExtremes | null): s
   if (extremes.peak.value === extremes.low.value) return `flat ${extremes.peak.value}g`;
   return `peak ${extremes.peak.value}g / low ${extremes.low.value}g`;
 }
+
+/** A pixel cell of a 5x5 purse-direction arrow glyph. */
+export type PurseArrowCell = readonly [number, number];
+
+/**
+ * A tiny 5x5 arrow per purse direction so the trend reads up/down/flat from a
+ * SHAPE, not the \"->\" text: an up-chevron when the window gained, a down-
+ * chevron when it lost, a flat bar when it broke even. Drawn left of the
+ * \"320g -> 412g\" endpoints in the direction's tint (green/red/dim) so a
+ * colour-blind player still parses the move. Pure: a static bitmap the panel
+ * paints one device pixel per cell, mirroring the almanac/journal glyph split.
+ */
+export function purseArrowGlyph(direction: PurseDirection): readonly PurseArrowCell[] {
+  if (direction === 'up') {
+    return [
+      [2, 0],
+      [1, 1], [2, 1], [3, 1],
+      [0, 2], [2, 2], [4, 2],
+      [2, 3],
+      [2, 4],
+    ];
+  }
+  if (direction === 'down') {
+    return [
+      [2, 0],
+      [2, 1],
+      [0, 2], [2, 2], [4, 2],
+      [1, 3], [2, 3], [3, 3],
+      [2, 4],
+    ];
+  }
+  // Flat — a centred bar.
+  return [
+    [0, 2], [1, 2], [2, 2], [3, 2], [4, 2],
+  ];
+}

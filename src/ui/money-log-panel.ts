@@ -5,7 +5,7 @@
 // the right-hand stack.
 
 import type { Player } from '../world/world';
-import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, purseSavingsCaption, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes } from '../game/money-log';
+import { getMoneyLog, netChange, totalIn, totalOut, classifyMoneyEntry, moneyCategoryTotals, purseSavingsCaption, groupMoneyEntriesByDay, applyMoneyFilter, cycleMoneyFilter, moneyFilterLabel, runningBalanceMap, purseTrend, purseSparkline, purseSparklineExtremes, purseExtremesCaption, purseArrowGlyph, type MoneyCategory, type MoneyFilter, type PurseSparklineExtremes, type PurseDirection } from '../game/money-log';
 import { PANEL_EMPTY_STATES, nextFilterHint } from '../game/panel-empty';
 import { drawEmptyState } from './empty-state';
 import { panelOpenAlpha } from '../game/panel-transition';
@@ -163,8 +163,12 @@ export class MoneyLogPanel {
     const sparkExtremes = purseSparklineExtremes(player);
     const trendText = trend ? `${trend.start}g -> ${trend.end}g` : '';
     ctx.font = '10px ui-monospace, monospace';
+    // A 5x5 direction arrow precedes the endpoints so the move reads as a
+    // shape (up/down/flat) before the text — gap + glyph + gap reserved.
+    const ARROW_W = 5;
+    const arrowReserve = trendText ? ARROW_W + 5 : 0;
     const trendW = trendText
-      ? ctx.measureText(trendText).width + 10 // +gap before the in/out/net text
+      ? ctx.measureText(trendText).width + arrowReserve + 10 // +arrow +gap before in/out/net
       : 0;
     // Sparkline geometry — a small fixed box left of the endpoints, only
     // when there's a trend to show (>=2 rows). Reserved so the in/out/net
@@ -188,11 +192,15 @@ export class MoneyLogPanel {
       ctx.font = 'bold 10px ui-monospace, monospace';
       ctx.textAlign = 'right';
       ctx.fillText(trendText, x + PANEL_W - 12, y + 28);
-      // Sparkline just left of the endpoints text, tinted to match the
-      // trend direction so the cluster reads as one unit.
+      const trendTextW = ctx.measureText(trendText).width;
+      // Direction arrow just left of the endpoints, in the trend tint, so
+      // the move reads up/down/flat from a shape before the figures.
+      const arrowX = x + PANEL_W - 12 - trendTextW - ARROW_W - 4;
+      this.drawArrow(ctx, trend.direction, arrowX, y + 28, trendColor);
+      // Sparkline just left of the arrow, tinted to match the trend
+      // direction so the cluster reads as one unit.
       if (spark) {
-        const trendTextW = ctx.measureText(trendText).width;
-        const sparkRight = x + PANEL_W - 12 - trendTextW - SPARK_GAP;
+        const sparkRight = arrowX - SPARK_GAP;
         this.drawSparkline(ctx, spark, sparkRight - SPARK_W, y + 27, SPARK_W, SPARK_H, trendColor, sparkExtremes);
       }
     }
@@ -340,6 +348,25 @@ export class MoneyLogPanel {
    * the player can see the window's best + worst purse moments, not just its
    * end. The endpoint dot still draws on top so "where it ends" stays clear.
    */
+  /**
+   * Draw a 5x5 direction arrow with its top-left near (ax, ay) in `color` —
+   * an up-chevron on a gain, down on a loss, a flat bar on break-even. One
+   * device pixel per glyph cell, vertically nudged so it sits on the trend
+   * baseline. Reuses the pure purseArrowGlyph bitmap so shape lives in model.
+   */
+  private drawArrow(
+    ctx: CanvasRenderingContext2D,
+    direction: PurseDirection,
+    ax: number,
+    ay: number,
+    color: string,
+  ): void {
+    ctx.fillStyle = color;
+    for (const [cx, cy] of purseArrowGlyph(direction)) {
+      ctx.fillRect(ax + cx, ay + cy, 1, 1);
+    }
+  }
+
   private drawSparkline(
     ctx: CanvasRenderingContext2D,
     points: { x: number; y: number }[],
