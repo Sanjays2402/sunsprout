@@ -10,6 +10,7 @@ import type { TimeOfDay } from '../game/time';
 import { SEASONS } from '../game/time';
 import { CROPS, CROP_KEYS, drawCropSprite } from '../game/crops';
 import { seedWarnLevel, seedWarnIntensity, SEED_WARN_COLOR } from '../game/hotbar';
+import { hotbarLayout } from '../game/hotbar-layout';
 import type { Quest } from '../game/quests';
 
 const PANEL_BG = 'rgba(26, 20, 38, 0.85)';
@@ -88,13 +89,18 @@ function drawHotbar(
   canvasH: number,
   nowMs: number,
   reduceMotion: boolean,
+  hudScale: number = 1.0,
 ): void {
-  const slotSize = 48;
-  const gap = 6;
   const slots = CROP_KEYS.length + 1; // crops + watering can
-  const totalW = slots * slotSize + (slots - 1) * gap;
-  const startX = Math.floor((canvasW - totalW) / 2);
-  const y = canvasH - slotSize - 12;
+  // Scale the whole strip with the HUD so the action bar matches the top
+  // bar / stamina bar instead of holding a fixed 48px slot.
+  const L = hotbarLayout(hudScale, slots, canvasW, canvasH);
+  const slotSize = L.slotSize;
+  const gap = L.gap;
+  const startX = L.startX;
+  const y = L.y;
+  const fontPx = L.fontPx;
+  const badge = Math.round(4 * L.scale);
 
   const selected = (player as Player & { selectedSlot?: number }).selectedSlot ?? 0;
 
@@ -110,14 +116,14 @@ function drawHotbar(
       // Crop seed slot.
       const cropKey = CROP_KEYS[i];
       const crop = CROPS[cropKey];
-      // Draw a small ripe-stage preview centred.
-      drawCropSprite(
-        ctx,
-        x + slotSize / 2,
-        y + slotSize - 8,
-        cropKey,
-        crop.growthStages - 1,
-      );
+      // Draw a small ripe-stage preview centred. The sprite art is drawn at
+      // a fixed pixel size, so grow it with the slot via a scoped transform
+      // anchored at the slot centre (no-op at 1.0x).
+      ctx.save();
+      ctx.translate(x + slotSize / 2, y + slotSize - Math.round(8 * L.scale));
+      ctx.scale(L.spriteScale, L.spriteScale);
+      drawCropSprite(ctx, 0, 0, cropKey, crop.growthStages - 1);
+      ctx.restore();
       // Seed count badge.
       const count = player.inventory[cropKey] ?? 0;
       // Low-stock warning: pulse an amber border when the stack is down
@@ -135,22 +141,27 @@ function drawHotbar(
         ctx.restore();
       }
       ctx.fillStyle = level === 'empty' ? SEED_WARN_COLOR : TEXT_COLOR;
-      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.font = `bold ${fontPx}px ui-monospace, monospace`;
       ctx.textAlign = 'right';
       ctx.textBaseline = 'top';
-      ctx.fillText(String(count), x + slotSize - 4, y + 3);
+      ctx.fillText(String(count), x + slotSize - badge, y + badge - 1);
       // Hotkey indicator.
       ctx.fillStyle = ACCENT;
       ctx.textAlign = 'left';
-      ctx.fillText(String(i + 1), x + 4, y + 3);
+      ctx.fillText(String(i + 1), x + badge, y + badge - 1);
     } else {
-      // Watering can slot.
-      drawWateringCan(ctx, x + slotSize / 2 - 8, y + slotSize / 2 - 8);
+      // Watering can slot — the can sprite is a fixed 16x16, so centre +
+      // scale it the same way as the crop sprites.
+      ctx.save();
+      ctx.translate(x + slotSize / 2, y + slotSize / 2);
+      ctx.scale(L.spriteScale, L.spriteScale);
+      drawWateringCan(ctx, -8, -8);
+      ctx.restore();
       ctx.fillStyle = ACCENT;
-      ctx.font = 'bold 11px ui-monospace, monospace';
+      ctx.font = `bold ${fontPx}px ui-monospace, monospace`;
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText('W', x + 4, y + 3);
+      ctx.fillText('W', x + badge, y + badge - 1);
     }
   }
 }
@@ -229,7 +240,7 @@ export function drawHUD(
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   drawTopBar(ctx, player, time, canvasW, hudScale);
-  drawHotbar(ctx, player, canvasW, canvasH, nowMs, reduceMotion);
+  drawHotbar(ctx, player, canvasW, canvasH, nowMs, reduceMotion, hudScale);
   drawQuestPanel(ctx, player, hudScale);
   ctx.restore();
 }
