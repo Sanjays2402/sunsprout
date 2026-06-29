@@ -114,6 +114,19 @@ export function birthdayCountdownLabel(days: number): string {
   return `birthday in ${days}d`;
 }
 
+/** Days within which a birthday counts as "soon" — the 8x gift window worth
+ * planning a loved gift for. Mirrors the summary header's 14-day threshold. */
+export const BIRTHDAY_SOON_DAYS = 14;
+
+/**
+ * Whether a candidate's birthday is close enough to plan an 8x gift for, so
+ * the panel can mark the row with a warm pip the way a gift-ready row gets
+ * one. True within BIRTHDAY_SOON_DAYS (today included). Pure.
+ */
+export function birthdaySoon(days: number): boolean {
+  return days >= 0 && days <= BIRTHDAY_SOON_DAYS;
+}
+
 /**
  * Pick the first adored-gift key (from the candidate's loved list) that
  * resolves to a real catalog sprite, so the panel can draw a recognisable
@@ -455,9 +468,20 @@ export function drawHeartsPanel(
     const sy = ry + 16;
     ctx.font = '10px ui-monospace, monospace';
     ctx.textAlign = 'left';
+    // A warm 4px pip leads the line when the birthday sits inside the 8x
+    // gift window, mirroring the gift-ready row dot so both per-row planning
+    // cues read together: the pip says "plan a gift", the dot says "gift's
+    // ready now". Quiet outside the window; the text indents to clear it.
+    const soon = birthdaySoon(row.daysUntilBirthday);
+    let bdayX = x + 8;
+    if (soon) {
+      ctx.fillStyle = BDAY_SOON;
+      ctx.fillRect(x + 8, sy + 2, 4, 4);
+      bdayX = x + 8 + 7;
+    }
     ctx.fillStyle = row.daysUntilBirthday <= 1 ? BDAY_SOON : BDAY_COLOR;
-    ctx.fillText(row.birthdayLine, x + 8, sy);
-    const line2X = x + 8 + ctx.measureText(row.birthdayLine).width + 6;
+    ctx.fillText(row.birthdayLine, bdayX, sy);
+    const line2X = bdayX + ctx.measureText(row.birthdayLine).width + 6;
     // Gift-ready chip — right-aligned on line 2 so the player can see who
     // a `G` press would land on, tinted by how loved the best bag item is.
     const giftChip = giftChipLabel(row);
