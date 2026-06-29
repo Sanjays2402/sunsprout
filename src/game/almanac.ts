@@ -548,6 +548,34 @@ export function almanacSectionChip(
 }
 
 /**
+ * The dominant kind in a section's entries, so the panel can lead the
+ * THIS WEEK / LATER weight chip with that kind's glyph — the chip then says
+ * WHAT the bucket is mostly made of (a fortnight of birthdays vs a run of
+ * festivals), not only how many rows. Counts per kind and returns the
+ * busiest; ties break by the stable SUMMARY_KIND_ORDER (personal first) so
+ * the icon is deterministic. null on an empty section (no glyph to lead
+ * with — the chip stays text-only). Pure: tallies the passed entries.
+ */
+export function almanacSectionBusiestKind(
+  entries: readonly AlmanacEntry[],
+): AlmanacKind | null {
+  if (entries.length === 0) return null;
+  const counts = new Map<AlmanacKind, number>();
+  for (const e of entries) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+  let best: AlmanacKind | null = null;
+  let bestCount = 0;
+  // Walk in the stable summary order so a tie resolves to the earlier kind.
+  for (const kind of SUMMARY_KIND_ORDER) {
+    const c = counts.get(kind) ?? 0;
+    if (c > bestCount) {
+      best = kind;
+      bestCount = c;
+    }
+  }
+  return best;
+}
+
+/**
  * The kind of a look-ahead entry, so an EMPTY agenda can echo that event's
  * glyph faint behind the \"next: X in N days\" line the same way a busy TODAY
  * band watermarks its soonest event. null when there's no look-ahead at all

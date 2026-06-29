@@ -21,6 +21,7 @@ import {
   almanacTodayCount,
   almanacTodayChip,
   almanacSectionChip,
+  almanacSectionBusiestKind,
   almanacCountSummary,
   almanacLookAhead,
   almanacLookAheadLine,
@@ -249,13 +250,23 @@ export class AlmanacPanel {
         } else {
           // THIS WEEK / LATER buckets get the same weight chip in dim ink
           // (they're not urgent like TODAY), so every divider reads its load
-          // at a glance. Quiet below 2 rows.
+          // at a glance. Quiet below 2 rows. The chip leads with the bucket's
+          // busiest kind glyph (cake / tent / cart / rosette / heart) in that
+          // kind's rail colour, so the chip says WHAT the bucket is mostly
+          // made of, not only how many — the same glyph language as the rows.
           const chip = almanacSectionChip(section.key, section.entries.length);
           if (chip) {
-            ctx.fillStyle = DIM;
             ctx.font = 'bold 9px ui-monospace, monospace';
             ctx.textAlign = 'right';
+            const chipW = ctx.measureText(chip).width;
+            ctx.fillStyle = DIM;
             ctx.fillText(chip, x + PANEL_W - 16, cy + 5);
+            const busiest = almanacSectionBusiestKind(section.entries);
+            if (busiest) {
+              // 5px glyph + a 4px gap left of the chip text's left edge.
+              const glyphX = x + PANEL_W - 16 - chipW - 4 - 5;
+              this.drawKindGlyph(ctx, busiest, KIND_STYLE[busiest].color, glyphX, cy + 6);
+            }
             ctx.textAlign = 'left';
           }
         }
