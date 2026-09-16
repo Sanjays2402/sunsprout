@@ -236,6 +236,7 @@ import {
 import { CartMenu } from '../ui/cart-menu';
 import { tradeForageForTea, innForageTradeToastLine } from '../game/inn-trade';
 import { BAROMETER_INVENTORY_KEY, barometerBoughtLine, barometerStormWarning } from '../game/barometer';
+import { birthdayReminderLine } from '../game/birthdays';
 import { recordRumorBuy, recordRumorVisit, rumorRebateAmount, isCurrentHeadlinerKey, rumorToastLine, buyRumorStreakDiscount } from '../game/cart-rumor';
 import { ShopMenu } from '../ui/shop-menu';
 import { BenchMenu } from '../ui/bench-menu';
@@ -865,6 +866,9 @@ export class Game {
       // the player has no barometer or no storm is on the 2-day
       // forecast horizon.
       const stormHorizonLine = barometerStormWarning(this.world.player, this.time);
+      // Birthday-eve reminder — one evening's warning before the 8x gift
+      // window, for players who never open the relationships calendar.
+      const birthdayReminder = birthdayReminderLine(this.time);
       const flavorTail =
         rained > 0
           ? ` (rain watered ${rained})`
@@ -894,7 +898,9 @@ export class Game {
                                   ? ` (pond yielded ${pondAdded} fish)`
                                   : stormHorizonLine
                                     ? ` · ${stormHorizonLine}`
-                                    : '';
+                                    : birthdayReminder
+                                      ? ` (${birthdayReminder})`
+                                      : '';
       // Winter takes priority on day 1 of the season — the player needs
       // to know the field froze. Days 2+ of winter just show the standard
       // flavour tail.

@@ -103,3 +103,36 @@ export function birthdayCalendar(time: TimeOfDay): Array<{
     }))
     .sort((a, b) => a.daysUntil - b.daysUntil);
 }
+
+/**
+ * The NPC id whose birthday is TOMORROW, or null. Mirrors
+ * weatherTomorrow's calendar walk (day 7 → day 1 of the next season).
+ * Powers the dawn-toast reminder so a player who never opens the
+ * relationships calendar still gets one evening's warning before the
+ * 8x gift window passes.
+ */
+export function tomorrowCelebrant(time: TimeOfDay): string | null {
+  let nextDay = time.day + 1;
+  let nextSeason: 0 | 1 | 2 | 3 = time.season;
+  if (nextDay > 7) {
+    nextDay = 1;
+    nextSeason = (((time.season + 1) % 4) as 0 | 1 | 2 | 3);
+  }
+  for (const [id, b] of Object.entries(BIRTHDAYS)) {
+    if (b.season === nextSeason && b.day === nextDay) return id;
+  }
+  return null;
+}
+
+/**
+ * Dawn-toast tail for an upcoming birthday, e.g.
+ * "Maple's birthday is tomorrow — a gift is worth 8x!"
+ * Returns null when no birthday is tomorrow, so the toast composer
+ * skips it. Naming uses CANDIDATES, falling back to the id.
+ */
+export function birthdayReminderLine(time: TimeOfDay): string | null {
+  const id = tomorrowCelebrant(time);
+  if (!id) return null;
+  const name = CANDIDATES[id]?.name ?? id;
+  return `${name}'s birthday is tomorrow — a gift is worth ${BIRTHDAY_GIFT_MULTIPLIER}x!`;
+}

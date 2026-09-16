@@ -26,6 +26,7 @@ heads up: the village well doubles as a quick "sell everything I'm carrying" cou
 - **procedurally drawn pixel world** — 40×30 tiles, every visual is `ctx.fillRect` on integer coords. zero external sprites, zero fonts, zero assets-on-disk.
 - **4 crops with real prices** — wheat (3 stages, 2g seed → 8g sell), tomato (4 stages, 8g → 25g), pumpkin (5 stages, 25g → 80g), flower (3 stages, 5g → 15g).
 - **4 villagers with daily schedules + warm dialogue** — Mayor Bramble, Maple the Shopkeep, Finn the Fisher, Rose the Innkeeper. lines rotate per in-game day.
+- **villager birthdays** — each NPC has one birthday a year; gifts on the day count for 8× hearts, and the dawn toast reminds you the evening before so you don't miss it.
 - **day/night cycle** — sky gradient cycles dawn → midday → dusk → night with a tint overlay.
 - **4 seasons of 7 days** — Spring → Summer → Fall → Winter, surfaced in the top status bar.
 - **3 starter quests** — *First Sprout* (+10g), *A Good Harvest* (+50g + 3 tomato seeds), *Good Neighbour* (+100g + sunhat cosmetic).
